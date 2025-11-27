@@ -1,0 +1,986 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8" />
+  <title>HBAR-DOGE Mean Reversion Bot</title>
+
+  <!-- Material-ish font -->
+  <link rel="stylesheet"
+        href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap"/>
+
+  <style>
+    :root {
+      --bg: #121212;
+      --surface: #1e1e1e;
+      --surface-light: #222;
+      --border: #333;
+      --primary: #90caf9;   /* calm blue */
+      --primary-soft: #64b5f6;
+      --accent: #26c6da;    /* teal */
+      --text-main: #e0e0e0;
+      --text-subtle: #b0bec5;
+      --text-muted: #90a4ae;
+      --danger: #ef5350;
+      --success: #66bb6a;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: "Roboto", Arial, sans-serif;
+      margin: 0;
+      padding: 20px;
+      background: var(--bg);
+      color: var(--text-main);
+    }
+
+    /* Top bar */
+
+    .top-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 18px;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    .title-block h1 {
+      margin: 0;
+      font-size: 1.6rem;
+      font-weight: 500;
+      color: var(--primary);
+    }
+
+    .title-sub {
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      margin-top: 4px;
+    }
+
+    .control-buttons {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .btn {
+      border: none;
+      border-radius: 999px;
+      padding: 6px 14px;
+      font-size: 0.85rem;
+      font-weight: 500;
+      cursor: pointer;
+      background: var(--surface-light);
+      color: var(--text-main);
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      transition: background 0.15s, transform 0.05s;
+    }
+
+    .btn-primary {
+      background: var(--primary-soft);
+      color: #0b1720;
+    }
+
+    .btn-primary:hover {
+      background: var(--primary);
+    }
+
+    .btn-ghost {
+      background: transparent;
+      border: 1px solid var(--border);
+    }
+
+    .btn-danger {
+      background: var(--danger);
+      color: #111;
+    }
+
+    .btn.small {
+      padding: 4px 10px;
+      font-size: 0.8rem;
+    }
+
+    .btn:hover {
+      transform: translateY(-1px);
+    }
+
+    /* Cards / layout */
+
+    .card {
+      border-radius: 10px;
+      margin-bottom: 14px;
+      background: var(--surface);
+      box-shadow: 0 2px 6px rgba(0,0,0,0.45);
+      border: 1px solid var(--border);
+    }
+
+    .card-header {
+      padding: 10px 16px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      cursor: pointer;
+      background: var(--surface-light);
+    }
+
+    .card-header h2 {
+      margin: 0;
+      font-size: 1rem;
+      font-weight: 500;
+      color: var(--text-main);
+    }
+
+    .toggle-icon {
+      font-size: 0.9em;
+      color: var(--text-subtle);
+    }
+
+    .card-body {
+      padding: 12px 16px 16px 16px;
+    }
+
+    .row {
+      display: flex;
+      gap: 14px;
+      flex-wrap: wrap;
+    }
+
+    .row > .card {
+      flex: 1 1 330px;
+    }
+
+    /* Status layout */
+
+    .status-section {
+      font-size: 0.9rem;
+    }
+
+    .status-line {
+      margin: 4px 0;
+      color: var(--text-subtle);
+    }
+
+    .status-chip-row {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin: 6px 0 10px;
+    }
+
+    .chip {
+      font-size: 0.75rem;
+      padding: 3px 8px;
+      border-radius: 999px;
+      background: #263238;
+      color: var(--text-subtle);
+    }
+
+    .chip-primary {
+      background: rgba(144,202,249,0.12);
+      color: var(--primary);
+    }
+
+    .chip-muted {
+      background: rgba(120,144,156,0.25);
+    }
+
+    .metric-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 4px 10px;
+      margin-top: 6px;
+    }
+
+    .metric-label {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+    }
+
+    .metric-value {
+      font-size: 0.9rem;
+      font-weight: 500;
+    }
+
+    .metric-group {
+      margin-bottom: 6px;
+    }
+
+    /* Forms / inputs */
+
+    label {
+      display: block;
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      margin-bottom: 2px;
+    }
+
+    .form-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      column-gap: 14px;
+      row-gap: 10px;
+      margin-bottom: 4px;
+    }
+
+    input[type="text"],
+    input[type="number"],
+    select {
+      width: 100%;
+      padding: 4px 6px;
+      font-size: 0.85rem;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      background: #101010;
+      color: var(--text-main);
+    }
+
+    input[type="checkbox"] {
+      transform: scale(0.95);
+    }
+
+    .form-checkbox {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.8rem;
+      color: var(--text-muted);
+    }
+
+    /* Tables */
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 10px;
+      font-size: 0.8rem;
+    }
+
+    th, td {
+      border: 1px solid var(--border);
+      padding: 6px;
+    }
+
+    th {
+      background: #212121;
+      color: var(--text-subtle);
+      font-weight: 400;
+    }
+
+    td {
+      color: var(--text-main);
+    }
+
+    /* Charts */
+
+    canvas {
+      background: #000;
+      border-radius: 6px;
+    }
+
+    #bandInfo {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      margin-top: 6px;
+    }
+
+    .help-text {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      margin-top: 6px;
+    }
+
+    .chart-row {
+      display: flex;
+      gap: 14px;
+      flex-wrap: wrap;
+      margin-top: 10px;
+    }
+
+    .chart-col {
+      flex: 1 1 360px;
+    }
+
+    /* Modal */
+
+    .modal-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.6);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+    }
+
+    .modal {
+      background: var(--surface);
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      box-shadow: 0 8px 24px rgba(0,0,0,0.7);
+      width: min(520px, 92%);
+      max-height: 80vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .modal-header,
+    .modal-footer {
+      padding: 10px 16px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: var(--surface-light);
+    }
+
+    .modal-footer {
+      border-top: 1px solid var(--border);
+      border-bottom: none;
+    }
+
+    .modal-header-title {
+      font-size: 1rem;
+      font-weight: 500;
+    }
+
+    .modal-body {
+      padding: 12px 16px 14px 16px;
+      overflow-y: auto;
+    }
+  </style>
+
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+  <div class="top-bar">
+    <div class="title-block">
+      <h1>HBAR–DOGE Mean Reversion Bot</h1>
+      <div class="title-sub">Binance mean-reversion dashboard – HBAR vs DOGE</div>
+    </div>
+    <div class="control-buttons">
+      <button class="btn btn-primary" onclick="startBot()">Start</button>
+      <button class="btn btn-danger" onclick="stopBot()">Stop</button>
+      <button class="btn btn-ghost" onclick="syncState()">Sync balances</button>
+      <button class="btn btn-ghost" onclick="openNextModal()">Next trade</button>
+    </div>
+  </div>
+
+  <!-- Top row: Status / Config / Manual trade -->
+  <div class="row">
+    <div class="card" data-collapsible>
+      <div class="card-header">
+        <h2>Live Status</h2>
+        <span class="toggle-icon">▼</span>
+      </div>
+      <div class="card-body">
+        <div id="status" class="status-section">Loading...</div>
+      </div>
+    </div>
+
+    <div class="card" data-collapsible>
+      <div class="card-header">
+        <h2>Config</h2>
+        <span class="toggle-icon">▼</span>
+      </div>
+      <div class="card-body">
+        <form id="configForm" onsubmit="saveConfig(); return false;">
+          <div class="form-row">
+            <div>
+              <label for="poll_interval_sec">Poll interval (sec)</label>
+              <input id="poll_interval_sec" type="number" min="5" step="1" />
+            </div>
+            <div>
+              <label for="window_size">Window size</label>
+              <input id="window_size" type="number" min="5" step="1" />
+            </div>
+            <div>
+              <label for="z_entry">z-entry</label>
+              <input id="z_entry" type="number" step="0.1" />
+            </div>
+            <div>
+              <label for="z_exit">z-exit</label>
+              <input id="z_exit" type="number" step="0.1" />
+            </div>
+            <div>
+              <label for="trade_notional_usd">Trade notional (USDT)</label>
+              <input id="trade_notional_usd" type="number" step="1" />
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-checkbox">
+              <input type="checkbox" id="use_all_balance" />
+              <label for="use_all_balance">Use all available HBAR/DOGE</label>
+            </div>
+            <div class="form-checkbox">
+              <input type="checkbox" id="use_ratio_thresholds" />
+              <label for="use_ratio_thresholds">Use fixed ratio thresholds</label>
+            </div>
+            <div>
+              <label for="sell_ratio_threshold">Sell ratio threshold</label>
+              <input id="sell_ratio_threshold" type="number" step="0.0001" />
+            </div>
+            <div>
+              <label for="buy_ratio_threshold">Buy ratio threshold</label>
+              <input id="buy_ratio_threshold" type="number" step="0.0001" />
+            </div>
+            <div class="form-checkbox">
+              <input type="checkbox" id="use_testnet" />
+              <label for="use_testnet">Use Binance testnet</label>
+            </div>
+          </div>
+
+          <button type="submit" class="btn btn-primary">Save config</button>
+        </form>
+      </div>
+    </div>
+
+    <div class="card" data-collapsible>
+      <div class="card-header">
+        <h2>Manual Trade</h2>
+        <span class="toggle-icon">▼</span>
+      </div>
+      <div class="card-body">
+        <form onsubmit="manualTrade(); return false;">
+          <div class="form-row">
+            <div>
+              <label for="manual_direction">Direction</label>
+              <select id="manual_direction">
+                <option value="HBAR->DOGE">HBAR → DOGE</option>
+                <option value="DOGE->HBAR">DOGE → HBAR</option>
+              </select>
+            </div>
+            <div>
+              <label for="manual_notional">Notional (USDT)</label>
+              <input id="manual_notional" type="number" value="20" step="1" />
+            </div>
+          </div>
+          <button type="submit" class="btn btn-primary">Execute manual trade</button>
+        </form>
+        <div class="help-text">
+          Uses market orders on your current environment (testnet / mainnet).  
+          Start with small amounts to test.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Charts -->
+
+  <div class="card" data-collapsible>
+    <div class="card-header">
+      <h2>Charts</h2>
+      <span class="toggle-icon">▼</span>
+    </div>
+    <div class="card-body">
+      <div class="help-text">
+        Left: HBAR / DOGE prices (USDT). Right: ratio with z-bands and optional fixed thresholds.
+      </div>
+      <div class="chart-row">
+        <div class="chart-col">
+          <canvas id="priceChart" height="140"></canvas>
+        </div>
+        <div class="chart-col">
+          <canvas id="ratioChart" height="140"></canvas>
+        </div>
+      </div>
+      <p id="bandInfo"></p>
+    </div>
+  </div>
+
+  <!-- Trades at the end -->
+
+  <div class="card" data-collapsible>
+    <div class="card-header">
+      <h2>Trades (latest 100)</h2>
+      <span class="toggle-icon">▼</span>
+    </div>
+    <div class="card-body">
+      <table id="tradesTable">
+        <thead>
+          <tr>
+            <th>Time</th>
+            <th>Side</th>
+            <th>From</th>
+            <th>To</th>
+            <th>Qty From</th>
+            <th>Qty To</th>
+            <th>Ratio</th>
+            <th>PnL (USDT)</th>
+            <th>Env</th>
+          </tr>
+        </thead>
+        <tbody id="tradesBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Next Possible Trade Modal -->
+
+  <div id="nextModalOverlay" class="modal-overlay">
+    <div class="modal">
+      <div class="modal-header">
+        <div class="modal-header-title">Next possible trade</div>
+        <button class="btn btn-ghost small" onclick="closeNextModal()">✕</button>
+      </div>
+      <div class="modal-body">
+        <div id="nextSignalModalBody" class="status-section">Loading...</div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-primary small" onclick="fetchNextSignal()">Recalculate</button>
+        <button class="btn btn-ghost small" onclick="closeNextModal()">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- SCRIPT -->
+
+  <script>
+    let botConfig = null;
+    let priceChart = null;
+    let ratioChart = null;
+    let lastMeanRatio = null;
+    let lastStdRatio = null;
+
+    function initCollapsibles() {
+      document.querySelectorAll('[data-collapsible]').forEach(card => {
+        const header = card.querySelector('.card-header');
+        const body = card.querySelector('.card-body');
+        const icon = card.querySelector('.toggle-icon');
+
+        header.addEventListener('click', (e) => {
+          // ignore clicks on buttons inside header
+          if (e.target.closest('button')) return;
+          const isHidden = body.style.display === 'none';
+          body.style.display = isHidden ? 'block' : 'none';
+          icon.textContent = isHidden ? '▼' : '▲';
+        });
+      });
+    }
+
+    function openNextModal() {
+      document.getElementById('nextModalOverlay').style.display = 'flex';
+      fetchNextSignal();
+    }
+
+    function closeNextModal() {
+      document.getElementById('nextModalOverlay').style.display = 'none';
+    }
+
+    async function manualTrade() {
+      const direction = document.getElementById('manual_direction').value;
+      const notional = parseFloat(document.getElementById('manual_notional').value);
+
+      if (isNaN(notional) || notional <= 0) {
+        alert('Enter a valid notional amount > 0');
+        return;
+      }
+
+      try {
+        const r = await fetch('/manual_trade', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ direction: direction, notional_usd: notional })
+        });
+
+        if (!r.ok) {
+          const err = await r.json();
+          alert('Error: ' + (err.detail || r.statusText));
+          return;
+        }
+
+        alert('Manual trade executed.');
+        await refreshAll();
+      } catch (e) {
+        console.error(e);
+        alert('Request failed. See console.');
+      }
+    }
+
+    async function syncState() {
+      try {
+        const r = await fetch('/sync_state_from_balances', { method: 'POST' });
+        if (!r.ok) {
+          const err = await r.json();
+          alert('Sync failed: ' + (err.detail || r.statusText));
+          return;
+        }
+        const data = await r.json();
+        alert(`Synced to ${data.current_asset} @ ${data.current_qty.toFixed(4)}`);
+        await refreshAll();
+      } catch (e) {
+        console.error(e);
+        alert('Sync request failed.');
+      }
+    }
+
+    async function fetchStatus() {
+      try {
+        const r = await fetch('/status');
+        const data = await r.json();
+
+        lastMeanRatio = data.mean_ratio;
+        lastStdRatio = data.std_ratio;
+
+        const envChip = `<span class="chip chip-primary">${data.use_testnet ? 'TESTNET' : 'MAINNET'}</span>`;
+        const botChip = `<span class="chip ${data.enabled ? 'chip-primary' : 'chip-muted'}">Bot: ${data.enabled ? 'RUNNING' : 'STOPPED'}</span>`;
+
+        document.getElementById('status').innerHTML = `
+          <div class="status-chip-row">
+            ${envChip}
+            ${botChip}
+          </div>
+
+          <div class="metric-grid">
+            <div class="metric-group">
+              <div class="metric-label">BTCUSDT</div>
+              <div class="metric-value">${data.btc.toFixed(2)}</div>
+            </div>
+            <div class="metric-group">
+              <div class="metric-label">HBARUSDT</div>
+              <div class="metric-value">${data.hbar.toFixed(4)}</div>
+            </div>
+            <div class="metric-group">
+              <div class="metric-label">DOGEUSDT</div>
+              <div class="metric-value">${data.doge.toFixed(4)}</div>
+            </div>
+
+            <div class="metric-group">
+              <div class="metric-label">Ratio (HBAR/DOGE)</div>
+              <div class="metric-value">${data.ratio.toFixed(6)}</div>
+            </div>
+            <div class="metric-group">
+              <div class="metric-label">Mean ratio</div>
+              <div class="metric-value">${data.mean_ratio.toFixed(6)}</div>
+            </div>
+            <div class="metric-group">
+              <div class="metric-label">Std dev</div>
+              <div class="metric-value">${data.std_ratio.toFixed(6)}</div>
+            </div>
+
+            <div class="metric-group">
+              <div class="metric-label">z-score</div>
+              <div class="metric-value">${data.zscore.toFixed(2)}</div>
+            </div>
+            <div class="metric-group">
+              <div class="metric-label">Current asset</div>
+              <div class="metric-value">${data.current_asset}</div>
+            </div>
+            <div class="metric-group">
+              <div class="metric-label">Current qty</div>
+              <div class="metric-value">${data.current_qty.toFixed(4)}</div>
+            </div>
+          </div>
+
+          <div class="status-line">
+            <b>PnL (realized):</b> ${data.realized_pnl_usd.toFixed(2)} USDT |
+            <b>PnL (unrealized):</b> ${data.unrealized_pnl_usd.toFixed(2)} USDT
+          </div>
+          <div class="status-line">
+            <b>Balances:</b> USDC: ${data.usdc_balance.toFixed(2)} |
+            HBAR: ${data.hbar_balance.toFixed(2)} |
+            DOGE: ${data.doge_balance.toFixed(2)}
+          </div>
+        `;
+      } catch (e) {
+        console.error(e);
+        document.getElementById('status').innerText = 'Error loading status';
+      }
+    }
+
+    async function fetchConfig() {
+      const r = await fetch('/config');
+      const cfg = await r.json();
+      botConfig = cfg;
+      document.getElementById('poll_interval_sec').value = cfg.poll_interval_sec;
+      document.getElementById('window_size').value = cfg.window_size;
+      document.getElementById('z_entry').value = cfg.z_entry;
+      document.getElementById('z_exit').value = cfg.z_exit;
+      document.getElementById('trade_notional_usd').value = cfg.trade_notional_usd;
+      document.getElementById('use_all_balance').checked = cfg.use_all_balance;
+      document.getElementById('use_ratio_thresholds').checked = cfg.use_ratio_thresholds;
+      document.getElementById('sell_ratio_threshold').value = cfg.sell_ratio_threshold;
+      document.getElementById('buy_ratio_threshold').value = cfg.buy_ratio_threshold;
+      document.getElementById('use_testnet').checked = cfg.use_testnet;
+    }
+
+    async function saveConfig() {
+      const cfg = {
+        enabled: false,
+        poll_interval_sec: parseInt(document.getElementById('poll_interval_sec').value),
+        window_size: parseInt(document.getElementById('window_size').value),
+        z_entry: parseFloat(document.getElementById('z_entry').value),
+        z_exit: parseFloat(document.getElementById('z_exit').value),
+        trade_notional_usd: parseFloat(document.getElementById('trade_notional_usd').value),
+        use_all_balance: document.getElementById('use_all_balance').checked,
+        use_ratio_thresholds: document.getElementById('use_ratio_thresholds').checked,
+        sell_ratio_threshold: parseFloat(document.getElementById('sell_ratio_threshold').value || '0'),
+        buy_ratio_threshold: parseFloat(document.getElementById('buy_ratio_threshold').value || '0'),
+        use_testnet: document.getElementById('use_testnet').checked
+      };
+      const r = await fetch('/config', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(cfg)
+      });
+      const newCfg = await r.json();
+      botConfig = newCfg;
+      alert('Config saved. If you switched testnet/mainnet, verify your balances.');
+    }
+
+    async function startBot() {
+      await fetch('/start', { method: 'POST' });
+      fetchStatus();
+      fetchNextSignal();
+    }
+
+    async function stopBot() {
+      await fetch('/stop', { method: 'POST' });
+      fetchStatus();
+      fetchNextSignal();
+    }
+
+    async function fetchTrades() {
+      const r = await fetch('/trades?limit=100');
+      const data = await r.json();
+      const tbody = document.getElementById('tradesBody');
+      tbody.innerHTML = '';
+      data.forEach(t => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td>${t.ts}</td>
+          <td>${t.side}</td>
+          <td>${t.from_asset}</td>
+          <td>${t.to_asset}</td>
+          <td>${t.qty_from.toFixed(4)}</td>
+          <td>${t.qty_to.toFixed(4)}</td>
+          <td>${t.price.toFixed(4)}</td>
+          <td>${t.pnl_usd.toFixed(2)}</td>
+          <td>${t.is_testnet ? 'Testnet' : 'Mainnet'}</td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+
+    async function fetchNextSignal() {
+      try {
+        const r = await fetch('/next_signal');
+        if (!r.ok) {
+          const err = await r.json();
+          document.getElementById('nextSignalModalBody').innerText =
+            'Error: ' + (err.detail || r.statusText);
+          return;
+        }
+        const s = await r.json();
+
+        let msg = `
+          <div class="status-line"><b>Decision engine:</b> ${s.reason === 'z_score' ? 'z-score bands' : (s.reason === 'ratio_thresholds' ? 'ratio thresholds' : s.reason)}</div>
+          <div class="metric-grid">
+            <div class="metric-group">
+              <div class="metric-label">Ratio now</div>
+              <div class="metric-value">${s.ratio.toFixed(6)}</div>
+            </div>
+            <div class="metric-group">
+              <div class="metric-label">Mean</div>
+              <div class="metric-value">${s.mean_ratio.toFixed(6)}</div>
+            </div>
+            <div class="metric-group">
+              <div class="metric-label">Std dev</div>
+              <div class="metric-value">${s.std_ratio.toFixed(6)}</div>
+            </div>
+          </div>
+          <div class="status-line">
+            Z upper (sell HBAR): <b>${s.upper_band.toFixed(6)}</b> |
+            Z lower (buy HBAR): <b>${s.lower_band.toFixed(6)}</b>
+          </div>
+        `;
+
+        if (s.sell_threshold > 0 || s.buy_threshold > 0) {
+          msg += `<div class="status-line">
+                    Thresholds → Sell: <b>${s.sell_threshold.toFixed(6)}</b> |
+                    Buy: <b>${s.buy_threshold.toFixed(6)}</b>
+                  </div>`;
+        }
+
+        if (s.direction === 'NONE') {
+          msg += `<div class="status-line"><b>Next trade:</b> No trade would be executed right now.</div>`;
+        } else {
+          msg += `
+            <div class="status-line"><b>Next trade:</b> ${s.direction}</div>
+            <div class="status-line">
+              From <b>${s.from_asset}</b> ≈ ${s.qty_from.toFixed(6)}
+              → To <b>${s.to_asset}</b> ≈ ${s.qty_to.toFixed(6)}
+            </div>
+          `;
+        }
+
+        document.getElementById('nextSignalModalBody').innerHTML = msg;
+
+      } catch (e) {
+        console.error(e);
+        document.getElementById('nextSignalModalBody').innerText =
+          'Error calculating next signal.';
+      }
+    }
+
+    async function fetchHistory() {
+      const r = await fetch('/history?limit=300');
+      const data = await r.json();
+      if (data.length === 0) return;
+
+      const labels = data.map(d => new Date(d.ts).toLocaleTimeString());
+      const hbar = data.map(d => d.hbar);
+      const doge = data.map(d => d.doge);
+      const ratio = data.map(d => d.ratio);
+
+      // price chart
+      if (!priceChart) {
+        const ctx1 = document.getElementById('priceChart').getContext('2d');
+        priceChart = new Chart(ctx1, {
+          type: 'line',
+          data: {
+            labels: labels,
+            datasets: [
+              { label: 'HBARUSDT', data: hbar, borderWidth: 1, fill: false, borderColor: '#4bc0c0' },
+              { label: 'DOGEUSDT', data: doge, borderWidth: 1, fill: false, borderColor: '#90caf9' }
+            ]
+          },
+          options: {
+            interaction: { mode: 'index', intersect: false },
+            plugins: { legend: { labels: { color: '#eee' } } },
+            scales: {
+              x: { ticks: { color: '#ccc' }, grid: { color: '#333' } },
+              y: { ticks: { color: '#ccc' }, grid: { color: '#333' } }
+            }
+          }
+        });
+      } else {
+        priceChart.data.labels = labels;
+        priceChart.data.datasets[0].data = hbar;
+        priceChart.data.datasets[1].data = doge;
+        priceChart.update();
+      }
+
+      // ratio chart
+      let upper = null, lower = null;
+      if (botConfig && lastMeanRatio !== null) {
+        const std = lastStdRatio || 0;
+        upper = lastMeanRatio + botConfig.z_entry * std;
+        lower = lastMeanRatio - botConfig.z_entry * std;
+      }
+      const upperArr = ratio.map(() => upper);
+      const lowerArr = ratio.map(() => lower);
+
+      let info = '';
+      if (upper !== null && lower !== null) {
+        info += `Z-bands → Upper: ${upper.toFixed(6)} | Lower: ${lower.toFixed(6)}. `;
+      }
+
+      // fixed thresholds
+      let sellArr = ratio.map(() => null);
+      let buyArr = ratio.map(() => null);
+      if (botConfig && botConfig.use_ratio_thresholds) {
+        if (botConfig.sell_ratio_threshold > 0) {
+          sellArr = ratio.map(() => botConfig.sell_ratio_threshold);
+          info += `Sell threshold: ${botConfig.sell_ratio_threshold.toFixed(6)}. `;
+        }
+        if (botConfig.buy_ratio_threshold > 0) {
+          buyArr = ratio.map(() => botConfig.buy_ratio_threshold);
+          info += `Buy threshold: ${botConfig.buy_ratio_threshold.toFixed(6)}.`;
+        }
+      }
+
+      document.getElementById('bandInfo').textContent =
+        info || 'Bands/thresholds not available yet (need some history or config).';
+
+      if (!ratioChart) {
+        const ctx2 = document.getElementById('ratioChart').getContext('2d');
+        ratioChart = new Chart(ctx2, {
+          type: 'line',
+          data: {
+            labels: labels,
+            datasets: [
+              {
+                label: 'Ratio HBAR/DOGE',
+                data: ratio,
+                borderWidth: 2,
+                fill: false,
+                borderColor: '#4bc0c0'
+              },
+              {
+                label: 'Upper z-band (sell HBAR)',
+                data: upperArr,
+                borderWidth: 1,
+                borderColor: '#90caf9',
+                borderDash: [6, 4],
+                fill: false
+              },
+              {
+                label: 'Lower z-band (buy HBAR)',
+                data: lowerArr,
+                borderWidth: 1,
+                borderColor: '#26c6da',
+                borderDash: [6, 4],
+                fill: false
+              },
+              {
+                label: 'Sell ratio threshold',
+                data: sellArr,
+                borderWidth: 1,
+                borderColor: '#66bb6a',
+                borderDash: [2, 2],
+                fill: false
+              },
+              {
+                label: 'Buy ratio threshold',
+                data: buyArr,
+                borderWidth: 1,
+                borderColor: '#ef5350',
+                borderDash: [2, 2],
+                fill: false
+              }
+            ]
+          },
+          options: {
+            interaction: { mode: 'index', intersect: false },
+            plugins: { legend: { labels: { color: '#eee' } } },
+            scales: {
+              x: { ticks: { color: '#ccc' }, grid: { color: '#333' } },
+              y: { ticks: { color: '#ccc' }, grid: { color: '#333' } }
+            }
+          }
+        });
+      } else {
+        ratioChart.data.labels = labels;
+        ratioChart.data.datasets[0].data = ratio;
+        ratioChart.data.datasets[1].data = upperArr;
+        ratioChart.data.datasets[2].data = lowerArr;
+        ratioChart.data.datasets[3].data = sellArr;
+        ratioChart.data.datasets[4].data = buyArr;
+        ratioChart.update();
+      }
+    }
+
+    async function refreshAll() {
+      await fetchStatus();
+      await fetchConfig();
+      await fetchTrades();
+      await fetchHistory();
+      // We don't open the modal automatically, but keep next-signal warm.
+      await fetchNextSignal().catch(() => {});
+    }
+
+    initCollapsibles();
+    fetchConfig().then(() => {
+      refreshAll();
+      setInterval(refreshAll, 10000);
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,6 @@
+fastapi
+uvicorn[standard]
+python-binance
+pydantic
+SQLAlchemy
+python-dotenv
