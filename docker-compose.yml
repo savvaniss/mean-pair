@@ -1,14 +1,35 @@
-version: "3.9"
-
 services:
-  meanbot:
+  bot:
     build: .
-    container_name: meanbot
+    container_name: hbar-doge-bot
     restart: unless-stopped
-    ports:
-      - "8000:8000"
     env_file:
       - .env
+    # only expose internally; NPM will proxy to it
+    expose:
+      - "8000"
     volumes:
-      - ./data:/app/data
+      # persist SQLite DB
       - ./mean_reversion.db:/app/mean_reversion.db
+    networks:
+      - proxy-net
+
+  nginx-proxy-manager:
+    image: jc21/nginx-proxy-manager:latest
+    container_name: nginx-proxy-manager
+    restart: unless-stopped
+    ports:
+      - "80:80"    # HTTP (Let's Encrypt + normal)
+      - "81:81"    # NPM admin UI
+      - "443:443"  # HTTPS
+    volumes:
+      - ./npm_data:/data
+      - ./npm_letsencrypt:/etc/letsencrypt
+    networks:
+      - proxy-net
+    depends_on:
+      - bot
+
+networks:
+  proxy-net:
+    driver: bridge

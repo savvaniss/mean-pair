@@ -82,6 +82,7 @@ def adjust_quantity(symbol: str, qty: float) -> float:
 # DB MODELS
 # =========================
 
+
 class PriceSnapshot(Base):
     __tablename__ = "price_snapshots"
     id = Column(Integer, primary_key=True, index=True)
@@ -125,6 +126,7 @@ Base.metadata.create_all(bind=engine)
 # BOT CONFIG (in memory)
 # =========================
 
+
 class BotConfig(BaseModel):
     enabled: bool = False
     poll_interval_sec: int = 20
@@ -149,9 +151,22 @@ lock = threading.Lock()
 bot_thread: Optional[threading.Thread] = None
 bot_stop_flag = False
 
+# Minimum history requirement: at least 30% of window_size (and at least 5 points)
+MIN_HISTORY_FRACTION = 0.3
+
+
+def required_history_len() -> int:
+    # at least 5, at least 30% of window
+    return max(5, int(bot_config.window_size * MIN_HISTORY_FRACTION))
+
+
+def has_enough_history() -> bool:
+    return len(ratio_history) >= required_history_len()
+
 # =========================
 # HELPERS
 # =========================
+
 
 def get_prices():
     tickers = client.get_all_tickers()
@@ -241,11 +256,16 @@ def place_market_order(symbol: str, side: str, quantity: float):
 # BOT LOOP
 # =========================
 
+
 def decide_signal(ratio: float, mean_r: float, std_r: float, z: float, state: State):
     """Return (sell_signal, buy_signal, reason)."""
     sell_signal = False
     buy_signal = False
     reason = "none"
+
+    # Safety: don't trade if we don't have enough history yet
+    if not has_enough_history():
+        return False, False, "not_enough_history"
 
     if bot_config.use_ratio_thresholds:
         reason = "ratio_thresholds"
@@ -260,6 +280,9 @@ def decide_signal(ratio: float, mean_r: float, std_r: float, z: float, state: St
                 sell_signal = True
             elif z < -bot_config.z_entry:
                 buy_signal = True
+        else:
+            # std=0 → no movement, do nothing
+            reason = "std_zero"
 
     # only meaningful if we can actually trade from current asset
     if state.current_asset not in ("HBAR", "DOGE"):
@@ -395,6 +418,7 @@ def bot_loop():
 # THREAD / APP
 # =========================
 
+
 def start_bot_thread():
     global bot_thread, bot_stop_flag
     if bot_thread and bot_thread.is_alive():
@@ -416,6 +440,7 @@ start_bot_thread()
 # =========================
 # API MODELS / ENDPOINTS
 # =========================
+
 
 class StatusResponse(BaseModel):
     btc: float
@@ -507,6 +532,7 @@ def sync_state_from_balances():
         }
     finally:
         session.close()
+
 
 class ManualTradeRequest(BaseModel):
     direction: str
@@ -665,6 +691,7 @@ def list_trades(limit: int = 100):
         ]
     finally:
         session.close()
+
 
 class NextSignalResponse(BaseModel):
     direction: str
