@@ -810,15 +810,29 @@ def get_config():
 @app.post("/config", response_model=BotConfig)
 def update_config(cfg: BotConfig):
     global client, TESTNET
+
+    # 🔹 Preserve current enabled state
+    current_enabled = bot_config.enabled
+
+    # 🔹 Switch between testnet/mainnet if needed
     if cfg.use_testnet != bot_config.use_testnet:
         TESTNET = cfg.use_testnet
         if TESTNET:
             client.__init__(API_KEY, API_SECRET, testnet=True)
         else:
             client.__init__(API_KEY, API_SECRET)
+
+    # 🔹 Apply all fields EXCEPT 'enabled'
     for field, value in cfg.dict().items():
+        if field == "enabled":
+            continue
         setattr(bot_config, field, value)
+
+    # 🔹 Restore whatever the bot was doing (RUNNING / STOPPED)
+    bot_config.enabled = current_enabled
+
     return bot_config
+
 
 
 @app.post("/start")
