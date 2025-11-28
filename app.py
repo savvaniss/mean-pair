@@ -22,25 +22,46 @@ from sqlalchemy.orm import sessionmaker, declarative_base
 
 load_dotenv()
 
-API_KEY = os.getenv("BINANCE_API_KEY")
-API_SECRET = os.getenv("BINANCE_API_SECRET")
-BINANCE_ENV = os.getenv("BINANCE_ENV", "testnet").lower()
-BASE_ASSET = os.getenv("BASE_ASSET", "USDC")
+# --- Testnet credentials ---
+TESTNET_API_KEY = os.getenv("BINANCE_TESTNET_API_KEY")
+TESTNET_API_SECRET = os.getenv("BINANCE_TESTNET_API_SECRET")
+
+# --- Mainnet credentials ---
+MAINNET_API_KEY = os.getenv("BINANCE_MAINNET_API_KEY")
+MAINNET_API_SECRET = os.getenv("BINANCE_MAINNET_API_SECRET")
+
+# default env when the app starts: "testnet" or "mainnet"
+DEFAULT_ENV = os.getenv("BINANCE_DEFAULT_ENV", "testnet").lower()
+
+# Base asset you conceptually hold when "neutral"
+# (used for balances & initial state only, trades use HBARUSDT/DOGEUSDT)
+BASE_ASSET = os.getenv("BASE_ASSET", "USDT").upper()
+
 AUTO_START = os.getenv("BOT_AUTO_START", "false").lower() == "true"
 
-if not API_KEY or not API_SECRET:
-    raise RuntimeError("BINANCE_API_KEY / BINANCE_API_SECRET not set in .env")
+if DEFAULT_ENV not in ("testnet", "mainnet"):
+    raise RuntimeError("BINANCE_DEFAULT_ENV must be 'testnet' or 'mainnet'")
 
-TESTNET = BINANCE_ENV == "testnet"
 
-# =========================
-# BINANCE CLIENT
-# =========================
+def create_client(use_testnet: bool) -> Client:
+    """Create a Binance client for testnet or mainnet using the correct keys."""
+    if use_testnet:
+        if not TESTNET_API_KEY or not TESTNET_API_SECRET:
+            raise RuntimeError(
+                "BINANCE_TESTNET_API_KEY / BINANCE_TESTNET_API_SECRET must be set in .env"
+            )
+        return Client(TESTNET_API_KEY, TESTNET_API_SECRET, testnet=True)
+    else:
+        if not MAINNET_API_KEY or not MAINNET_API_SECRET:
+            raise RuntimeError(
+                "BINANCE_MAINNET_API_KEY / BINANCE_MAINNET_API_SECRET must be set in .env"
+            )
+        return Client(MAINNET_API_KEY, MAINNET_API_SECRET)
 
-if TESTNET:
-    client = Client(API_KEY, API_SECRET, testnet=True)
-else:
-    client = Client(API_KEY, API_SECRET)
+
+# Global client, starts in default env
+USE_TESTNET = DEFAULT_ENV == "testnet"
+client = create_client(USE_TESTNET)
 
 # =========================
 # DATABASE SETUP (SQLite)
@@ -135,7 +156,7 @@ class BotConfig(BaseModel):
     z_exit: float = 0.3
     trade_notional_usd: float = 50.0
     use_all_balance: bool = False
-    use_testnet: bool = TESTNET
+    use_testnet: bool = True  # will be overridden below
     # explicit ratio thresholds
     use_ratio_thresholds: bool = False
     sell_ratio_threshold: float = 0.0  # ratio >= this → sell HBAR (HBAR->DOGE)
@@ -143,6 +164,7 @@ class BotConfig(BaseModel):
 
 
 bot_config = BotConfig()
+bot_config.use_testnet = USE_TESTNET
 bot_config.enabled = AUTO_START
 
 # Rolling window storage (in memory)
@@ -456,7 +478,8 @@ class StatusResponse(BaseModel):
     unrealized_pnl_usd: float
     enabled: bool
     use_testnet: bool
-    usdc_balance: float
+    base_asset: str
+    base_balance: float
     hbar_balance: float
     doge_balance: float
 
@@ -481,7 +504,7 @@ def get_status():
 
         st = get_state(session)
 
-        usdc_bal = get_free_balance("USDC")
+        base_bal = get_free_balance(BASE_ASSET)
         hbar_bal = get_free_balance("HBAR")
         doge_bal = get_free_balance("DOGE")
 
@@ -499,7 +522,8 @@ def get_status():
             unrealized_pnl_usd=st.unrealized_pnl_usd,
             enabled=bot_config.enabled,
             use_testnet=bot_config.use_testnet,
-            usdc_balance=usdc_bal,
+            base_asset=BASE_ASSET,
+            base_balance=base_bal,
             hbar_balance=hbar_bal,
             doge_balance=doge_bal,
         )
@@ -791,8 +815,12 @@ def next_signal():
             std_ratio=std_r,
             upper_band=upper_band,
             lower_band=lower_band,
-            sell_threshold=bot_config.sell_ratio_threshold if bot_config.use_ratio_thresholds else 0.0,
-            buy_threshold=bot_config.buy_ratio_threshold if bot_config.use_ratio_thresholds else 0.0,
+            sell_threshold=bot_config.sell_ratio_threshold
+            if bot_config.use_ratio_thresholds
+            else 0.0,
+            buy_threshold=bot_config.buy_ratio_threshold
+            if bot_config.use_ratio_thresholds
+            else 0.0,
             from_asset=from_asset,
             to_asset=to_asset,
             qty_from=qty_from,
@@ -809,30 +837,25 @@ def get_config():
 
 @app.post("/config", response_model=BotConfig)
 def update_config(cfg: BotConfig):
-    global client, TESTNET
+    global client
 
-    # 🔹 Preserve current enabled state
+    # Preserve current enabled state so saving config doesn't stop the bot
     current_enabled = bot_config.enabled
 
-    # 🔹 Switch between testnet/mainnet if needed
+    # Switch between testnet/mainnet if needed
     if cfg.use_testnet != bot_config.use_testnet:
-        TESTNET = cfg.use_testnet
-        if TESTNET:
-            client.__init__(API_KEY, API_SECRET, testnet=True)
-        else:
-            client.__init__(API_KEY, API_SECRET)
+        client = create_client(cfg.use_testnet)
 
-    # 🔹 Apply all fields EXCEPT 'enabled'
+    # Apply all fields EXCEPT 'enabled' (controlled by /start and /stop)
     for field, value in cfg.dict().items():
         if field == "enabled":
             continue
         setattr(bot_config, field, value)
 
-    # 🔹 Restore whatever the bot was doing (RUNNING / STOPPED)
+    # Restore previous running state
     bot_config.enabled = current_enabled
 
     return bot_config
-
 
 
 @app.post("/start")
