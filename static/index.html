@@ -408,7 +408,9 @@
               <input id="z_exit" type="number" step="0.1" />
             </div>
             <div>
-              <label for="trade_notional_usd">Trade notional (USDT)</label>
+              <label for="trade_notional_usd">
+                Trade notional (<span class="quote-label">USDT</span>)
+              </label>
               <input id="trade_notional_usd" type="number" step="1" />
             </div>
           </div>
@@ -457,7 +459,9 @@
               </select>
             </div>
             <div>
-              <label for="manual_notional">Notional (USDT)</label>
+              <label for="manual_notional">
+                Notional (<span class="quote-label">USDT</span>)
+              </label>
               <input id="manual_notional" type="number" value="20" step="1" />
             </div>
           </div>
@@ -480,7 +484,8 @@
     </div>
     <div class="card-body">
       <div class="help-text">
-        Left: HBAR / DOGE prices (USDT). Right: ratio with z-entry / z-exit bands and optional fixed thresholds.
+        Left: HBAR / DOGE prices (<span class="quote-label">USDT</span>). 
+        Right: ratio with z-entry / z-exit bands and optional fixed thresholds.
       </div>
       <div class="chart-row">
         <div class="chart-col">
@@ -512,7 +517,7 @@
             <th>Qty From</th>
             <th>Qty To</th>
             <th>Ratio</th>
-            <th>PnL (USDT)</th>
+            <th>PnL (<span class="quote-label">USDT</span>)</th>
             <th>Env</th>
           </tr>
         </thead>
@@ -547,6 +552,7 @@
     let ratioChart = null;
     let lastMeanRatio = null;
     let lastStdRatio = null;
+    let currentQuote = 'USDT';  // will be set by backend: USDT (testnet) or USDC (mainnet)
 
     function initCollapsibles() {
       document.querySelectorAll('[data-collapsible]').forEach(card => {
@@ -561,6 +567,12 @@
           body.style.display = isHidden ? 'block' : 'none';
           icon.textContent = isHidden ? '▼' : '▲';
         });
+      });
+    }
+
+    function applyQuoteLabels() {
+      document.querySelectorAll('.quote-label').forEach(el => {
+        el.textContent = currentQuote;
       });
     }
 
@@ -628,6 +640,9 @@
         lastMeanRatio = data.mean_ratio;
         lastStdRatio = data.std_ratio;
 
+        currentQuote = data.use_testnet ? 'USDT' : 'USDC';
+        applyQuoteLabels();
+
         const envChip = `<span class="chip chip-primary">${data.use_testnet ? 'TESTNET' : 'MAINNET'}</span>`;
         const botChip = `<span class="chip ${data.enabled ? 'chip-primary' : 'chip-muted'}">Bot: ${data.enabled ? 'RUNNING' : 'STOPPED'}</span>`;
 
@@ -639,15 +654,15 @@
 
           <div class="metric-grid">
             <div class="metric-group">
-              <div class="metric-label">BTCUSDT</div>
+              <div class="metric-label">BTC${currentQuote}</div>
               <div class="metric-value">${data.btc.toFixed(2)}</div>
             </div>
             <div class="metric-group">
-              <div class="metric-label">HBARUSDT</div>
+              <div class="metric-label">HBAR${currentQuote}</div>
               <div class="metric-value">${data.hbar.toFixed(4)}</div>
             </div>
             <div class="metric-group">
-              <div class="metric-label">DOGEUSDT</div>
+              <div class="metric-label">DOGE${currentQuote}</div>
               <div class="metric-value">${data.doge.toFixed(4)}</div>
             </div>
 
@@ -679,15 +694,23 @@
           </div>
 
           <div class="status-line">
-            <b>PnL (realized):</b> ${data.realized_pnl_usd.toFixed(2)} USDT |
-            <b>PnL (unrealized):</b> ${data.unrealized_pnl_usd.toFixed(2)} USDT
+            <b>PnL (realized):</b> ${data.realized_pnl_usd.toFixed(2)} ${currentQuote} |
+            <b>PnL (unrealized):</b> ${data.unrealized_pnl_usd.toFixed(2)} ${currentQuote}
           </div>
           <div class="status-line">
-            <b>Balances:</b> USDC: ${data.usdc_balance.toFixed(2)} |
+            <b>Balances:</b> ${currentQuote}: ${data.usdc_balance.toFixed(2)} |
             HBAR: ${data.hbar_balance.toFixed(2)} |
             DOGE: ${data.doge_balance.toFixed(2)}
           </div>
         `;
+
+        // update priceChart labels if already created
+        if (priceChart) {
+          priceChart.data.datasets[0].label = 'HBAR' + currentQuote;
+          priceChart.data.datasets[1].label = 'DOGE' + currentQuote;
+          priceChart.update();
+        }
+
       } catch (e) {
         console.error(e);
         document.getElementById('status').innerText = 'Error loading status';
@@ -708,6 +731,9 @@
       document.getElementById('sell_ratio_threshold').value = cfg.sell_ratio_threshold;
       document.getElementById('buy_ratio_threshold').value = cfg.buy_ratio_threshold;
       document.getElementById('use_testnet').checked = cfg.use_testnet;
+
+      currentQuote = cfg.use_testnet ? 'USDT' : 'USDC';
+      applyQuoteLabels();
     }
 
     async function saveConfig() {
@@ -730,6 +756,10 @@
       });
       const newCfg = await r.json();
       botConfig = newCfg;
+
+      currentQuote = botConfig.use_testnet ? 'USDT' : 'USDC';
+      applyQuoteLabels();
+
       alert('Config saved. If you switched testnet/mainnet, verify your balances.');
     }
 
@@ -846,8 +876,8 @@
           data: {
             labels: labels,
             datasets: [
-              { label: 'HBARUSDT', data: hbar, borderWidth: 1, fill: false, borderColor: '#4bc0c0' },
-              { label: 'DOGEUSDT', data: doge, borderWidth: 1, fill: false, borderColor: '#90caf9' }
+              { label: 'HBAR' + currentQuote, data: hbar, borderWidth: 1, fill: false, borderColor: '#4bc0c0' },
+              { label: 'DOGE' + currentQuote, data: doge, borderWidth: 1, fill: false, borderColor: '#90caf9' }
             ]
           },
           options: {
@@ -863,6 +893,8 @@
         priceChart.data.labels = labels;
         priceChart.data.datasets[0].data = hbar;
         priceChart.data.datasets[1].data = doge;
+        priceChart.data.datasets[0].label = 'HBAR' + currentQuote;
+        priceChart.data.datasets[1].label = 'DOGE' + currentQuote;
         priceChart.update();
       }
 
@@ -1014,6 +1046,7 @@
 
     initCollapsibles();
     fetchConfig().then(() => {
+      applyQuoteLabels();
       refreshAll();
       setInterval(refreshAll, 10000);
     });
