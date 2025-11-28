@@ -42,7 +42,7 @@
       display: flex;
       justify-content: space-between;
       align-items: center;
-      margin-bottom: 18px;
+      margin-bottom: 10px;
       gap: 12px;
       flex-wrap: wrap;
     }
@@ -107,6 +107,39 @@
 
     .btn:hover {
       transform: translateY(-1px);
+    }
+
+    /* Tabs */
+
+    .tab-bar {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 14px;
+      flex-wrap: wrap;
+    }
+
+    .tab {
+      padding: 6px 12px;
+      font-size: 0.85rem;
+      border-radius: 999px;
+      border: 1px solid var(--border);
+      background: var(--surface-light);
+      color: var(--text-subtle);
+      cursor: pointer;
+    }
+
+    .tab.active {
+      background: var(--primary-soft);
+      color: #0b1720;
+      border-color: var(--primary-soft);
+    }
+
+    .tab-content {
+      display: none;
+    }
+
+    .tab-content.active {
+      display: block;
     }
 
     /* Cards / layout */
@@ -283,7 +316,8 @@
       border-radius: 6px;
     }
 
-    #bandInfo {
+    #bandInfo,
+    #bollBandInfo {
       font-size: 0.8rem;
       color: var(--text-muted);
       margin-top: 6px;
@@ -361,177 +395,315 @@
   <div class="top-bar">
     <div class="title-block">
       <h1>HBAR–DOGE Mean Reversion Bot</h1>
-      <div class="title-sub">Binance mean-reversion dashboard – HBAR vs DOGE</div>
+      <div class="title-sub">Binance mean-reversion & Bollinger dashboard</div>
     </div>
     <div class="control-buttons">
-      <button class="btn btn-primary" onclick="startBot()">Start</button>
-      <button class="btn btn-danger" onclick="stopBot()">Stop</button>
-      <button class="btn btn-ghost" onclick="syncState()">Sync balances</button>
-      <button class="btn btn-ghost" onclick="openNextModal()">Next trade</button>
+      <button class="btn btn-ghost" onclick="syncState()">Sync MR balances</button>
+      <button class="btn btn-ghost" onclick="openNextModal()">Next MR trade</button>
     </div>
   </div>
 
-  <!-- Top row: Status / Config / Manual trade -->
-  <div class="row">
-    <div class="card" data-collapsible>
-      <div class="card-header">
-        <h2>Live Status</h2>
-        <span class="toggle-icon">▼</span>
+  <div class="tab-bar">
+    <button class="tab active" data-tab="mean">HBAR–DOGE Mean Reversion</button>
+    <button class="tab" data-tab="boll">Single-Coin Bollinger</button>
+  </div>
+
+  <!-- =======================
+       TAB: MEAN REVERSION
+       ======================= -->
+  <div id="tab-mean" class="tab-content active">
+    <div class="control-buttons" style="margin-bottom:10px;">
+      <button class="btn btn-primary" onclick="startBot()">Start MR bot</button>
+      <button class="btn btn-danger" onclick="stopBot()">Stop MR bot</button>
+    </div>
+
+    <!-- Top row: Status / Config / Manual trade -->
+    <div class="row">
+      <div class="card" data-collapsible>
+        <div class="card-header">
+          <h2>Live Status</h2>
+          <span class="toggle-icon">▼</span>
+        </div>
+        <div class="card-body">
+          <div id="status" class="status-section">Loading...</div>
+        </div>
       </div>
-      <div class="card-body">
-        <div id="status" class="status-section">Loading...</div>
+
+      <div class="card" data-collapsible>
+        <div class="card-header">
+          <h2>Config</h2>
+          <span class="toggle-icon">▼</span>
+        </div>
+        <div class="card-body">
+          <form id="configForm" onsubmit="saveConfig(); return false;">
+            <div class="form-row">
+              <div>
+                <label for="poll_interval_sec">Poll interval (sec)</label>
+                <input id="poll_interval_sec" type="number" min="5" step="1" />
+              </div>
+              <div>
+                <label for="window_size">Window size</label>
+                <input id="window_size" type="number" min="5" step="1" />
+              </div>
+              <div>
+                <label for="z_entry">z-entry</label>
+                <input id="z_entry" type="number" step="0.1" />
+              </div>
+              <div>
+                <label for="z_exit">z-exit</label>
+                <input id="z_exit" type="number" step="0.1" />
+              </div>
+              <div>
+                <label for="trade_notional_usd">
+                  Trade notional (<span class="quote-label">USDT</span>)
+                </label>
+                <input id="trade_notional_usd" type="number" step="1" />
+              </div>
+            </div>
+
+            <div class="form-row">
+              <div class="form-checkbox">
+                <input type="checkbox" id="use_all_balance" />
+                <label for="use_all_balance">Use all available HBAR/DOGE</label>
+              </div>
+              <div class="form-checkbox">
+                <input type="checkbox" id="use_ratio_thresholds" />
+                <label for="use_ratio_thresholds">Use fixed ratio thresholds</label>
+              </div>
+              <div>
+                <label for="sell_ratio_threshold">Sell ratio threshold</label>
+                <input id="sell_ratio_threshold" type="number" step="0.0001" />
+              </div>
+              <div>
+                <label for="buy_ratio_threshold">Buy ratio threshold</label>
+                <input id="buy_ratio_threshold" type="number" step="0.0001" />
+              </div>
+              <div class="form-checkbox">
+                <input type="checkbox" id="use_testnet" />
+                <label for="use_testnet">Use Binance testnet</label>
+              </div>
+            </div>
+
+            <button type="submit" class="btn btn-primary">Save config</button>
+          </form>
+        </div>
+      </div>
+
+      <div class="card" data-collapsible>
+        <div class="card-header">
+          <h2>Manual Trade</h2>
+          <span class="toggle-icon">▼</span>
+        </div>
+        <div class="card-body">
+          <form onsubmit="manualTrade(); return false;">
+            <div class="form-row">
+              <div>
+                <label for="manual_direction">Direction</label>
+                <select id="manual_direction">
+                  <option value="HBAR->DOGE">HBAR → DOGE</option>
+                  <option value="DOGE->HBAR">DOGE → HBAR</option>
+                </select>
+              </div>
+              <div>
+                <label for="manual_notional">
+                  Notional (<span class="quote-label">USDT</span>)
+                </label>
+                <input id="manual_notional" type="number" value="20" step="1" />
+              </div>
+            </div>
+            <button type="submit" class="btn btn-primary">Execute manual trade</button>
+          </form>
+          <div class="help-text">
+            Uses market orders on your current environment (testnet / mainnet).  
+            Start with small amounts to test.
+          </div>
+        </div>
       </div>
     </div>
 
-    <div class="card" data-collapsible>
-      <div class="card-header">
-        <h2>Config</h2>
-        <span class="toggle-icon">▼</span>
-      </div>
-      <div class="card-body">
-        <form id="configForm" onsubmit="saveConfig(); return false;">
-          <div class="form-row">
-            <div>
-              <label for="poll_interval_sec">Poll interval (sec)</label>
-              <input id="poll_interval_sec" type="number" min="5" step="1" />
-            </div>
-            <div>
-              <label for="window_size">Window size</label>
-              <input id="window_size" type="number" min="5" step="1" />
-            </div>
-            <div>
-              <label for="z_entry">z-entry</label>
-              <input id="z_entry" type="number" step="0.1" />
-            </div>
-            <div>
-              <label for="z_exit">z-exit</label>
-              <input id="z_exit" type="number" step="0.1" />
-            </div>
-            <div>
-              <label for="trade_notional_usd">
-                Trade notional (<span class="quote-label">USDT</span>)
-              </label>
-              <input id="trade_notional_usd" type="number" step="1" />
-            </div>
-          </div>
-
-          <div class="form-row">
-            <div class="form-checkbox">
-              <input type="checkbox" id="use_all_balance" />
-              <label for="use_all_balance">Use all available HBAR/DOGE</label>
-            </div>
-            <div class="form-checkbox">
-              <input type="checkbox" id="use_ratio_thresholds" />
-              <label for="use_ratio_thresholds">Use fixed ratio thresholds</label>
-            </div>
-            <div>
-              <label for="sell_ratio_threshold">Sell ratio threshold</label>
-              <input id="sell_ratio_threshold" type="number" step="0.0001" />
-            </div>
-            <div>
-              <label for="buy_ratio_threshold">Buy ratio threshold</label>
-              <input id="buy_ratio_threshold" type="number" step="0.0001" />
-            </div>
-            <div class="form-checkbox">
-              <input type="checkbox" id="use_testnet" />
-              <label for="use_testnet">Use Binance testnet</label>
-            </div>
-          </div>
-
-          <button type="submit" class="btn btn-primary">Save config</button>
-        </form>
-      </div>
-    </div>
+    <!-- Charts -->
 
     <div class="card" data-collapsible>
       <div class="card-header">
-        <h2>Manual Trade</h2>
+        <h2>Charts</h2>
         <span class="toggle-icon">▼</span>
       </div>
       <div class="card-body">
-        <form onsubmit="manualTrade(); return false;">
-          <div class="form-row">
-            <div>
-              <label for="manual_direction">Direction</label>
-              <select id="manual_direction">
-                <option value="HBAR->DOGE">HBAR → DOGE</option>
-                <option value="DOGE->HBAR">DOGE → HBAR</option>
-              </select>
-            </div>
-            <div>
-              <label for="manual_notional">
-                Notional (<span class="quote-label">USDT</span>)
-              </label>
-              <input id="manual_notional" type="number" value="20" step="1" />
-            </div>
-          </div>
-          <button type="submit" class="btn btn-primary">Execute manual trade</button>
-        </form>
         <div class="help-text">
-          Uses market orders on your current environment (testnet / mainnet).  
-          Start with small amounts to test.
+          Left: HBAR / DOGE prices (<span class="quote-label">USDT</span>). Right: ratio with z-entry / z-exit bands and optional fixed thresholds.
         </div>
+        <div class="chart-row">
+          <div class="chart-col">
+            <canvas id="priceChart" height="140"></canvas>
+          </div>
+          <div class="chart-col">
+            <canvas id="ratioChart" height="140"></canvas>
+          </div>
+        </div>
+        <p id="bandInfo"></p>
+      </div>
+    </div>
+
+    <!-- Trades at the end -->
+
+    <div class="card" data-collapsible>
+      <div class="card-header">
+        <h2>Trades (latest 100)</h2>
+        <span class="toggle-icon">▼</span>
+      </div>
+      <div class="card-body">
+        <table id="tradesTable">
+          <thead>
+            <tr>
+              <th>Time</th>
+              <th>Side</th>
+              <th>From</th>
+              <th>To</th>
+              <th>Qty From</th>
+              <th>Qty To</th>
+              <th>Ratio</th>
+              <th>PnL (<span class="quote-label">USDT</span>)</th>
+              <th>Env</th>
+            </tr>
+          </thead>
+          <tbody id="tradesBody"></tbody>
+        </table>
       </div>
     </div>
   </div>
 
-  <!-- Charts -->
-
-  <div class="card" data-collapsible>
-    <div class="card-header">
-      <h2>Charts</h2>
-      <span class="toggle-icon">▼</span>
+  <!-- =======================
+       TAB: BOLLINGER
+       ======================= -->
+  <div id="tab-boll" class="tab-content">
+    <div class="control-buttons" style="margin-bottom:10px;">
+      <button class="btn btn-primary" onclick="startBoll()">Start Bollinger bot</button>
+      <button class="btn btn-danger" onclick="stopBoll()">Stop Bollinger bot</button>
     </div>
-    <div class="card-body">
-      <div class="help-text">
-        Left: HBAR / DOGE prices (<span class="quote-label">USDT</span>). 
-        Right: ratio with z-entry / z-exit bands and optional fixed thresholds.
-      </div>
-      <div class="chart-row">
-        <div class="chart-col">
-          <canvas id="priceChart" height="140"></canvas>
+
+    <div class="row">
+      <!-- Boll status -->
+      <div class="card" data-collapsible>
+        <div class="card-header">
+          <h2>Bollinger Status</h2>
+          <span class="toggle-icon">▼</span>
         </div>
-        <div class="chart-col">
-          <canvas id="ratioChart" height="140"></canvas>
+        <div class="card-body">
+          <div id="bollStatus" class="status-section">Loading...</div>
+          <div class="help-text">
+            This bot trades a single coin vs <span class="quote-label">USDT</span> / USDC using Bollinger bands:
+            buy near lower band, sell near upper band, plus stop-loss / take-profit & cooldown.
+          </div>
         </div>
       </div>
-      <p id="bandInfo"></p>
+
+      <!-- Boll config -->
+      <div class="card" data-collapsible>
+        <div class="card-header">
+          <h2>Bollinger Config</h2>
+          <span class="toggle-icon">▼</span>
+        </div>
+        <div class="card-body">
+          <form id="bollConfigForm" onsubmit="saveBollConfig(); return false;">
+            <div class="form-row">
+              <div>
+                <label for="boll_symbol">Symbol (coin vs quote)</label>
+                <select id="boll_symbol"></select>
+              </div>
+              <div>
+                <label for="boll_poll_interval">Poll interval (sec)</label>
+                <input id="boll_poll_interval" type="number" min="5" step="1" />
+              </div>
+              <div>
+                <label for="boll_window_size">Window size</label>
+                <input id="boll_window_size" type="number" min="5" step="1" />
+              </div>
+              <div>
+                <label for="boll_num_std">Band width (std)</label>
+                <input id="boll_num_std" type="number" step="0.1" />
+              </div>
+            </div>
+
+            <div class="form-row">
+              <div>
+                <label for="boll_max_position">
+                  Max position (<span class="quote-label">USDT</span>)
+                </label>
+                <input id="boll_max_position" type="number" step="1" />
+              </div>
+              <div class="form-checkbox">
+                <input type="checkbox" id="boll_use_all_balance" />
+                <label for="boll_use_all_balance">Use all quote balance (up to max)</label>
+              </div>
+              <div>
+                <label for="boll_stop_loss">Stop-loss (%)</label>
+                <input id="boll_stop_loss" type="number" step="0.1" />
+              </div>
+              <div>
+                <label for="boll_take_profit">Take-profit (%)</label>
+                <input id="boll_take_profit" type="number" step="0.1" />
+              </div>
+              <div>
+                <label for="boll_cooldown">Cooldown (sec)</label>
+                <input id="boll_cooldown" type="number" step="1" />
+              </div>
+            </div>
+
+            <button type="submit" class="btn btn-primary">Save Bollinger config</button>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    <!-- Bollinger chart -->
+
+    <div class="card" data-collapsible>
+      <div class="card-header">
+        <h2>Bollinger Chart</h2>
+        <span class="toggle-icon">▼</span>
+      </div>
+      <div class="card-body">
+        <div class="help-text">
+          Price vs moving average and Bollinger bands. Use a symbol not overlapping with HBAR/DOGE if both bots are running.
+        </div>
+        <canvas id="bollChart" height="180"></canvas>
+        <p id="bollBandInfo"></p>
+      </div>
+    </div>
+
+    <!-- Boll trades -->
+
+    <div class="card" data-collapsible>
+      <div class="card-header">
+        <h2>Bollinger Trades (latest 100)</h2>
+        <span class="toggle-icon">▼</span>
+      </div>
+      <div class="card-body">
+        <table id="bollTradesTable">
+          <thead>
+            <tr>
+              <th>Time</th>
+              <th>Symbol</th>
+              <th>Side</th>
+              <th>Qty</th>
+              <th>Price</th>
+              <th>Notional</th>
+              <th>PnL (<span class="quote-label">USDT</span>)</th>
+              <th>Env</th>
+            </tr>
+          </thead>
+          <tbody id="bollTradesBody"></tbody>
+        </table>
+      </div>
     </div>
   </div>
 
-  <!-- Trades at the end -->
-
-  <div class="card" data-collapsible>
-    <div class="card-header">
-      <h2>Trades (latest 100)</h2>
-      <span class="toggle-icon">▼</span>
-    </div>
-    <div class="card-body">
-      <table id="tradesTable">
-        <thead>
-          <tr>
-            <th>Time</th>
-            <th>Side</th>
-            <th>From</th>
-            <th>To</th>
-            <th>Qty From</th>
-            <th>Qty To</th>
-            <th>Ratio</th>
-            <th>PnL (<span class="quote-label">USDT</span>)</th>
-            <th>Env</th>
-          </tr>
-        </thead>
-        <tbody id="tradesBody"></tbody>
-      </table>
-    </div>
-  </div>
-
-  <!-- Next Possible Trade Modal -->
+  <!-- Next Possible Trade Modal (mean reversion) -->
 
   <div id="nextModalOverlay" class="modal-overlay">
     <div class="modal">
       <div class="modal-header">
-        <div class="modal-header-title">Next possible trade</div>
+        <div class="modal-header-title">Next possible MR trade</div>
         <button class="btn btn-ghost small" onclick="closeNextModal()">✕</button>
       </div>
       <div class="modal-body">
@@ -552,7 +724,10 @@
     let ratioChart = null;
     let lastMeanRatio = null;
     let lastStdRatio = null;
-    let currentQuote = 'USDT';  // will be set by backend: USDT (testnet) or USDC (mainnet)
+    let currentQuote = 'USDT';  // USDT on testnet, USDC on mainnet
+
+    let bollConfig = null;
+    let bollChart = null;
 
     function initCollapsibles() {
       document.querySelectorAll('[data-collapsible]').forEach(card => {
@@ -561,11 +736,25 @@
         const icon = card.querySelector('.toggle-icon');
 
         header.addEventListener('click', (e) => {
-          // ignore clicks on buttons inside header
           if (e.target.closest('button')) return;
           const isHidden = body.style.display === 'none';
           body.style.display = isHidden ? 'block' : 'none';
           icon.textContent = isHidden ? '▼' : '▲';
+        });
+      });
+    }
+
+    function initTabs() {
+      const tabs = document.querySelectorAll('.tab');
+      const contents = document.querySelectorAll('.tab-content');
+
+      tabs.forEach(tab => {
+        tab.addEventListener('click', () => {
+          const target = tab.dataset.tab;
+          tabs.forEach(t => t.classList.remove('active'));
+          contents.forEach(c => c.classList.remove('active'));
+          tab.classList.add('active');
+          document.getElementById('tab-' + target).classList.add('active');
         });
       });
     }
@@ -584,6 +773,10 @@
     function closeNextModal() {
       document.getElementById('nextModalOverlay').style.display = 'none';
     }
+
+    // ================
+    // MEAN REVERSION
+    // ================
 
     async function manualTrade() {
       const direction = document.getElementById('manual_direction').value;
@@ -644,7 +837,7 @@
         applyQuoteLabels();
 
         const envChip = `<span class="chip chip-primary">${data.use_testnet ? 'TESTNET' : 'MAINNET'}</span>`;
-        const botChip = `<span class="chip ${data.enabled ? 'chip-primary' : 'chip-muted'}">Bot: ${data.enabled ? 'RUNNING' : 'STOPPED'}</span>`;
+        const botChip = `<span class="chip ${data.enabled ? 'chip-primary' : 'chip-muted'}">MR Bot: ${data.enabled ? 'RUNNING' : 'STOPPED'}</span>`;
 
         document.getElementById('status').innerHTML = `
           <div class="status-chip-row">
@@ -704,7 +897,6 @@
           </div>
         `;
 
-        // update priceChart labels if already created
         if (priceChart) {
           priceChart.data.datasets[0].label = 'HBAR' + currentQuote;
           priceChart.data.datasets[1].label = 'DOGE' + currentQuote;
@@ -761,6 +953,8 @@
       applyQuoteLabels();
 
       alert('Config saved. If you switched testnet/mainnet, verify your balances.');
+      // Reload symbols for Bollinger as quote asset changed
+      fetchSymbols();
     }
 
     async function startBot() {
@@ -906,11 +1100,9 @@
         const std = lastStdRatio || 0;
 
         if (std > 0) {
-          // z-entry bands (outer)
           upperEntry = lastMeanRatio + botConfig.z_entry * std;
           lowerEntry = lastMeanRatio - botConfig.z_entry * std;
 
-          // z-exit bands (inner) – only if z_exit > 0
           if (botConfig.z_exit && botConfig.z_exit > 0) {
             upperExit = lastMeanRatio + botConfig.z_exit * std;
             lowerExit = lastMeanRatio - botConfig.z_exit * std;
@@ -1040,16 +1232,279 @@
       await fetchConfig();
       await fetchTrades();
       await fetchHistory();
-      // We don't open the modal automatically, but keep next-signal warm.
       await fetchNextSignal().catch(() => {});
     }
 
+    // ================
+    // BOLLINGER FRONTEND
+    // ================
+
+    async function fetchSymbols() {
+      try {
+        const r = await fetch('/symbols');
+        const data = await r.json();
+        const select = document.getElementById('boll_symbol');
+        const current = select.value;
+        select.innerHTML = '';
+        const emptyOpt = document.createElement('option');
+        emptyOpt.value = '';
+        emptyOpt.textContent = 'Select symbol';
+        select.appendChild(emptyOpt);
+        data.forEach(s => {
+          const opt = document.createElement('option');
+          opt.value = s.symbol;
+          opt.textContent = `${s.symbol} (${s.baseAsset}/${s.quoteAsset})`;
+          select.appendChild(opt);
+        });
+        if (current) {
+          select.value = current;
+        }
+      } catch (e) {
+        console.error('Failed to load symbols', e);
+      }
+    }
+
+    async function fetchBollConfig() {
+      const r = await fetch('/boll_config');
+      const cfg = await r.json();
+      bollConfig = cfg;
+
+      const select = document.getElementById('boll_symbol');
+      if (cfg.symbol && [...select.options].some(o => o.value === cfg.symbol)) {
+        select.value = cfg.symbol;
+      }
+
+      document.getElementById('boll_poll_interval').value = cfg.poll_interval_sec;
+      document.getElementById('boll_window_size').value = cfg.window_size;
+      document.getElementById('boll_num_std').value = cfg.num_std;
+      document.getElementById('boll_max_position').value = cfg.max_position_usd;
+      document.getElementById('boll_use_all_balance').checked = cfg.use_all_balance;
+      document.getElementById('boll_stop_loss').value = (cfg.stop_loss_pct * 100).toFixed(1);
+      document.getElementById('boll_take_profit').value = (cfg.take_profit_pct * 100).toFixed(1);
+      document.getElementById('boll_cooldown').value = cfg.cooldown_sec;
+    }
+
+    async function saveBollConfig() {
+      const cfg = {
+        enabled: bollConfig ? bollConfig.enabled : false,
+        symbol: document.getElementById('boll_symbol').value,
+        poll_interval_sec: parseInt(document.getElementById('boll_poll_interval').value),
+        window_size: parseInt(document.getElementById('boll_window_size').value),
+        num_std: parseFloat(document.getElementById('boll_num_std').value),
+        max_position_usd: parseFloat(document.getElementById('boll_max_position').value),
+        use_all_balance: document.getElementById('boll_use_all_balance').checked,
+        stop_loss_pct: parseFloat(document.getElementById('boll_stop_loss').value) / 100,
+        take_profit_pct: parseFloat(document.getElementById('boll_take_profit').value) / 100,
+        cooldown_sec: parseInt(document.getElementById('boll_cooldown').value)
+      };
+
+      try {
+        const r = await fetch('/boll_config', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(cfg)
+        });
+        if (!r.ok) {
+          const err = await r.json();
+          alert('Bollinger config error: ' + (err.detail || r.statusText));
+          return;
+        }
+        const newCfg = await r.json();
+        bollConfig = newCfg;
+        alert('Bollinger config saved.');
+      } catch (e) {
+        console.error(e);
+        alert('Failed to save Bollinger config.');
+      }
+    }
+
+    async function fetchBollStatus() {
+      try {
+        const r = await fetch('/boll_status');
+        const data = await r.json();
+
+        const envLabel = botConfig && botConfig.use_testnet ? 'TESTNET' : 'MAINNET';
+        const botChip = `<span class="chip ${data.enabled ? 'chip-primary' : 'chip-muted'}">Bollinger: ${data.enabled ? 'RUNNING' : 'STOPPED'}</span>`;
+        const envChip = `<span class="chip chip-primary">${envLabel}</span>`;
+
+        const symbolLabel = data.symbol || '(no symbol)';
+        const quote = data.quote_asset || currentQuote;
+
+        const pos = data.position || 'FLAT';
+
+        document.getElementById('bollStatus').innerHTML = `
+          <div class="status-chip-row">
+            ${envChip}
+            ${botChip}
+          </div>
+          <div class="status-line"><b>Symbol:</b> ${symbolLabel}</div>
+          <div class="metric-grid">
+            <div class="metric-group">
+              <div class="metric-label">Price (${quote})</div>
+              <div class="metric-value">${data.price.toFixed(6)}</div>
+            </div>
+            <div class="metric-group">
+              <div class="metric-label">MA</div>
+              <div class="metric-value">${data.ma.toFixed(6)}</div>
+            </div>
+            <div class="metric-group">
+              <div class="metric-label">Upper band</div>
+              <div class="metric-value">${data.upper.toFixed(6)}</div>
+            </div>
+            <div class="metric-group">
+              <div class="metric-label">Lower band</div>
+              <div class="metric-value">${data.lower.toFixed(6)}</div>
+            </div>
+            <div class="metric-group">
+              <div class="metric-label">Position</div>
+              <div class="metric-value">${pos}</div>
+            </div>
+            <div class="metric-group">
+              <div class="metric-label">Qty (asset)</div>
+              <div class="metric-value">${data.qty_asset.toFixed(6)}</div>
+            </div>
+          </div>
+          <div class="status-line">
+            <b>Realized PnL:</b> ${data.realized_pnl_usd.toFixed(2)} ${quote} |
+            <b>Unrealized PnL:</b> ${data.unrealized_pnl_usd.toFixed(2)} ${quote}
+          </div>
+        `;
+      } catch (e) {
+        console.error(e);
+        document.getElementById('bollStatus').innerText = 'Error loading Bollinger status';
+      }
+    }
+
+    async function fetchBollHistory() {
+      try {
+        const r = await fetch('/boll_history?limit=300');
+        const data = await r.json();
+        if (!data || data.length === 0) {
+          document.getElementById('bollBandInfo').textContent = 'No Bollinger history yet.';
+          return;
+        }
+
+        const labels = data.map(d => new Date(d.ts).toLocaleTimeString());
+        const price = data.map(d => d.price);
+        const ma = data.map(d => d.ma);
+        const upper = data.map(d => d.upper);
+        const lower = data.map(d => d.lower);
+
+        let last = data[data.length - 1];
+
+        document.getElementById('bollBandInfo').textContent =
+          `Bands → MA: ${last.ma.toFixed(6)} | Upper: ${last.upper.toFixed(6)} | Lower: ${last.lower.toFixed(6)}`;
+
+        if (!bollChart) {
+          const ctx = document.getElementById('bollChart').getContext('2d');
+          bollChart = new Chart(ctx, {
+            type: 'line',
+            data: {
+              labels: labels,
+              datasets: [
+                { label: 'Price', data: price, borderWidth: 2, fill: false, borderColor: '#4bc0c0' },
+                { label: 'MA', data: ma, borderWidth: 1, fill: false, borderColor: '#90caf9', borderDash: [4, 3] },
+                { label: 'Upper band', data: upper, borderWidth: 1, fill: false, borderColor: '#ef5350', borderDash: [6, 4] },
+                { label: 'Lower band', data: lower, borderWidth: 1, fill: false, borderColor: '#66bb6a', borderDash: [6, 4] }
+              ]
+            },
+            options: {
+              interaction: { mode: 'index', intersect: false },
+              plugins: { legend: { labels: { color: '#eee' } } },
+              scales: {
+                x: { ticks: { color: '#ccc' }, grid: { color: '#333' } },
+                y: { ticks: { color: '#ccc' }, grid: { color: '#333' } }
+              }
+            }
+          });
+        } else {
+          bollChart.data.labels = labels;
+          bollChart.data.datasets[0].data = price;
+          bollChart.data.datasets[1].data = ma;
+          bollChart.data.datasets[2].data = upper;
+          bollChart.data.datasets[3].data = lower;
+          bollChart.update();
+        }
+      } catch (e) {
+        console.error(e);
+        document.getElementById('bollBandInfo').textContent = 'Error loading Bollinger history.';
+      }
+    }
+
+    async function fetchBollTrades() {
+      try {
+        const r = await fetch('/boll_trades?limit=100');
+        const data = await r.json();
+        const tbody = document.getElementById('bollTradesBody');
+        tbody.innerHTML = '';
+        data.forEach(t => {
+          const tr = document.createElement('tr');
+          tr.innerHTML = `
+            <td>${t.ts}</td>
+            <td>${t.symbol}</td>
+            <td>${t.side}</td>
+            <td>${t.qty.toFixed(6)}</td>
+            <td>${t.price.toFixed(6)}</td>
+            <td>${t.notional.toFixed(2)}</td>
+            <td>${t.pnl_usd.toFixed(2)}</td>
+            <td>${t.is_testnet ? 'Testnet' : 'Mainnet'}</td>
+          `;
+          tbody.appendChild(tr);
+        });
+      } catch (e) {
+        console.error(e);
+      }
+    }
+
+    async function startBoll() {
+      try {
+        const r = await fetch('/boll_start', { method: 'POST' });
+        if (!r.ok) {
+          const err = await r.json();
+          alert('Cannot start Bollinger bot: ' + (err.detail || r.statusText));
+        }
+        await fetchBollStatus();
+      } catch (e) {
+        console.error(e);
+      }
+    }
+
+    async function stopBoll() {
+      try {
+        await fetch('/boll_stop', { method: 'POST' });
+        await fetchBollStatus();
+      } catch (e) {
+        console.error(e);
+      }
+    }
+
+    async function refreshBollAll() {
+      await fetchBollStatus();
+      await fetchBollConfig();
+      await fetchBollTrades();
+      await fetchBollHistory();
+    }
+
+    // ================
+    // INIT
+    // ================
+
     initCollapsibles();
-    fetchConfig().then(() => {
+    initTabs();
+
+    // Load configs & start periodic refresh
+    (async () => {
+      await fetchConfig();
+      await fetchSymbols();
+      await fetchBollConfig();
       applyQuoteLabels();
-      refreshAll();
-      setInterval(refreshAll, 10000);
-    });
+      await refreshAll();
+      await refreshBollAll();
+      setInterval(async () => {
+        await refreshAll();
+        await refreshBollAll();
+      }, 10000);
+    })();
   </script>
 </body>
 </html>
