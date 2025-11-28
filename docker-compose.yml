@@ -1,35 +1,35 @@
+networks:
+  proxy_net:
+    driver: bridge
+
 services:
   bot:
     build: .
-    container_name: hbar-doge-bot
+    container_name: mean-reversion-bot
     restart: unless-stopped
     env_file:
       - .env
-    # only expose internally; NPM will proxy to it
-    expose:
-      - "8000"
-    volumes:
-      # persist SQLite DB
-      - ./mean_reversion.db:/app/mean_reversion.db
+    # ⬇ Direct access on server IP: http://SERVER_IP:8000
+    ports:
+      - "8000:8000"
+    # ⬇ Also reachable from Nginx Proxy Manager on the same Docker network
     networks:
-      - proxy-net
+      - proxy_net
 
   nginx-proxy-manager:
     image: jc21/nginx-proxy-manager:latest
-    container_name: nginx-proxy-manager
+    container_name: npm
     restart: unless-stopped
     ports:
-      - "80:80"    # HTTP (Let's Encrypt + normal)
-      - "81:81"    # NPM admin UI
-      - "443:443"  # HTTPS
+      - "80:80"        # HTTP
+      - "443:443"      # HTTPS
+      - "81:81"        # NPM admin UI
     volumes:
-      - ./npm_data:/data
-      - ./npm_letsencrypt:/etc/letsencrypt
+      - npm_data:/data
+      - npm_letsencrypt:/etc/letsencrypt
     networks:
-      - proxy-net
-    depends_on:
-      - bot
+      - proxy_net
 
-networks:
-  proxy-net:
-    driver: bridge
+volumes:
+  npm_data:
+  npm_letsencrypt:

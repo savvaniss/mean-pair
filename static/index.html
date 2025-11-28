@@ -655,6 +655,34 @@
       </div>
     </div>
 
+    <!-- Manual single-coin sell -->
+    <div class="card" data-collapsible>
+      <div class="card-header">
+        <h2>Manual single-coin sell</h2>
+        <span class="toggle-icon">▼</span>
+      </div>
+      <div class="card-body">
+        <form onsubmit="return bollingerManualSell();">
+          <div class="form-row">
+            <div>
+              <label for="boll_manual_symbol">Symbol (coin vs quote)</label>
+              <select id="boll_manual_symbol"></select>
+            </div>
+            <div>
+              <label for="boll_manual_qty">Qty (base asset)</label>
+              <input id="boll_manual_qty" type="number" min="0" step="0.00000001" />
+            </div>
+          </div>
+          <button type="submit" class="btn btn-primary">Sell now</button>
+        </form>
+        <div class="help-text">
+          Sells the selected base asset (e.g. HBAR in HBARUSDC) for its quote
+          asset (USDC or USDT) using a market order. Uses the same environment
+          (testnet / mainnet) as the rest of the bot.
+        </div>
+      </div>
+    </div>
+
     <!-- Bollinger chart -->
 
     <div class="card" data-collapsible>
@@ -1244,21 +1272,35 @@
         const r = await fetch('/symbols');
         const data = await r.json();
         const select = document.getElementById('boll_symbol');
+        const manualSelect = document.getElementById('boll_manual_symbol');
         const current = select.value;
+        const currentManual = manualSelect.value;
+
         select.innerHTML = '';
+        manualSelect.innerHTML = '';
+
         const emptyOpt = document.createElement('option');
         emptyOpt.value = '';
         emptyOpt.textContent = 'Select symbol';
-        select.appendChild(emptyOpt);
+        select.appendChild(emptyOpt.cloneNode(true));
+        manualSelect.appendChild(emptyOpt.cloneNode(true));
+
         data.forEach(s => {
+          const label = `${s.symbol} (${s.baseAsset}/${s.quoteAsset})`;
+
           const opt = document.createElement('option');
           opt.value = s.symbol;
-          opt.textContent = `${s.symbol} (${s.baseAsset}/${s.quoteAsset})`;
+          opt.textContent = label;
           select.appendChild(opt);
+
+          const opt2 = document.createElement('option');
+          opt2.value = s.symbol;
+          opt2.textContent = label;
+          manualSelect.appendChild(opt2);
         });
-        if (current) {
-          select.value = current;
-        }
+
+        if (current) select.value = current;
+        if (currentManual) manualSelect.value = currentManual;
       } catch (e) {
         console.error('Failed to load symbols', e);
       }
@@ -1483,6 +1525,54 @@
       await fetchBollConfig();
       await fetchBollTrades();
       await fetchBollHistory();
+    }
+
+    // Manual single-coin sell
+    async function bollingerManualSell() {
+      const symbol = document.getElementById('boll_manual_symbol').value;
+      const qtyStr = document.getElementById('boll_manual_qty').value;
+      const qty = parseFloat(qtyStr);
+
+      if (!symbol) {
+        alert('Please select a symbol.');
+        return false;
+      }
+      if (isNaN(qty) || qty <= 0) {
+        alert('Enter a valid quantity > 0.');
+        return false;
+      }
+
+      if (!confirm(`Sell ${qty} of the base asset in ${symbol}?`)) {
+        return false;
+      }
+
+      try {
+        const r = await fetch('/bollinger_manual_sell', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ symbol: symbol, qty_base: qty })
+        });
+
+        const data = await r.json();
+
+        if (!r.ok) {
+          alert('Error: ' + (data.detail || r.statusText));
+          return false;
+        }
+
+        alert(
+          `Sold ${data.qty_sold.toFixed(6)} ${data.base_asset} `
+          + `for ~${data.quote_received_est.toFixed(2)} ${data.quote_asset}.`
+        );
+
+        await refreshBollAll();
+        await fetchTrades(); // MR trades list, manual entry is stored there
+      } catch (e) {
+        console.error(e);
+        alert('Request failed. Check console for details.');
+      }
+
+      return false; // prevent form submit reload
     }
 
     // ================

@@ -845,6 +845,19 @@ class ManualTradeRequest(BaseModel):
     direction: str
     notional_usd: float
 
+class ManualBollingerSellRequest(BaseModel):
+    symbol: str      # e.g. "HBARUSDC", "BTCUSDT"
+    qty_base: float  # how much of the base asset to sell (HBAR, BTC, etc.)
+
+
+class ManualBollingerSellResponse(BaseModel):
+    status: str
+    symbol: str
+    base_asset: str
+    quote_asset: str
+    qty_sold: float
+    quote_received_est: float
+
 
 @app.post("/manual_trade")
 def manual_trade(req: ManualTradeRequest):
@@ -1230,6 +1243,88 @@ def boll_stop():
     boll_config.enabled = False
     return {"status": "stopped"}
 
+@app.post("/bollinger_manual_sell", response_model=ManualBollingerSellResponse)
+def bollinger_manual_sell(req: ManualBollingerSellRequest):
+    """
+    Manually sell <qty_base> of the base asset of <symbol> for its quote
+    (e.g. sell 10 HBAR in HBARUSDC, or 0.01 BTC in BTCUSDT).
+    """
+    if req.qty_base <= 0:
+        raise HTTPException(status_code=400, detail="qty_base must be > 0")
+
+    try:
+        info = client.get_symbol_info(req.symbol)
+        if not info:
+            raise HTTPException(status_code=400, detail=f"Unknown symbol: {req.symbol}")
+
+        base_asset = info["baseAsset"]
+        quote_asset = info["quoteAsset"]
+
+        # Check available balance of the base asset
+        free_base = get_free_balance(base_asset)
+        if free_base <= 0:
+            raise HTTPException(
+                status_code=400,
+                detail=f"No free balance for {base_asset}"
+            )
+
+        qty_requested = min(req.qty_base, free_base)
+
+        # Clamp to LOT_SIZE
+        qty_adj = adjust_quantity(req.symbol, qty_requested)
+        if qty_adj <= 0:
+            raise HTTPException(
+                status_code=400,
+                detail="Quantity too small after Binance LOT_SIZE filter"
+            )
+
+        # Get current price for estimate
+        ticker = client.get_symbol_ticker(symbol=req.symbol)
+        price = float(ticker["price"])
+        quote_est = qty_adj * price
+
+        # Place market SELL
+        order = place_market_order(req.symbol, "SELL", qty_adj)
+        if not order:
+            raise HTTPException(status_code=500, detail="Sell order failed")
+
+        # Record into Trade table (optional but nice)
+        session = SessionLocal()
+        try:
+            ts = datetime.utcnow()
+            tr = Trade(
+                ts=ts,
+                side=f"{base_asset}->{quote_asset} (manual SC)",
+                from_asset=base_asset,
+                to_asset=quote_asset,
+                qty_from=qty_adj,
+                qty_to=quote_est,   # approximate
+                price=price,
+                fee=0.0,
+                pnl_usd=0.0,
+                is_testnet=int(bot_config.use_testnet),
+            )
+            session.add(tr)
+            session.commit()
+        finally:
+            session.close()
+
+        return ManualBollingerSellResponse(
+            status="ok",
+            symbol=req.symbol,
+            base_asset=base_asset,
+            quote_asset=quote_asset,
+            qty_sold=qty_adj,
+            quote_received_est=quote_est,
+        )
+
+    except BinanceAPIException as e:
+        # e.message is often more readable than str(e)
+        raise HTTPException(status_code=400, detail=f"Binance error: {e.message}")
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/boll_status", response_model=BollStatusResponse)
 def boll_status():
