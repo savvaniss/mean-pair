@@ -242,7 +242,7 @@ boll_thread: Optional[threading.Thread] = None
 boll_stop_flag = False
 
 # Minimum history requirement: at least 30% of window_size (and at least 5 points)
-MIN_HISTORY_FRACTION = 0.3
+MIN_HISTORY_FRACTION = 0.5
 
 
 def required_history_len() -> int:
@@ -253,6 +253,15 @@ def required_history_len() -> int:
 def has_enough_history() -> bool:
     return len(ratio_history) >= required_history_len()
 
+# ---- NEW: Bollinger specific helpers ----
+
+def boll_required_history_len() -> int:
+    # same idea as mean reversion, but for Bollinger
+    return max(5, int(boll_config.window_size * MIN_HISTORY_FRACTION))
+
+
+def boll_has_enough_history() -> bool:
+    return len(boll_price_history) >= boll_required_history_len()
 # =========================
 # HELPERS
 # =========================
@@ -596,6 +605,14 @@ def boll_loop():
                         state.unrealized_pnl_usd = (price - state.entry_price) * state.qty_asset
                     else:
                         state.unrealized_pnl_usd = 0.0
+
+                    # ---- NEW: require enough history before trading ----
+                    if not boll_has_enough_history():
+                        # Just save state & wait until we have more data
+                        session.commit()
+                        time.sleep(boll_config.poll_interval_sec)
+                        continue
+                    # -------------------------------------------
 
                     now_ts = time.time()
                     if now_ts - boll_last_trade_ts < boll_config.cooldown_sec:
