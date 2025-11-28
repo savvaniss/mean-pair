@@ -478,8 +478,7 @@ class StatusResponse(BaseModel):
     unrealized_pnl_usd: float
     enabled: bool
     use_testnet: bool
-    base_asset: str
-    base_balance: float
+    usdc_balance: float      # <-- keep this name for compatibility with the UI
     hbar_balance: float
     doge_balance: float
 
@@ -522,11 +521,11 @@ def get_status():
             unrealized_pnl_usd=st.unrealized_pnl_usd,
             enabled=bot_config.enabled,
             use_testnet=bot_config.use_testnet,
-            base_asset=BASE_ASSET,
-            base_balance=base_bal,
+            usdc_balance=base_bal,   # <-- IMPORTANT: must be 'usdc_balance='
             hbar_balance=hbar_bal,
             doge_balance=doge_bal,
         )
+
     finally:
         session.close()
 
