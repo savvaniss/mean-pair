@@ -226,10 +226,16 @@ def get_free_balance(asset: str):
 
 
 def init_state_from_balances(st: State):
+    """
+    Detect what we currently hold (HBAR / DOGE / base asset)
+    and set the starting portfolio value in USDT for PnL.
+    """
+    # current balances
     hbar_bal = get_free_balance("HBAR")
     doge_bal = get_free_balance("DOGE")
     base_bal = get_free_balance(BASE_ASSET)
 
+    # detect current asset
     if hbar_bal > 0 and doge_bal == 0:
         st.current_asset = "HBAR"
         st.current_qty = hbar_bal
@@ -240,8 +246,21 @@ def init_state_from_balances(st: State):
         st.current_asset = BASE_ASSET
         st.current_qty = base_bal
 
-    st.realized_pnl_usd = 0.0
-    st.unrealized_pnl_usd = 0.0
+    # --- NEW: set starting portfolio value in USDT ---
+    try:
+        _btc, hbar_price, doge_price = get_prices()
+        start_value = (
+            base_bal
+            + hbar_bal * hbar_price
+            + doge_bal * doge_price
+        )
+    except Exception:
+        # if for some reason we can't get prices, just use 0; PnL will be 0
+        start_value = 0.0
+
+    st.realized_pnl_usd = start_value      # we use this as "starting value"
+    st.unrealized_pnl_usd = 0.0           # will be updated on each /status
+
 
 
 def get_state(session):
@@ -503,9 +522,24 @@ def get_status():
 
         st = get_state(session)
 
+        # current balances
         base_bal = get_free_balance(BASE_ASSET)
         hbar_bal = get_free_balance("HBAR")
         doge_bal = get_free_balance("DOGE")
+
+        # you also like to see USDC separately in the UI
+        usdc_bal = get_free_balance("USDC")
+
+        # --- NEW: compute current portfolio value in USDT ---
+        current_value = base_bal + hbar_bal * hbar + doge_bal * doge
+
+        # starting value was stored in st.realized_pnl_usd by init_state_from_balances
+        starting_value = st.realized_pnl_usd if st.realized_pnl_usd is not None else 0.0
+        unrealized_pnl = current_value - starting_value
+
+        st.unrealized_pnl_usd = unrealized_pnl
+        # keep realized at 0 for now
+        session.commit()
 
         return StatusResponse(
             btc=btc,
@@ -517,15 +551,14 @@ def get_status():
             std_ratio=std_r,
             current_asset=st.current_asset,
             current_qty=st.current_qty,
-            realized_pnl_usd=st.realized_pnl_usd,
-            unrealized_pnl_usd=st.unrealized_pnl_usd,
+            realized_pnl_usd=0.0,
+            unrealized_pnl_usd=unrealized_pnl,
             enabled=bot_config.enabled,
             use_testnet=bot_config.use_testnet,
-            usdc_balance=base_bal,   # <-- IMPORTANT: must be 'usdc_balance='
+            usdc_balance=usdc_bal,
             hbar_balance=hbar_bal,
             doge_balance=doge_bal,
         )
-
     finally:
         session.close()
 
