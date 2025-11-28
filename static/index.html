@@ -480,7 +480,7 @@
     </div>
     <div class="card-body">
       <div class="help-text">
-        Left: HBAR / DOGE prices (USDT). Right: ratio with z-bands and optional fixed thresholds.
+        Left: HBAR / DOGE prices (USDT). Right: ratio with z-entry / z-exit bands and optional fixed thresholds.
       </div>
       <div class="chart-row">
         <div class="chart-col">
@@ -866,19 +866,38 @@
         priceChart.update();
       }
 
-      // ratio chart
-      let upper = null, lower = null;
+      // ratio chart – z-entry and z-exit bands
+      let upperEntry = null, lowerEntry = null;
+      let upperExit = null, lowerExit = null;
+
       if (botConfig && lastMeanRatio !== null) {
         const std = lastStdRatio || 0;
-        upper = lastMeanRatio + botConfig.z_entry * std;
-        lower = lastMeanRatio - botConfig.z_entry * std;
+
+        if (std > 0) {
+          // z-entry bands (outer)
+          upperEntry = lastMeanRatio + botConfig.z_entry * std;
+          lowerEntry = lastMeanRatio - botConfig.z_entry * std;
+
+          // z-exit bands (inner) – only if z_exit > 0
+          if (botConfig.z_exit && botConfig.z_exit > 0) {
+            upperExit = lastMeanRatio + botConfig.z_exit * std;
+            lowerExit = lastMeanRatio - botConfig.z_exit * std;
+          }
+        }
       }
-      const upperArr = ratio.map(() => upper);
-      const lowerArr = ratio.map(() => lower);
+
+      const upperEntryArr = ratio.map(() => upperEntry);
+      const lowerEntryArr = ratio.map(() => lowerEntry);
+
+      const upperExitArr = ratio.map(() => (upperExit !== null ? upperExit : null));
+      const lowerExitArr = ratio.map(() => (lowerExit !== null ? lowerExit : null));
 
       let info = '';
-      if (upper !== null && lower !== null) {
-        info += `Z-bands → Upper: ${upper.toFixed(6)} | Lower: ${lower.toFixed(6)}. `;
+      if (upperEntry !== null && lowerEntry !== null) {
+        info += `Z-entry bands → Upper: ${upperEntry.toFixed(6)} | Lower: ${lowerEntry.toFixed(6)}. `;
+      }
+      if (upperExit !== null && lowerExit !== null) {
+        info += `Z-exit bands → Upper: ${upperExit.toFixed(6)} | Lower: ${lowerExit.toFixed(6)}. `;
       }
 
       // fixed thresholds
@@ -914,7 +933,7 @@
               },
               {
                 label: 'Upper z-band (sell HBAR)',
-                data: upperArr,
+                data: upperEntryArr,
                 borderWidth: 1,
                 borderColor: '#90caf9',
                 borderDash: [6, 4],
@@ -922,10 +941,26 @@
               },
               {
                 label: 'Lower z-band (buy HBAR)',
-                data: lowerArr,
+                data: lowerEntryArr,
                 borderWidth: 1,
                 borderColor: '#26c6da',
                 borderDash: [6, 4],
+                fill: false
+              },
+              {
+                label: 'Upper z-exit (take profit HBAR→DOGE)',
+                data: upperExitArr,
+                borderWidth: 1,
+                borderColor: '#ffb300',
+                borderDash: [4, 3],
+                fill: false
+              },
+              {
+                label: 'Lower z-exit (take profit DOGE→HBAR)',
+                data: lowerExitArr,
+                borderWidth: 1,
+                borderColor: '#ffb300',
+                borderDash: [4, 3],
                 fill: false
               },
               {
@@ -958,10 +993,12 @@
       } else {
         ratioChart.data.labels = labels;
         ratioChart.data.datasets[0].data = ratio;
-        ratioChart.data.datasets[1].data = upperArr;
-        ratioChart.data.datasets[2].data = lowerArr;
-        ratioChart.data.datasets[3].data = sellArr;
-        ratioChart.data.datasets[4].data = buyArr;
+        ratioChart.data.datasets[1].data = upperEntryArr;
+        ratioChart.data.datasets[2].data = lowerEntryArr;
+        ratioChart.data.datasets[3].data = upperExitArr;
+        ratioChart.data.datasets[4].data = lowerExitArr;
+        ratioChart.data.datasets[5].data = sellArr;
+        ratioChart.data.datasets[6].data = buyArr;
         ratioChart.update();
       }
     }
