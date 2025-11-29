@@ -591,8 +591,10 @@
         <div class="card-body">
           <div id="bollStatus" class="status-section">Loading...</div>
           <div class="help-text">
-            This bot trades a single coin vs <span class="quote-label">USDT</span> / USDC using Bollinger bands:
-            buy near lower band, sell near upper band, plus stop-loss / take-profit & cooldown.
+            This bot trades a single coin vs
+            <span class="quote-label">USDT</span> / USDC / BTC / BNB
+            using Bollinger bands: buy near lower band, sell near upper band,
+            plus stop-loss / take-profit & cooldown.
           </div>
         </div>
       </div>
@@ -677,8 +679,8 @@
         </form>
         <div class="help-text">
           Sells the selected base asset (e.g. HBAR in HBARUSDC) for its quote
-          asset (USDC or USDT) using a market order. Uses the same environment
-          (testnet / mainnet) as the rest of the bot.
+          asset (USDT / USDC / BTC / BNB) using a market order.
+          Uses the same environment (testnet / mainnet) as the rest of the bot.
         </div>
       </div>
     </div>
@@ -1269,34 +1271,55 @@
 
     async function fetchSymbols() {
       try {
-        const r = await fetch('/symbols');
-        const data = await r.json();
+        // New grouped endpoint
+        const r = await fetch('/symbols_grouped');
+        const grouped = await r.json();
+
         const select = document.getElementById('boll_symbol');
         const manualSelect = document.getElementById('boll_manual_symbol');
+
         const current = select.value;
         const currentManual = manualSelect.value;
 
         select.innerHTML = '';
         manualSelect.innerHTML = '';
 
-        const emptyOpt = document.createElement('option');
-        emptyOpt.value = '';
-        emptyOpt.textContent = 'Select symbol';
-        select.appendChild(emptyOpt.cloneNode(true));
-        manualSelect.appendChild(emptyOpt.cloneNode(true));
+        // Placeholder option
+        const placeholder = document.createElement('option');
+        placeholder.value = '';
+        placeholder.textContent = 'Select symbol';
+        select.appendChild(placeholder.cloneNode(true));
+        manualSelect.appendChild(placeholder.cloneNode(true));
 
-        data.forEach(s => {
-          const label = `${s.symbol} (${s.baseAsset}/${s.quoteAsset})`;
+        // Preferred order
+        const order = ['USDT', 'USDC', 'BTC', 'BNB'];
 
-          const opt = document.createElement('option');
-          opt.value = s.symbol;
-          opt.textContent = label;
-          select.appendChild(opt);
+        order.forEach(quote => {
+          const list = grouped[quote];
+          if (!list || list.length === 0) return;
 
-          const opt2 = document.createElement('option');
-          opt2.value = s.symbol;
-          opt2.textContent = label;
-          manualSelect.appendChild(opt2);
+          const og = document.createElement('optgroup');
+          og.label = `${quote} pairs`;
+
+          const ogManual = document.createElement('optgroup');
+          ogManual.label = `${quote} pairs`;
+
+          list.forEach(s => {
+            const label = `${s.symbol} (${s.baseAsset}/${s.quoteAsset})`;
+
+            const opt = document.createElement('option');
+            opt.value = s.symbol;
+            opt.textContent = label;
+            og.appendChild(opt);
+
+            const opt2 = document.createElement('option');
+            opt2.value = s.symbol;
+            opt2.textContent = label;
+            ogManual.appendChild(opt2);
+          });
+
+          select.appendChild(og);
+          manualSelect.appendChild(ogManual);
         });
 
         if (current) select.value = current;
@@ -1561,8 +1584,8 @@
         }
 
         alert(
-          `Sold ${data.qty_sold.toFixed(6)} ${data.base_asset} `
-          + `for ~${data.quote_received_est.toFixed(2)} ${data.quote_asset}.`
+          `Sold ${data.qty_sold.toFixed(6)} ${data.base_asset} ` +
+          `for ~${data.quote_received_est.toFixed(2)} ${data.quote_asset}.`
         );
 
         await refreshBollAll();

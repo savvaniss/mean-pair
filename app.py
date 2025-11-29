@@ -210,11 +210,11 @@ ratio_history: List[float] = []
 
 class BollConfig(BaseModel):
     enabled: bool = False
-    symbol: str = ""               # e.g. "HBARUSDC" (or *USDT on testnet)
+    symbol: str = ""               # e.g. "HBARUSDC" or HBARBTC
     poll_interval_sec: int = 20
     window_size: int = 50          # lookback for MA/std
     num_std: float = 2.0           # Bollinger band width
-    max_position_usd: float = 50.0 # max position size in quote
+    max_position_usd: float = 50.0 # max position size in quote *units*
     use_all_balance: bool = False  # if true, can use all quote up to max_position_usd
     stop_loss_pct: float = 0.05    # 5% hard stop-loss on open long
     take_profit_pct: float = 0.10  # 10% take profit
@@ -233,7 +233,9 @@ boll_last_trade_ts: float = 0.0
 # GLOBAL LOCKS / THREADS
 # =========================
 
-lock = threading.Lock()
+# Separate locks for MR and Bollinger so they don't block each other
+mr_lock = threading.Lock()
+boll_lock = threading.Lock()
 
 bot_thread: Optional[threading.Thread] = None
 bot_stop_flag = False
@@ -241,27 +243,28 @@ bot_stop_flag = False
 boll_thread: Optional[threading.Thread] = None
 boll_stop_flag = False
 
-# Minimum history requirement: at least 30% of window_size (and at least 5 points)
+# Minimum history requirement: at least 50% of window_size (and at least 5 points)
 MIN_HISTORY_FRACTION = 0.5
 
 
 def required_history_len() -> int:
-    # at least 5, at least 30% of window
+    # at least 5, at least some fraction of window
     return max(5, int(bot_config.window_size * MIN_HISTORY_FRACTION))
 
 
 def has_enough_history() -> bool:
     return len(ratio_history) >= required_history_len()
 
-# ---- NEW: Bollinger specific helpers ----
+
+# ---- Bollinger specific helpers ----
 
 def boll_required_history_len() -> int:
-    # same idea as mean reversion, but for Bollinger
     return max(5, int(boll_config.window_size * MIN_HISTORY_FRACTION))
 
 
 def boll_has_enough_history() -> bool:
     return len(boll_price_history) >= boll_required_history_len()
+
 # =========================
 # HELPERS
 # =========================
@@ -440,11 +443,12 @@ def bot_loop():
                 time.sleep(1)
                 continue
 
-            with lock:
-                try:
-                    ts = datetime.utcnow()
-                    btc, hbar, doge = get_prices()
-                    ratio = hbar / doge
+            try:
+                ts = datetime.utcnow()
+                btc, hbar, doge = get_prices()
+                ratio = hbar / doge
+
+                with mr_lock:
                     mean_r, std_r, z = compute_stats(ratio)
 
                     snap = PriceSnapshot(
@@ -545,9 +549,9 @@ def bot_loop():
 
                     session.commit()
 
-                except Exception as e:
-                    print(f"Error in bot loop: {e}")
-                    session.rollback()
+            except Exception as e:
+                print(f"Error in bot loop: {e}")
+                session.rollback()
 
             time.sleep(bot_config.poll_interval_sec)
     finally:
@@ -577,137 +581,139 @@ def boll_loop():
                 time.sleep(1)
                 continue
 
-            with lock:
-                try:
-                    ts = datetime.utcnow()
-                    symbol = boll_config.symbol
-                    price = get_symbol_price(symbol)
-                    base_asset, quote_asset = parse_symbol_assets(symbol)
+            try:
+                ts = datetime.utcnow()
+                symbol = boll_config.symbol
 
-                    # update in-memory history
+                # network call outside lock
+                price = get_symbol_price(symbol)
+                base_asset, quote_asset = parse_symbol_assets(symbol)
+
+                # ---- update shared history under lock, compute bands & history_ok ----
+                with boll_lock:
                     boll_ts_history.append(ts)
                     boll_price_history.append(price)
                     if len(boll_price_history) > BOLL_MAX_HISTORY:
                         del boll_price_history[0:len(boll_price_history) - BOLL_MAX_HISTORY]
                         del boll_ts_history[0:len(boll_ts_history) - BOLL_MAX_HISTORY]
 
+                    history_ok = boll_has_enough_history()
                     ma, std = compute_ma_std_window(
                         boll_price_history, max(5, boll_config.window_size)
                     )
                     upper = ma + boll_config.num_std * std
                     lower = ma - boll_config.num_std * std
+                # ---- end lock section ----
 
-                    state = get_boll_state(session)
-                    state.symbol = symbol
+                state = get_boll_state(session)
+                state.symbol = symbol
 
-                    # update unrealized PnL
-                    if state.position == "LONG" and state.qty_asset > 0 and state.entry_price > 0:
-                        state.unrealized_pnl_usd = (price - state.entry_price) * state.qty_asset
-                    else:
-                        state.unrealized_pnl_usd = 0.0
+                # update unrealized PnL
+                if state.position == "LONG" and state.qty_asset > 0 and state.entry_price > 0:
+                    state.unrealized_pnl_usd = (price - state.entry_price) * state.qty_asset
+                else:
+                    state.unrealized_pnl_usd = 0.0
 
-                    # ---- NEW: require enough history before trading ----
-                    if not boll_has_enough_history():
-                        # Just save state & wait until we have more data
-                        session.commit()
-                        time.sleep(boll_config.poll_interval_sec)
-                        continue
-                    # -------------------------------------------
-
-                    now_ts = time.time()
-                    if now_ts - boll_last_trade_ts < boll_config.cooldown_sec:
-                        # Still in cooldown
-                        session.commit()
-                        time.sleep(boll_config.poll_interval_sec)
-                        continue
-
-                    # Risk controls: stop-loss / take-profit
-                    action = None  # "BUY" or "SELL" or None
-
-                    if state.position == "LONG" and state.qty_asset > 0:
-                        if boll_config.stop_loss_pct > 0 and price <= state.entry_price * (1 - boll_config.stop_loss_pct):
-                            action = "SELL"  # hard stop loss
-                        elif boll_config.take_profit_pct > 0 and price >= state.entry_price * (1 + boll_config.take_profit_pct):
-                            action = "SELL"  # take profit
-                        elif price > upper:
-                            # overbought → sell high
-                            action = "SELL"
-                    else:
-                        # flat – look for buy low
-                        if price < lower:
-                            action = "BUY"
-
-                    if action == "BUY":
-                        # buy base_asset using quote_asset
-                        quote_bal = get_free_balance(quote_asset)
-                        if quote_bal <= 0:
-                            print(f"No {quote_asset} balance for Bollinger buy")
-                        else:
-                            notional = min(quote_bal, boll_config.max_position_usd)
-                            if notional <= 0:
-                                print("Bollinger: notional too small")
-                            else:
-                                qty = notional / price
-                                qty = adjust_quantity(symbol, qty)
-                                if qty <= 0:
-                                    print("Bollinger: qty too small after LOT_SIZE")
-                                else:
-                                    order = place_market_order(symbol, "BUY", qty)
-                                    if order:
-                                        notional_filled = qty * price
-                                        state.position = "LONG"
-                                        state.qty_asset = qty
-                                        state.entry_price = price
-                                        state.unrealized_pnl_usd = 0.0
-                                        tr = BollTrade(
-                                            ts=ts,
-                                            symbol=symbol,
-                                            side="BUY",
-                                            qty=qty,
-                                            price=price,
-                                            notional=notional_filled,
-                                            pnl_usd=0.0,
-                                            is_testnet=int(bot_config.use_testnet),
-                                        )
-                                        session.add(tr)
-                                        boll_last_trade_ts = now_ts
-
-                    elif action == "SELL" and state.position == "LONG" and state.qty_asset > 0:
-                        # sell asset back to quote
-                        qty = min(state.qty_asset, get_free_balance(base_asset))
-                        qty = adjust_quantity(symbol, qty)
-                        if qty <= 0:
-                            print("Bollinger: qty too small to sell")
-                        else:
-                            order = place_market_order(symbol, "SELL", qty)
-                            if order:
-                                notional_filled = qty * price
-                                pnl = (price - state.entry_price) * qty
-                                state.realized_pnl_usd += pnl
-                                state.qty_asset -= qty
-                                if state.qty_asset < 1e-12:
-                                    state.qty_asset = 0.0
-                                    state.position = "FLAT"
-                                    state.entry_price = 0.0
-                                state.unrealized_pnl_usd = 0.0
-                                tr = BollTrade(
-                                    ts=ts,
-                                    symbol=symbol,
-                                    side="SELL",
-                                    qty=qty,
-                                    price=price,
-                                    notional=notional_filled,
-                                    pnl_usd=pnl,
-                                    is_testnet=int(bot_config.use_testnet),
-                                )
-                                session.add(tr)
-                                boll_last_trade_ts = now_ts
-
+                # Require enough history before trading
+                if not history_ok:
                     session.commit()
+                    time.sleep(boll_config.poll_interval_sec)
+                    continue
 
-                except Exception as e:
-                    print(f"Error in Bollinger loop: {e}")
-                    session.rollback()
+                now_ts = time.time()
+                if now_ts - boll_last_trade_ts < boll_config.cooldown_sec:
+                    # Still in cooldown
+                    session.commit()
+                    time.sleep(boll_config.poll_interval_sec)
+                    continue
+
+                # Risk controls: stop-loss / take-profit
+                action = None  # "BUY" or "SELL" or None
+
+                if state.position == "LONG" and state.qty_asset > 0:
+                    if boll_config.stop_loss_pct > 0 and price <= state.entry_price * (1 - boll_config.stop_loss_pct):
+                        action = "SELL"  # hard stop loss
+                    elif boll_config.take_profit_pct > 0 and price >= state.entry_price * (1 + boll_config.take_profit_pct):
+                        action = "SELL"  # take profit
+                    elif price > upper:
+                        # overbought → sell high
+                        action = "SELL"
+                else:
+                    # flat – look for buy low
+                    if price < lower:
+                        action = "BUY"
+
+                if action == "BUY":
+                    # buy base_asset using quote_asset
+                    quote_bal = get_free_balance(quote_asset)
+                    if quote_bal <= 0:
+                        print(f"No {quote_asset} balance for Bollinger buy")
+                    else:
+                        notional = min(quote_bal, boll_config.max_position_usd)
+                        if notional <= 0:
+                            print("Bollinger: notional too small")
+                        else:
+                            qty = notional / price
+                            qty = adjust_quantity(symbol, qty)
+                            if qty <= 0:
+                                print("Bollinger: qty too small after LOT_SIZE")
+                            else:
+                                order = place_market_order(symbol, "BUY", qty)
+                                if order:
+                                    notional_filled = qty * price
+                                    state.position = "LONG"
+                                    state.qty_asset = qty
+                                    state.entry_price = price
+                                    state.unrealized_pnl_usd = 0.0
+                                    tr = BollTrade(
+                                        ts=ts,
+                                        symbol=symbol,
+                                        side="BUY",
+                                        qty=qty,
+                                        price=price,
+                                        notional=notional_filled,
+                                        pnl_usd=0.0,
+                                        is_testnet=int(bot_config.use_testnet),
+                                    )
+                                    session.add(tr)
+                                    boll_last_trade_ts = now_ts
+
+                elif action == "SELL" and state.position == "LONG" and state.qty_asset > 0:
+                    # sell asset back to quote
+                    qty = min(state.qty_asset, get_free_balance(base_asset))
+                    qty = adjust_quantity(symbol, qty)
+                    if qty <= 0:
+                        print("Bollinger: qty too small to sell")
+                    else:
+                        order = place_market_order(symbol, "SELL", qty)
+                        if order:
+                            notional_filled = qty * price
+                            pnl = (price - state.entry_price) * qty
+                            state.realized_pnl_usd += pnl
+                            state.qty_asset -= qty
+                            if state.qty_asset < 1e-12:
+                                state.qty_asset = 0.0
+                                state.position = "FLAT"
+                                state.entry_price = 0.0
+                            state.unrealized_pnl_usd = 0.0
+                            tr = BollTrade(
+                                ts=ts,
+                                symbol=symbol,
+                                side="SELL",
+                                qty=qty,
+                                price=price,
+                                notional=notional_filled,
+                                pnl_usd=pnl,
+                                is_testnet=int(bot_config.use_testnet),
+                            )
+                            session.add(tr)
+                            boll_last_trade_ts = now_ts
+
+                session.commit()
+
+            except Exception as e:
+                print(f"Error in Bollinger loop: {e}")
+                session.rollback()
 
             time.sleep(boll_config.poll_interval_sec)
     finally:
@@ -781,7 +787,7 @@ def get_status():
     try:
         btc, hbar, doge = get_prices()
 
-        with lock:
+        with mr_lock:
             ratio = hbar / doge
             if len(ratio_history) > 0:
                 mean_r = sum(ratio_history) / len(ratio_history)
@@ -861,6 +867,7 @@ def sync_state_from_balances():
 class ManualTradeRequest(BaseModel):
     direction: str
     notional_usd: float
+
 
 class ManualBollingerSellRequest(BaseModel):
     symbol: str      # e.g. "HBARUSDC", "BTCUSDT"
@@ -1054,7 +1061,7 @@ def next_signal():
     try:
         btc, hbar, doge = get_prices()
 
-        with lock:
+        with mr_lock:
             ratio = hbar / doge
             if len(ratio_history) > 0:
                 mean_r = sum(ratio_history) / len(ratio_history)
@@ -1225,14 +1232,19 @@ def get_boll_config():
 def update_boll_config(cfg: BollConfigModel):
     global boll_config
 
-    # sanity: if symbol provided, validate and enforce quote asset (USDT on testnet, USDC on mainnet)
+    # sanity: if symbol provided, validate quote asset is in an allowed set
+    # We allow stablecoins and majors so you can trade HBARBTC, HBARBNB, etc.
     if cfg.symbol:
         info = get_symbol_info_cached(cfg.symbol)
-        expected_quote = "USDT" if bot_config.use_testnet else "USDC"
-        if info["quoteAsset"] != expected_quote:
+        quote = info["quoteAsset"]
+        allowed_quotes = {"USDT", "USDC", "BTC", "BNB"}
+        if quote not in allowed_quotes:
             raise HTTPException(
                 status_code=400,
-                detail=f"Symbol {cfg.symbol} must have quoteAsset {expected_quote}, but is {info['quoteAsset']}",
+                detail=(
+                    f"Symbol {cfg.symbol} has quoteAsset {quote}, "
+                    f"but allowed quotes are: {', '.join(sorted(allowed_quotes))}"
+                ),
             )
 
     # don't overwrite enabled flag here – controlled by /boll_start /boll_stop
@@ -1259,6 +1271,7 @@ def boll_start():
 def boll_stop():
     boll_config.enabled = False
     return {"status": "stopped"}
+
 
 @app.post("/bollinger_manual_sell", response_model=ManualBollingerSellResponse)
 def bollinger_manual_sell(req: ManualBollingerSellRequest):
@@ -1336,12 +1349,12 @@ def bollinger_manual_sell(req: ManualBollingerSellRequest):
         )
 
     except BinanceAPIException as e:
-        # e.message is often more readable than str(e)
         raise HTTPException(status_code=400, detail=f"Binance error: {e.message}")
     except HTTPException:
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
 
 @app.get("/boll_status", response_model=BollStatusResponse)
 def boll_status():
@@ -1367,8 +1380,10 @@ def boll_status():
         symbol = boll_config.symbol
         base_asset, quote_asset = parse_symbol_assets(symbol)
 
-        with lock:
-            price = get_symbol_price(symbol)
+        # price fetch outside lock
+        price = get_symbol_price(symbol)
+
+        with boll_lock:
             if boll_price_history:
                 ma, std = compute_ma_std_window(
                     boll_price_history, max(5, boll_config.window_size)
@@ -1407,7 +1422,7 @@ def boll_status():
 
 @app.get("/boll_history", response_model=List[BollHistoryPoint])
 def boll_history(limit: int = 300):
-    with lock:
+    with boll_lock:
         n = min(len(boll_price_history), limit)
         prices = boll_price_history[-n:]
         tss = boll_ts_history[-n:]
@@ -1467,18 +1482,16 @@ def boll_trades(limit: int = 100):
 @app.get("/symbols")
 def list_symbols():
     """
-    List spot symbols matching the current quote asset:
-    - USDT on testnet
-    - USDC on mainnet
-    So you can pick a single-coin symbol for the Bollinger bot.
+    OLD/FLAT VERSION – kept for backwards compatibility.
+    Returns a flat list of symbols that have one of the allowed quote assets.
     """
     info = client.get_exchange_info()
-    expected_quote = "USDT" if bot_config.use_testnet else "USDC"
+    allowed_quotes = {"USDT", "USDC", "BTC", "BNB"}
     out = []
     for s in info["symbols"]:
         if s.get("status") != "TRADING":
             continue
-        if s.get("quoteAsset") != expected_quote:
+        if s.get("quoteAsset") not in allowed_quotes:
             continue
         out.append(
             {
@@ -1488,6 +1501,44 @@ def list_symbols():
             }
         )
     return out
+
+
+@app.get("/symbols_grouped")
+def list_symbols_grouped():
+    """
+    NEW: returns symbols grouped by quote asset so the UI can show
+    categories like:
+      - USDT pairs
+      - USDC pairs
+      - BTC pairs
+      - BNB pairs
+    Example response:
+    {
+      "USDT": [ {symbol, baseAsset, quoteAsset}, ... ],
+      "USDC": [ ... ],
+      "BTC":  [ ... ],
+      "BNB":  [ ... ]
+    }
+    """
+    info = client.get_exchange_info()
+    allowed_quotes = ["USDT", "USDC", "BTC", "BNB"]
+
+    grouped = {q: [] for q in allowed_quotes}
+    for s in info["symbols"]:
+        if s.get("status") != "TRADING":
+            continue
+        qa = s.get("quoteAsset")
+        if qa not in grouped:
+            continue
+        grouped[qa].append(
+            {
+                "symbol": s["symbol"],
+                "baseAsset": s["baseAsset"],
+                "quoteAsset": qa,
+            }
+        )
+
+    return grouped
 
 
 @app.get("/", response_class=HTMLResponse)
