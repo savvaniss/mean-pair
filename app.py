@@ -839,30 +839,84 @@ def get_status():
 
 @app.post("/sync_state_from_balances")
 def sync_state_from_balances():
-    session = SessionLocal()
-    try:
-        st = session.query(State).first()
-        if not st:
-            st = State(
-                current_asset=BASE_ASSET,
-                current_qty=0.0,
-                last_ratio=0.0,
-                last_z=0.0,
-                realized_pnl_usd=0.0,
-                unrealized_pnl_usd=0.0,
-            )
-            session.add(st)
+    """
+    Infer current_asset & current_qty from on-exchange balances.
 
-        init_state_from_balances(st)
-        session.commit()
-        return {
-            "status": "ok",
-            "current_asset": st.current_asset,
-            "current_qty": st.current_qty,
-        }
-    finally:
-        session.close()
+    Rules:
+    - Look at HBAR and DOGE value in quote (USDC/USDT).
+    - If one of them has a decent size (>= max(5 USD, 0.5 * trade_notional)),
+      we assume we are in that coin.
+    - Otherwise we assume we are in pure quote (USDC/USDT).
+    """
+    cfg = load_config()
 
+    use_testnet = cfg.get("use_testnet", True)
+    quote_asset = "USDT" if use_testnet else "USDC"
+
+    # --- balances ---
+    def get_balance(sym: str) -> float:
+        bal = client.get_asset_balance(asset=sym)
+        if not bal:
+            return 0.0
+        return float(bal["free"]) + float(bal["locked"])
+
+    hbar_balance = get_balance("HBAR")
+    doge_balance = get_balance("DOGE")
+    quote_balance = get_balance(quote_asset)
+
+    # --- prices (HBAR/quote, DOGE/quote) ---
+    def get_price(symbol: str, default: float = 0.0) -> float:
+        try:
+            p = client.get_symbol_ticker(symbol=symbol)
+            return float(p["price"])
+        except Exception:
+            return default
+
+    hbar_price = get_price(f"HBAR{quote_asset}", default=0.0)
+    doge_price = get_price(f"DOGE{quote_asset}", default=0.0)
+
+    hbar_value = hbar_balance * hbar_price
+    doge_value = doge_balance * doge_price
+
+    # --- decide current asset ---
+    # threshold so we don't pick tiny dust as "current position"
+    trade_notional = float(cfg.get("trade_notional_usd", 50.0) or 50.0)
+    min_position_value = max(5.0, 0.5 * trade_notional)
+
+    coin_values = {
+        "HBAR": hbar_value,
+        "DOGE": doge_value,
+    }
+
+    # which coin has larger value
+    best_coin = max(coin_values, key=coin_values.get)
+    best_value = coin_values[best_coin]
+
+    if best_value >= min_position_value:
+        # we are in a coin position
+        current_asset = best_coin
+        current_qty = hbar_balance if best_coin == "HBAR" else doge_balance
+    else:
+        # mostly in quote asset
+        current_asset = quote_asset
+        current_qty = quote_balance
+
+    state = load_state()
+    state["current_asset"] = current_asset
+    state["current_qty"] = current_qty
+    save_state(state)
+
+    return {
+        "current_asset": current_asset,
+        "current_qty": current_qty,
+        "hbar_balance": hbar_balance,
+        "doge_balance": doge_balance,
+        "quote_asset": quote_asset,
+        "quote_balance": quote_balance,
+        "hbar_value": hbar_value,
+        "doge_value": doge_value,
+        "min_position_value": min_position_value,
+    }
 
 class ManualTradeRequest(BaseModel):
     direction: str
