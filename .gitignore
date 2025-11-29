@@ -1,0 +1,5 @@
+.env
+venv
+mean_reversion.db
+npm_data
+npm_letsencrypt
