@@ -318,33 +318,55 @@ def get_free_balance(asset: str):
 def init_state_from_balances(st: State):
     """
     Detect what we currently hold (HBAR / DOGE / base asset)
-    and set the starting portfolio value in USDT for PnL.
+    and set current_asset + current_qty + starting portfolio value.
+
+    Uses approximate USD valuation to choose the dominant asset.
     """
-    # current balances
+    # live balances
     hbar_bal = get_free_balance("HBAR")
     doge_bal = get_free_balance("DOGE")
     base_bal = get_free_balance(BASE_ASSET)
 
-    # detect current asset
-    if hbar_bal > 0 and doge_bal == 0:
-        st.current_asset = "HBAR"
-        st.current_qty = hbar_bal
-    elif doge_bal > 0 and hbar_bal == 0:
-        st.current_asset = "DOGE"
-        st.current_qty = doge_bal
+    # approximate values in "USD" terms
+    try:
+        _btc, hbar_price, doge_price = get_prices()  # HBAR/USDT, DOGE/USDT
+        hbar_val = hbar_bal * hbar_price
+        doge_val = doge_bal * doge_price
+        base_val = base_bal  # BASE_ASSET is USDT/USDC → ~1 USD
+    except Exception:
+        # fallback if price fetch fails
+        hbar_val = hbar_bal
+        doge_val = doge_bal
+        base_val = base_bal
+
+    trade_notional = bot_config.trade_notional_usd or 0.0
+    min_position_value = max(5.0, 0.5 * trade_notional)
+
+    asset_values = {
+        "HBAR": hbar_val,
+        "DOGE": doge_val,
+        BASE_ASSET: base_val,
+    }
+
+    best_asset = max(asset_values, key=asset_values.get)
+    best_value = asset_values[best_asset]
+
+    # if one coin clearly dominates above threshold → treat as current asset
+    if best_asset != BASE_ASSET and best_value >= min_position_value:
+        st.current_asset = best_asset
+        if best_asset == "HBAR":
+            st.current_qty = hbar_bal
+        elif best_asset == "DOGE":
+            st.current_qty = doge_bal
     else:
+        # otherwise we consider ourselves flat in base (USDC/USDT)
         st.current_asset = BASE_ASSET
         st.current_qty = base_bal
 
-    # set starting portfolio value (in "USDT" sense)
-    try:
-        _btc, hbar_price, doge_price = get_prices()
-        start_value = base_bal + hbar_bal * hbar_price + doge_bal * doge_price
-    except Exception:
-        start_value = 0.0
-
-    st.realized_pnl_usd = start_value
+    # store starting portfolio value (for unrealized PnL calc)
+    st.realized_pnl_usd = base_val + hbar_val + doge_val
     st.unrealized_pnl_usd = 0.0
+
 
 
 def get_state(session):
@@ -801,13 +823,22 @@ def get_status():
 
         st = get_state(session)
 
-        # balances
+        # --- live balances (always from current env client) ---
         base_bal = get_free_balance(BASE_ASSET)
         hbar_bal = get_free_balance("HBAR")
         doge_bal = get_free_balance("DOGE")
-        usdc_bal = get_free_balance("USDC")
+        usdc_bal = get_free_balance("USDC")  # for display only
 
-        # current portfolio value (approx) for unrealized PnL
+        # make sure current_qty is *always* consistent with the chosen asset
+        if st.current_asset == "HBAR":
+            st.current_qty = hbar_bal
+        elif st.current_asset == "DOGE":
+            st.current_qty = doge_bal
+        else:
+            st.current_asset = BASE_ASSET  # safety
+            st.current_qty = base_bal
+
+        # approximate portfolio value
         current_value = base_bal + hbar_bal * hbar + doge_bal * doge
         starting_value = st.realized_pnl_usd if st.realized_pnl_usd is not None else 0.0
         unrealized_pnl = current_value - starting_value
@@ -837,86 +868,33 @@ def get_status():
         session.close()
 
 
+
 @app.post("/sync_state_from_balances")
 def sync_state_from_balances():
-    """
-    Infer current_asset & current_qty from on-exchange balances.
+    session = SessionLocal()
+    try:
+        st = session.query(State).first()
+        if not st:
+            st = State(
+                current_asset=BASE_ASSET,
+                current_qty=0.0,
+                last_ratio=0.0,
+                last_z=0.0,
+                realized_pnl_usd=0.0,
+                unrealized_pnl_usd=0.0,
+            )
+            session.add(st)
 
-    Rules:
-    - Look at HBAR and DOGE value in quote (USDC/USDT).
-    - If one of them has a decent size (>= max(5 USD, 0.5 * trade_notional)),
-      we assume we are in that coin.
-    - Otherwise we assume we are in pure quote (USDC/USDT).
-    """
-    cfg = load_config()
+        init_state_from_balances(st)
+        session.commit()
+        return {
+            "status": "ok",
+            "current_asset": st.current_asset,
+            "current_qty": st.current_qty,
+        }
+    finally:
+        session.close()
 
-    use_testnet = cfg.get("use_testnet", True)
-    quote_asset = "USDT" if use_testnet else "USDC"
-
-    # --- balances ---
-    def get_balance(sym: str) -> float:
-        bal = client.get_asset_balance(asset=sym)
-        if not bal:
-            return 0.0
-        return float(bal["free"]) + float(bal["locked"])
-
-    hbar_balance = get_balance("HBAR")
-    doge_balance = get_balance("DOGE")
-    quote_balance = get_balance(quote_asset)
-
-    # --- prices (HBAR/quote, DOGE/quote) ---
-    def get_price(symbol: str, default: float = 0.0) -> float:
-        try:
-            p = client.get_symbol_ticker(symbol=symbol)
-            return float(p["price"])
-        except Exception:
-            return default
-
-    hbar_price = get_price(f"HBAR{quote_asset}", default=0.0)
-    doge_price = get_price(f"DOGE{quote_asset}", default=0.0)
-
-    hbar_value = hbar_balance * hbar_price
-    doge_value = doge_balance * doge_price
-
-    # --- decide current asset ---
-    # threshold so we don't pick tiny dust as "current position"
-    trade_notional = float(cfg.get("trade_notional_usd", 50.0) or 50.0)
-    min_position_value = max(5.0, 0.5 * trade_notional)
-
-    coin_values = {
-        "HBAR": hbar_value,
-        "DOGE": doge_value,
-    }
-
-    # which coin has larger value
-    best_coin = max(coin_values, key=coin_values.get)
-    best_value = coin_values[best_coin]
-
-    if best_value >= min_position_value:
-        # we are in a coin position
-        current_asset = best_coin
-        current_qty = hbar_balance if best_coin == "HBAR" else doge_balance
-    else:
-        # mostly in quote asset
-        current_asset = quote_asset
-        current_qty = quote_balance
-
-    state = load_state()
-    state["current_asset"] = current_asset
-    state["current_qty"] = current_qty
-    save_state(state)
-
-    return {
-        "current_asset": current_asset,
-        "current_qty": current_qty,
-        "hbar_balance": hbar_balance,
-        "doge_balance": doge_balance,
-        "quote_asset": quote_asset,
-        "quote_balance": quote_balance,
-        "hbar_value": hbar_value,
-        "doge_value": doge_value,
-        "min_position_value": min_position_value,
-    }
 
 class ManualTradeRequest(BaseModel):
     direction: str
@@ -1221,6 +1199,15 @@ def update_config(cfg: BotConfig):
         USE_TESTNET = cfg.use_testnet
         client = create_client(cfg.use_testnet)
         symbol_info_cache.clear()  # reset cache when switching env
+
+        # reset MR rolling history and state when env changes
+        ratio_history.clear()
+        s = SessionLocal()
+        try:
+            s.query(State).delete()
+            s.commit()
+        finally:
+            s.close()
 
     # Apply all fields EXCEPT 'enabled' (controlled by /start and /stop)
     for field, value in cfg.dict().items():
