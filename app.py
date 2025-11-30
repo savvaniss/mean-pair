@@ -201,7 +201,7 @@ ratio_history: List[float] = []
 
 class BollConfig(BaseModel):
     enabled: bool = False
-    symbol: str = "BNBUSDC"               # e.g. "HBARUSDC" or HBARBTC
+    symbol: str = "BNBBTC"               # e.g. "HBARUSDC" or HBARBTC
     poll_interval_sec: int = 20
     window_size: int = 70          # lookback for MA/std
     num_std: float = 3.0           # Bollinger band width
