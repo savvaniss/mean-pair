@@ -201,14 +201,14 @@ ratio_history: List[float] = []
 
 class BollConfig(BaseModel):
     enabled: bool = False
-    symbol: str = "BNBBTC"               # e.g. "HBARUSDC" or HBARBTC
+    symbol: str = "BNBUSDC"               # e.g. "HBARUSDC" or HBARBTC
     poll_interval_sec: int = 20
     window_size: int = 70          # lookback for MA/std
     num_std: float = 3.0           # Bollinger band width
     max_position_usd: float = 50.0 # max position size in quote *units*
-    use_all_balance: bool = True  # if true, can use all quote up to max_position_usd
-    stop_loss_pct: float = 0.15    # 5% hard stop-loss on open long
-    take_profit_pct: float = 0.15  # 10% take profit
+    use_all_balance: bool = True   # if true, can use all quote up to max_position_usd
+    stop_loss_pct: float = 0.15    # 15% hard stop-loss on open long
+    take_profit_pct: float = 0.15  # 15% take profit
     cooldown_sec: int = 80         # min seconds between trades
 
 
@@ -222,6 +222,7 @@ boll_last_trade_ts: float = 0.0
 
 # track last symbol we populated history for
 current_boll_symbol: str = ""
+
 # =========================
 # GLOBAL LOCKS / THREADS
 # =========================
@@ -428,7 +429,6 @@ def init_state_from_balances(st: State):
     # store starting portfolio value (for unrealized PnL calc)
     st.realized_pnl_usd = base_val + hbar_val + doge_val
     st.unrealized_pnl_usd = 0.0
-
 
 
 def get_state(session):
@@ -1319,7 +1319,7 @@ def get_boll_config():
 
 @app.post("/boll_config", response_model=BollConfigModel)
 def update_boll_config(cfg: BollConfigModel):
-    global boll_config, boll_ts_history, boll_ts_history, boll_last_trade_ts, current_boll_symbol
+    global boll_config, boll_ts_history, boll_price_history, boll_last_trade_ts, current_boll_symbol
 
     # sanity: if symbol provided, validate quote asset is in an allowed set
     if cfg.symbol:
@@ -1345,7 +1345,7 @@ def update_boll_config(cfg: BollConfigModel):
             boll_ts_history.clear()
             boll_price_history.clear()
             boll_last_trade_ts = 0.0
-        # optionally reset Bollinger DB state (so qty / PnL are per-symbol)
+        # reset Bollinger DB state (so qty / PnL are per-symbol)
         session = SessionLocal()
         try:
             session.query(BollState).delete()
@@ -1364,7 +1364,6 @@ def update_boll_config(cfg: BollConfigModel):
 
     boll_config.enabled = current_enabled
     return boll_config
-
 
 
 @app.post("/boll_start")
@@ -1386,7 +1385,7 @@ def bollinger_manual_sell(req: ManualBollingerSellRequest):
     """
     Manually sell <qty_base> of the base asset of <symbol> for its quote
     (e.g. sell 10 HBAR in HBARUSDC, or 0.01 BTC in BTCUSDT).
-    Uses the Bollinger account.
+    Uses the Bollinger account (boll_client).
     """
     if req.qty_base <= 0:
         raise HTTPException(status_code=400, detail="qty_base must be > 0")
@@ -1399,7 +1398,7 @@ def bollinger_manual_sell(req: ManualBollingerSellRequest):
         base_asset = info["baseAsset"]
         quote_asset = info["quoteAsset"]
 
-        # Check available balance of the base asset
+        # Check available balance of the base asset (Bollinger account)
         free_base = get_free_balance_boll(base_asset)
         if free_base <= 0:
             raise HTTPException(
@@ -1420,9 +1419,26 @@ def bollinger_manual_sell(req: ManualBollingerSellRequest):
         # Get current price for estimate
         ticker = boll_client.get_symbol_ticker(symbol=req.symbol)
         price = float(ticker["price"])
-        quote_est = qty_adj * price
 
-        # Place market SELL
+        # Check MIN_NOTIONAL / NOTIONAL filter to avoid APIError -1013
+        min_notional = 0.0
+        for f in info["filters"]:
+            if f["filterType"] in ("MIN_NOTIONAL", "NOTIONAL"):
+                min_notional = float(f.get("minNotional", f.get("notional", "0")))
+                break
+
+        quote_est = qty_adj * price
+        if min_notional > 0 and quote_est < min_notional:
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    f"Notional {quote_est:.4f} {quote_asset} is below "
+                    f"Binance MIN_NOTIONAL {min_notional:.4f} {quote_asset}. "
+                    f"Increase quantity or price."
+                ),
+            )
+
+        # Place market SELL using Bollinger credentials
         order = place_market_order_boll(req.symbol, "SELL", qty_adj)
         if not order:
             raise HTTPException(status_code=500, detail="Sell order failed")
