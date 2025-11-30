@@ -46,6 +46,10 @@ BASE_ASSET = os.getenv("BASE_ASSET", "USDT").upper()
 
 AUTO_START = os.getenv("BOT_AUTO_START", "false").lower() == "true"
 
+# Which quote assets to use for MR prices / symbols
+TESTNET_QUOTE = os.getenv("BINANCE_TESTNET_QUOTE", "USDT").upper()
+MAINNET_QUOTE = os.getenv("BINANCE_MAINNET_QUOTE", "USDT").upper()
+
 if DEFAULT_ENV not in ("testnet", "mainnet"):
     raise RuntimeError("BINANCE_DEFAULT_ENV must be 'testnet' or 'mainnet'")
 
@@ -96,6 +100,17 @@ def create_boll_client(use_testnet: bool) -> Client:
 USE_TESTNET = DEFAULT_ENV == "testnet"
 mr_client = create_mr_client(USE_TESTNET)
 boll_client = create_boll_client(USE_TESTNET)
+
+
+def get_mr_quote() -> str:
+    """Quote asset the MR bot should use (e.g. USDT on testnet, USDC on mainnet)."""
+    return TESTNET_QUOTE if USE_TESTNET else MAINNET_QUOTE
+
+
+def mr_symbol(base: str) -> str:
+    """Build MR symbol like HBARUSDC / DOGEUSDT based on environment."""
+    return f"{base}{get_mr_quote()}"
+
 
 # =========================
 # DATABASE SETUP (SQLite)
@@ -304,15 +319,17 @@ def parse_symbol_assets(symbol: str, *, for_boll: bool = False):
 
 def get_prices():
     """
-    Mean reversion bot prices – uses MR client and USDT symbols.
+    Mean reversion bot prices – uses MR client and the configured quote asset.
+    (e.g. BTCUSDT/HBARUSDT/DOGEUSDT on testnet, BTCUSDC/HBARUSDC/DOGEUSDC on mainnet)
     """
+    quote = get_mr_quote()
     tickers = mr_client.get_all_tickers()
     price_map = {t["symbol"]: float(t["price"]) for t in tickers}
-    btc = price_map.get("BTCUSDT")
-    hbar = price_map.get("HBARUSDT")
-    doge = price_map.get("DOGEUSDT")
+    btc = price_map.get(f"BTC{quote}")
+    hbar = price_map.get(f"HBAR{quote}")
+    doge = price_map.get(f"DOGE{quote}")
     if btc is None or hbar is None or doge is None:
-        raise RuntimeError("Missing one of BTCUSDT / HBARUSDT / DOGEUSDT from Binance")
+        raise RuntimeError(f"Missing one of BTC{quote} / HBAR{quote} / DOGE{quote} from Binance")
     return btc, hbar, doge
 
 
@@ -401,7 +418,7 @@ def init_state_from_balances(st: State):
 
     # approximate values in "USD" terms
     try:
-        _btc, hbar_price, doge_price = get_prices()  # HBARUSDT, DOGEUSDT prices
+        _btc, hbar_price, doge_price = get_prices()
         hbar_val = hbar_bal * hbar_price
         doge_val = doge_bal * doge_price
         base_val = base_bal  # BASE_ASSET is USDT/USDC → ~1 USD
@@ -550,6 +567,9 @@ def bot_loop():
                         ratio, mean_r, std_r, z, state
                     )
 
+                    hbar_sym = mr_symbol("HBAR")
+                    doge_sym = mr_symbol("DOGE")
+
                     # HBAR expensive → HBAR -> DOGE
                     if sell_signal and state.current_asset == "HBAR":
                         if bot_config.use_all_balance:
@@ -557,21 +577,21 @@ def bot_loop():
                         else:
                             notional = bot_config.trade_notional_usd
                             qty_hbar = min(notional / hbar, get_free_balance_mr("HBAR"))
-                        qty_hbar = adjust_quantity("HBARUSDT", qty_hbar)
+                        qty_hbar = adjust_quantity(hbar_sym, qty_hbar)
 
                         if qty_hbar <= 0:
                             print("Qty HBAR too small after LOT_SIZE adjust")
                         else:
-                            order_sell = place_market_order_mr("HBARUSDT", "SELL", qty_hbar)
+                            order_sell = place_market_order_mr(hbar_sym, "SELL", qty_hbar)
                             if order_sell:
-                                usdt_received = qty_hbar * hbar
-                                qty_doge = usdt_received / doge
-                                qty_doge = adjust_quantity("DOGEUSDT", qty_doge)
+                                quote_received = qty_hbar * hbar
+                                qty_doge = quote_received / doge
+                                qty_doge = adjust_quantity(doge_sym, qty_doge)
 
                                 if qty_doge <= 0:
                                     print("Qty DOGE too small after LOT_SIZE adjust")
                                 else:
-                                    order_buy = place_market_order_mr("DOGEUSDT", "BUY", qty_doge)
+                                    order_buy = place_market_order_mr(doge_sym, "BUY", qty_doge)
                                     if order_buy:
                                         tr = Trade(
                                             ts=ts,
@@ -596,21 +616,21 @@ def bot_loop():
                         else:
                             notional = bot_config.trade_notional_usd
                             qty_doge = min(notional / doge, get_free_balance_mr("DOGE"))
-                        qty_doge = adjust_quantity("DOGEUSDT", qty_doge)
+                        qty_doge = adjust_quantity(doge_sym, qty_doge)
 
                         if qty_doge <= 0:
                             print("Qty DOGE too small after LOT_SIZE adjust")
                         else:
-                            order_sell = place_market_order_mr("DOGEUSDT", "SELL", qty_doge)
+                            order_sell = place_market_order_mr(doge_sym, "SELL", qty_doge)
                             if order_sell:
-                                usdt_received = qty_doge * doge
-                                qty_hbar = usdt_received / hbar
-                                qty_hbar = adjust_quantity("HBARUSDT", qty_hbar)
+                                quote_received = qty_doge * doge
+                                qty_hbar = quote_received / hbar
+                                qty_hbar = adjust_quantity(hbar_sym, qty_hbar)
 
                                 if qty_hbar <= 0:
                                     print("Qty HBAR too small after LOT_SIZE adjust")
                                 else:
-                                    order_buy = place_market_order_mr("HBARUSDT", "BUY", qty_hbar)
+                                    order_buy = place_market_order_mr(hbar_sym, "BUY", qty_hbar)
                                     if order_buy:
                                         tr = Trade(
                                             ts=ts,
@@ -985,23 +1005,26 @@ def manual_trade(req: ManualTradeRequest):
         ratio = hbar / doge
         state = get_state(session)
 
+        hbar_sym = mr_symbol("HBAR")
+        doge_sym = mr_symbol("DOGE")
+
         if req.direction == "HBAR->DOGE":
             qty_hbar = min(req.notional_usd / hbar, get_free_balance_mr("HBAR"))
-            qty_hbar = adjust_quantity("HBARUSDT", qty_hbar)
+            qty_hbar = adjust_quantity(hbar_sym, qty_hbar)
             if qty_hbar <= 0:
                 raise HTTPException(status_code=400, detail="Notional too small or no HBAR")
 
-            order_sell = place_market_order_mr("HBARUSDT", "SELL", qty_hbar)
+            order_sell = place_market_order_mr(hbar_sym, "SELL", qty_hbar)
             if not order_sell:
                 raise HTTPException(status_code=500, detail="HBAR sell failed")
 
-            usdt_received = qty_hbar * hbar
-            qty_doge = usdt_received / doge
-            qty_doge = adjust_quantity("DOGEUSDT", qty_doge)
+            quote_received = qty_hbar * hbar
+            qty_doge = quote_received / doge
+            qty_doge = adjust_quantity(doge_sym, qty_doge)
             if qty_doge <= 0:
                 raise HTTPException(status_code=400, detail="Converted DOGE qty too small")
 
-            order_buy = place_market_order_mr("DOGEUSDT", "BUY", qty_doge)
+            order_buy = place_market_order_mr(doge_sym, "BUY", qty_doge)
             if not order_buy:
                 raise HTTPException(status_code=500, detail="DOGE buy failed")
 
@@ -1023,21 +1046,21 @@ def manual_trade(req: ManualTradeRequest):
 
         elif req.direction == "DOGE->HBAR":
             qty_doge = min(req.notional_usd / doge, get_free_balance_mr("DOGE"))
-            qty_doge = adjust_quantity("DOGEUSDT", qty_doge)
+            qty_doge = adjust_quantity(doge_sym, qty_doge)
             if qty_doge <= 0:
                 raise HTTPException(status_code=400, detail="Notional too small or no DOGE")
 
-            order_sell = place_market_order_mr("DOGEUSDT", "SELL", qty_doge)
+            order_sell = place_market_order_mr(doge_sym, "SELL", qty_doge)
             if not order_sell:
                 raise HTTPException(status_code=500, detail="DOGE sell failed")
 
-            usdt_received = qty_doge * doge
-            qty_hbar = usdt_received / hbar
-            qty_hbar = adjust_quantity("HBARUSDT", qty_hbar)
+            quote_received = qty_doge * doge
+            qty_hbar = quote_received / hbar
+            qty_hbar = adjust_quantity(hbar_sym, qty_hbar)
             if qty_hbar <= 0:
                 raise HTTPException(status_code=400, detail="Converted HBAR qty too small")
 
-            order_buy = place_market_order_mr("HBARUSDT", "BUY", qty_hbar)
+            order_buy = place_market_order_mr(hbar_sym, "BUY", qty_hbar)
             if not order_buy:
                 raise HTTPException(status_code=500, detail="HBAR buy failed")
 
@@ -1178,18 +1201,21 @@ def next_signal():
         qty_from = 0.0
         qty_to = 0.0
 
+        hbar_sym = mr_symbol("HBAR")
+        doge_sym = mr_symbol("DOGE")
+
         if sell_signal and state.current_asset == "HBAR":
             if bot_config.use_all_balance:
                 qty_hbar = get_free_balance_mr("HBAR")
             else:
                 notional = bot_config.trade_notional_usd
                 qty_hbar = min(notional / hbar, get_free_balance_mr("HBAR"))
-            qty_hbar = adjust_quantity("HBARUSDT", qty_hbar)
+            qty_hbar = adjust_quantity(hbar_sym, qty_hbar)
 
             if qty_hbar > 0:
-                usdt_received = qty_hbar * hbar
-                qty_doge = usdt_received / doge
-                qty_doge = adjust_quantity("DOGEUSDT", qty_doge)
+                quote_received = qty_hbar * hbar
+                qty_doge = quote_received / doge
+                qty_doge = adjust_quantity(doge_sym, qty_doge)
                 if qty_doge > 0:
                     direction = "HBAR->DOGE"
                     from_asset = "HBAR"
@@ -1203,12 +1229,12 @@ def next_signal():
             else:
                 notional = bot_config.trade_notional_usd
                 qty_doge = min(notional / doge, get_free_balance_mr("DOGE"))
-            qty_doge = adjust_quantity("DOGEUSDT", qty_doge)
+            qty_doge = adjust_quantity(doge_sym, qty_doge)
 
             if qty_doge > 0:
-                usdt_received = qty_doge * doge
-                qty_hbar = usdt_received / hbar
-                qty_hbar = adjust_quantity("HBARUSDT", qty_hbar)
+                quote_received = qty_doge * doge
+                qty_hbar = quote_received / hbar
+                qty_hbar = adjust_quantity(hbar_sym, qty_hbar)
                 if qty_hbar > 0:
                     direction = "DOGE->HBAR"
                     from_asset = "DOGE"
@@ -1511,6 +1537,7 @@ def boll_status():
                 realized_pnl_usd=0.0,
                 unrealized_pnl_usd=0.0,
                 enabled=boll_config.enabled,
+                quote_balance=0.0,
             )
 
         symbol = boll_config.symbol
@@ -1571,6 +1598,7 @@ def boll_balances():
         for b in acc["balances"]
         if float(b["free"]) > 0 or float(b["locked"]) > 0
     ]
+
 
 @app.get("/boll_history", response_model=List[BollHistoryPoint])
 def boll_history(limit: int = 300):
