@@ -781,17 +781,40 @@ def boll_loop():
 
                 elif action == "SELL" and state.position == "LONG" and state.qty_asset > 0:
                     # sell asset back to quote
-                    qty = min(state.qty_asset, get_free_balance_boll(base_asset))
-                    qty = adjust_quantity(symbol, qty, for_boll=True)
+                    free_base = get_free_balance_boll(base_asset)
+                    qty_req = min(state.qty_asset, free_base)
+
+                    # Clamp to LOT_SIZE
+                    qty = adjust_quantity(symbol, qty_req, for_boll=True)
+
                     if qty <= 0:
-                        print("Bollinger: qty too small to sell")
+                        # We have only "dust" left that can't be traded because of LOT_SIZE.
+                        # Treat position as closed so the bot can trade again.
+                        print(
+                            f"Bollinger: qty {state.qty_asset} is dust (below LOT_SIZE). "
+                            "Marking position as FLAT."
+                        )
+                        # Optional: realize PnL on the dust (approximate)
+                        if state.entry_price > 0 and state.qty_asset > 0:
+                            pnl_dust = (price - state.entry_price) * state.qty_asset
+                            state.realized_pnl_usd += pnl_dust
+
+                        state.qty_asset = 0.0
+                        state.position = "FLAT"
+                        state.entry_price = 0.0
+                        state.unrealized_pnl_usd = 0.0
+
                     else:
                         order = place_market_order_boll(symbol, "SELL", qty)
                         if order:
-                            notional_filled = qty * price
-                            pnl = (price - state.entry_price) * qty
+                            # If you want to be super-precise, you can use executedQty:
+                            # filled_qty = float(order.get("executedQty", qty))
+                            filled_qty = qty
+
+                            notional_filled = filled_qty * price
+                            pnl = (price - state.entry_price) * filled_qty
                             state.realized_pnl_usd += pnl
-                            state.qty_asset -= qty
+                            state.qty_asset -= filled_qty
                             if state.qty_asset < 1e-12:
                                 state.qty_asset = 0.0
                                 state.position = "FLAT"
@@ -801,7 +824,7 @@ def boll_loop():
                                 ts=ts,
                                 symbol=symbol,
                                 side="SELL",
-                                qty=qty,
+                                qty=filled_qty,
                                 price=price,
                                 notional=notional_filled,
                                 pnl_usd=pnl,
@@ -809,6 +832,7 @@ def boll_loop():
                             )
                             session.add(tr)
                             boll_last_trade_ts = now_ts
+
 
                 session.commit()
 
