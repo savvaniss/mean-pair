@@ -34,8 +34,8 @@ MR_MAINNET_API_SECRET = os.getenv("BINANCE_MAINNET_API_SECRET")
 BOLL_TESTNET_API_KEY = os.getenv("BINANCE_BOLL_TESTNET_API_KEY", MR_TESTNET_API_KEY)
 BOLL_TESTNET_API_SECRET = os.getenv("BINANCE_BOLL_TESTNET_API_SECRET", MR_TESTNET_API_SECRET)
 
-BOLL_MAINNET_API_KEY = os.getenv("BINANCE_BOLL_MAINNET_API_KEY", MR_MAINNET_API_KEY)
-BOLL_MAINNET_API_SECRET = os.getenv("BINANCE_BOLL_MAINNET_API_SECRET", MR_MAINNET_API_SECRET)
+BOLL_MAINNET_API_KEY = os.getenv("BINANCE_BOLL_MAINNET_API_KEY")
+BOLL_MAINNET_API_SECRET = os.getenv("BINANCE_BOLL_MAINNET_API_SECRET")
 
 # default env when the app starts: "testnet" or "mainnet"
 DEFAULT_ENV = os.getenv("BINANCE_DEFAULT_ENV", "testnet").lower()
@@ -67,19 +67,29 @@ def create_mr_client(use_testnet: bool) -> Client:
 
 
 def create_boll_client(use_testnet: bool) -> Client:
-    """Client for Bollinger bot (separate sub-account)."""
+    """
+    Client for Bollinger bot (separate sub-account).
+
+    Preference:
+      - if Bollinger keys are set -> use them
+      - else -> fall back to MR keys (so you can still run with one account)
+    """
     if use_testnet:
-        if not BOLL_TESTNET_API_KEY or not BOLL_TESTNET_API_SECRET:
+        key = BOLL_TESTNET_API_KEY or MR_TESTNET_API_KEY
+        sec = BOLL_TESTNET_API_SECRET or MR_TESTNET_API_SECRET
+        if not key or not sec:
             raise RuntimeError(
-                "BINANCE_BOLL_TESTNET_API_KEY / BINANCE_BOLL_TESTNET_API_SECRET must be set for Bollinger bot"
+                "No testnet keys for Bollinger bot (BINANCE_BOLL_TESTNET_API_KEY or BINANCE_TESTNET_API_KEY)"
             )
-        return Client(BOLL_TESTNET_API_KEY, BOLL_TESTNET_API_SECRET, testnet=True)
+        return Client(key, sec, testnet=True)
     else:
-        if not BOLL_MAINNET_API_KEY or not BOLL_MAINNET_API_SECRET:
+        key = BOLL_MAINNET_API_KEY or MR_MAINNET_API_KEY
+        sec = BOLL_MAINNET_API_SECRET or MR_MAINNET_API_SECRET
+        if not key or not sec:
             raise RuntimeError(
-                "BINANCE_BOLL_MAINNET_API_KEY / BINANCE_BOLL_MAINNET_API_SECRET must be set for Bollinger bot"
+                "No mainnet keys for Bollinger bot (BINANCE_BOLL_MAINNET_API_KEY or BINANCE_MAINNET_API_KEY)"
             )
-        return Client(BOLL_MAINNET_API_KEY, BOLL_MAINNET_API_SECRET)
+        return Client(key, sec)
 
 
 # Global clients, start in default env
