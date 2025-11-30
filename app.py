@@ -175,12 +175,12 @@ Base.metadata.create_all(bind=engine)
 class BotConfig(BaseModel):
     enabled: bool = False
     poll_interval_sec: int = 20
-    window_size: int = 50
-    z_entry: float = 1.5
-    z_exit: float = 0.3
+    window_size: int = 100
+    z_entry: float = 3
+    z_exit: float = 0.4
     trade_notional_usd: float = 50.0
-    use_all_balance: bool = False
-    use_testnet: bool = True  # will be overridden below
+    use_all_balance: bool = True
+    use_testnet: bool = False  # will be overridden below
     # explicit ratio thresholds
     use_ratio_thresholds: bool = False
     sell_ratio_threshold: float = 0.0  # ratio >= this → sell HBAR (HBAR->DOGE)
@@ -201,15 +201,15 @@ ratio_history: List[float] = []
 
 class BollConfig(BaseModel):
     enabled: bool = False
-    symbol: str = ""               # e.g. "HBARUSDC" or HBARBTC
+    symbol: str = "BNBUSDC"               # e.g. "HBARUSDC" or HBARBTC
     poll_interval_sec: int = 20
-    window_size: int = 50          # lookback for MA/std
-    num_std: float = 2.0           # Bollinger band width
+    window_size: int = 70          # lookback for MA/std
+    num_std: float = 3.0           # Bollinger band width
     max_position_usd: float = 50.0 # max position size in quote *units*
-    use_all_balance: bool = False  # if true, can use all quote up to max_position_usd
-    stop_loss_pct: float = 0.05    # 5% hard stop-loss on open long
-    take_profit_pct: float = 0.10  # 10% take profit
-    cooldown_sec: int = 60         # min seconds between trades
+    use_all_balance: bool = True  # if true, can use all quote up to max_position_usd
+    stop_loss_pct: float = 0.15    # 5% hard stop-loss on open long
+    take_profit_pct: float = 0.15  # 10% take profit
+    cooldown_sec: int = 80         # min seconds between trades
 
 
 boll_config = BollConfig()
@@ -220,6 +220,8 @@ boll_price_history: List[float] = []
 BOLL_MAX_HISTORY = 500
 boll_last_trade_ts: float = 0.0
 
+# track last symbol we populated history for
+current_boll_symbol: str = ""
 # =========================
 # GLOBAL LOCKS / THREADS
 # =========================
@@ -1317,10 +1319,9 @@ def get_boll_config():
 
 @app.post("/boll_config", response_model=BollConfigModel)
 def update_boll_config(cfg: BollConfigModel):
-    global boll_config
+    global boll_config, boll_ts_history, boll_ts_history, boll_last_trade_ts, current_boll_symbol
 
     # sanity: if symbol provided, validate quote asset is in an allowed set
-    # We allow stablecoins and majors so you can trade HBARBTC, HBARBNB, etc.
     if cfg.symbol:
         info = boll_client.get_symbol_info(cfg.symbol)
         quote = info["quoteAsset"]
@@ -1334,6 +1335,25 @@ def update_boll_config(cfg: BollConfigModel):
                 ),
             )
 
+    # --- detect symbol change and reset history/state ---
+    old_symbol = boll_config.symbol
+    new_symbol = cfg.symbol
+
+    if new_symbol and new_symbol != old_symbol:
+        # wipe in-memory history so chart starts clean
+        with boll_lock:
+            boll_ts_history.clear()
+            boll_price_history.clear()
+            boll_last_trade_ts = 0.0
+        # optionally reset Bollinger DB state (so qty / PnL are per-symbol)
+        session = SessionLocal()
+        try:
+            session.query(BollState).delete()
+            session.commit()
+        finally:
+            session.close()
+        current_boll_symbol = new_symbol
+
     # don't overwrite enabled flag here – controlled by /boll_start /boll_stop
     current_enabled = boll_config.enabled
     data = cfg.dict()
@@ -1344,6 +1364,7 @@ def update_boll_config(cfg: BollConfigModel):
 
     boll_config.enabled = current_enabled
     return boll_config
+
 
 
 @app.post("/boll_start")
