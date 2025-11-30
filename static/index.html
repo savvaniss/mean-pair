@@ -1428,12 +1428,17 @@
               <div class="metric-label">Qty (asset)</div>
               <div class="metric-value">${data.qty_asset.toFixed(6)}</div>
             </div>
+            <div class="metric-group">
+              <div class="metric-label">Quote balance (${quote})</div>
+              <div class="metric-value">${data.quote_balance.toFixed(6)}</div>
+            </div>
           </div>
           <div class="status-line">
             <b>Realized PnL:</b> ${data.realized_pnl_usd.toFixed(2)} ${quote} |
             <b>Unrealized PnL:</b> ${data.unrealized_pnl_usd.toFixed(2)} ${quote}
           </div>
         `;
+
       } catch (e) {
         console.error(e);
         document.getElementById('bollStatus').innerText = 'Error loading Bollinger status';
