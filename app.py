@@ -1298,6 +1298,7 @@ class BollStatusResponse(BaseModel):
     realized_pnl_usd: float
     unrealized_pnl_usd: float
     enabled: bool
+    quote_balance: float   # <-- add this
 
 
 class BollHistoryPoint(BaseModel):
@@ -1507,6 +1508,7 @@ def boll_status():
 
         # price fetch outside lock
         price = get_symbol_price_boll(symbol)
+        quote_balance = get_free_balance_boll(quote_asset)
 
         with boll_lock:
             if boll_price_history:
@@ -1540,10 +1542,25 @@ def boll_status():
             realized_pnl_usd=state.realized_pnl_usd,
             unrealized_pnl_usd=state.unrealized_pnl_usd,
             enabled=boll_config.enabled,
+            quote_balance=quote_balance,  # <-- here
         )
     finally:
         session.close()
 
+
+@app.get("/boll_balances")
+def boll_balances():
+    """
+    Returns all balances for the Bollinger account (boll_client),
+    so you can verify USDC / USDT / etc in the sub-account.
+    """
+    acc = boll_client.get_account()
+    # Only show non-zero free balances to keep it readable
+    return [
+        {"asset": b["asset"], "free": float(b["free"]), "locked": float(b["locked"])}
+        for b in acc["balances"]
+        if float(b["free"]) > 0 or float(b["locked"]) > 0
+    ]
 
 @app.get("/boll_history", response_model=List[BollHistoryPoint])
 def boll_history(limit: int = 300):
