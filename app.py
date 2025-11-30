@@ -22,13 +22,20 @@ from sqlalchemy.orm import sessionmaker, declarative_base
 
 load_dotenv()
 
-# --- Testnet credentials ---
-TESTNET_API_KEY = os.getenv("BINANCE_TESTNET_API_KEY")
-TESTNET_API_SECRET = os.getenv("BINANCE_TESTNET_API_SECRET")
+# --- Mean-reversion (MR) credentials ---
+MR_TESTNET_API_KEY = os.getenv("BINANCE_TESTNET_API_KEY")
+MR_TESTNET_API_SECRET = os.getenv("BINANCE_TESTNET_API_SECRET")
 
-# --- Mainnet credentials ---
-MAINNET_API_KEY = os.getenv("BINANCE_MAINNET_API_KEY")
-MAINNET_API_SECRET = os.getenv("BINANCE_MAINNET_API_SECRET")
+MR_MAINNET_API_KEY = os.getenv("BINANCE_MAINNET_API_KEY")
+MR_MAINNET_API_SECRET = os.getenv("BINANCE_MAINNET_API_SECRET")
+
+# --- Bollinger credentials (separate account / sub-account) ---
+# If not set, they fall back to the MR keys.
+BOLL_TESTNET_API_KEY = os.getenv("BINANCE_BOLL_TESTNET_API_KEY", MR_TESTNET_API_KEY)
+BOLL_TESTNET_API_SECRET = os.getenv("BINANCE_BOLL_TESTNET_API_SECRET", MR_TESTNET_API_SECRET)
+
+BOLL_MAINNET_API_KEY = os.getenv("BINANCE_BOLL_MAINNET_API_KEY", MR_MAINNET_API_KEY)
+BOLL_MAINNET_API_SECRET = os.getenv("BINANCE_BOLL_MAINNET_API_SECRET", MR_MAINNET_API_SECRET)
 
 # default env when the app starts: "testnet" or "mainnet"
 DEFAULT_ENV = os.getenv("BINANCE_DEFAULT_ENV", "testnet").lower()
@@ -43,25 +50,42 @@ if DEFAULT_ENV not in ("testnet", "mainnet"):
     raise RuntimeError("BINANCE_DEFAULT_ENV must be 'testnet' or 'mainnet'")
 
 
-def create_client(use_testnet: bool) -> Client:
-    """Create a Binance client for testnet or mainnet using the correct keys."""
+def create_mr_client(use_testnet: bool) -> Client:
+    """Client for mean-reversion bot."""
     if use_testnet:
-        if not TESTNET_API_KEY or not TESTNET_API_SECRET:
+        if not MR_TESTNET_API_KEY or not MR_TESTNET_API_SECRET:
             raise RuntimeError(
-                "BINANCE_TESTNET_API_KEY / BINANCE_TESTNET_API_SECRET must be set in .env"
+                "BINANCE_TESTNET_API_KEY / BINANCE_TESTNET_API_SECRET must be set for MR bot"
             )
-        return Client(TESTNET_API_KEY, TESTNET_API_SECRET, testnet=True)
+        return Client(MR_TESTNET_API_KEY, MR_TESTNET_API_SECRET, testnet=True)
     else:
-        if not MAINNET_API_KEY or not MAINNET_API_SECRET:
+        if not MR_MAINNET_API_KEY or not MR_MAINNET_API_SECRET:
             raise RuntimeError(
-                "BINANCE_MAINNET_API_KEY / BINANCE_MAINNET_API_SECRET must be set in .env"
+                "BINANCE_MAINNET_API_KEY / BINANCE_MAINNET_API_SECRET must be set for MR bot"
             )
-        return Client(MAINNET_API_KEY, MAINNET_API_SECRET)
+        return Client(MR_MAINNET_API_KEY, MR_MAINNET_API_SECRET)
 
 
-# Global client, starts in default env
+def create_boll_client(use_testnet: bool) -> Client:
+    """Client for Bollinger bot (separate sub-account)."""
+    if use_testnet:
+        if not BOLL_TESTNET_API_KEY or not BOLL_TESTNET_API_SECRET:
+            raise RuntimeError(
+                "BINANCE_BOLL_TESTNET_API_KEY / BINANCE_BOLL_TESTNET_API_SECRET must be set for Bollinger bot"
+            )
+        return Client(BOLL_TESTNET_API_KEY, BOLL_TESTNET_API_SECRET, testnet=True)
+    else:
+        if not BOLL_MAINNET_API_KEY or not BOLL_MAINNET_API_SECRET:
+            raise RuntimeError(
+                "BINANCE_BOLL_MAINNET_API_KEY / BINANCE_BOLL_MAINNET_API_SECRET must be set for Bollinger bot"
+            )
+        return Client(BOLL_MAINNET_API_KEY, BOLL_MAINNET_API_SECRET)
+
+
+# Global clients, start in default env
 USE_TESTNET = DEFAULT_ENV == "testnet"
-client = create_client(USE_TESTNET)
+mr_client = create_mr_client(USE_TESTNET)
+boll_client = create_boll_client(USE_TESTNET)
 
 # =========================
 # DATABASE SETUP (SQLite)
@@ -71,39 +95,6 @@ DATABASE_URL = "sqlite:///./mean_reversion.db"
 engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
 SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False)
 Base = declarative_base()
-
-# =========================
-# SYMBOL FILTER HELPERS
-# =========================
-
-symbol_info_cache = {}
-
-
-def get_symbol_info_cached(symbol: str):
-    if symbol not in symbol_info_cache:
-        info = client.get_symbol_info(symbol)
-        symbol_info_cache[symbol] = info
-    return symbol_info_cache[symbol]
-
-
-def adjust_quantity(symbol: str, qty: float) -> float:
-    """Clamp qty to Binance LOT_SIZE filter (minQty/stepSize)."""
-    info = get_symbol_info_cached(symbol)
-    lot_filter = next(f for f in info["filters"] if f["filterType"] == "LOT_SIZE")
-    step_size = float(lot_filter["stepSize"])
-    min_qty = float(lot_filter["minQty"])
-
-    steps = int(qty / step_size)
-    adj = steps * step_size
-    if adj < min_qty:
-        return 0.0
-    return adj
-
-
-def parse_symbol_assets(symbol: str):
-    """Return (baseAsset, quoteAsset) from exchange info."""
-    info = get_symbol_info_cached(symbol)
-    return info["baseAsset"], info["quoteAsset"]
 
 # =========================
 # DB MODELS
@@ -266,17 +257,43 @@ def boll_has_enough_history() -> bool:
     return len(boll_price_history) >= boll_required_history_len()
 
 # =========================
-# HELPERS
+# LOW-LEVEL HELPERS (MR vs Bollinger)
 # =========================
+
+
+def adjust_quantity(symbol: str, qty: float, *, for_boll: bool = False) -> float:
+    """
+    Clamp qty to Binance LOT_SIZE filter (minQty/stepSize).
+    If for_boll=True we use the Bollinger client, otherwise the MR client.
+    """
+    client = boll_client if for_boll else mr_client
+    info = client.get_symbol_info(symbol)
+    lot_filter = next(f for f in info["filters"] if f["filterType"] == "LOT_SIZE")
+    step_size = float(lot_filter["stepSize"])
+    min_qty = float(lot_filter["minQty"])
+
+    steps = int(qty / step_size)
+    adj = steps * step_size
+    if adj < min_qty:
+        return 0.0
+    return adj
+
+
+def parse_symbol_assets(symbol: str, *, for_boll: bool = False):
+    """Return (baseAsset, quoteAsset) from exchange info."""
+    client = boll_client if for_boll else mr_client
+    info = client.get_symbol_info(symbol)
+    return info["baseAsset"], info["quoteAsset"]
+
+
+# ----- MR helpers -----
 
 
 def get_prices():
     """
-    Mean reversion bot prices – still uses *USDT symbols* for now,
-    since this bot is mainly for testnet. On mainnet your sub-account
-    may not be allowed to trade them – keep this one for testnet.
+    Mean reversion bot prices – uses MR client and USDT symbols.
     """
-    tickers = client.get_all_tickers()
+    tickers = mr_client.get_all_tickers()
     price_map = {t["symbol"]: float(t["price"]) for t in tickers}
     btc = price_map.get("BTCUSDT")
     hbar = price_map.get("HBARUSDT")
@@ -286,9 +303,58 @@ def get_prices():
     return btc, hbar, doge
 
 
-def get_symbol_price(symbol: str) -> float:
-    ticker = client.get_symbol_ticker(symbol=symbol)
+def get_free_balance_mr(asset: str) -> float:
+    acc = mr_client.get_account()
+    for b in acc["balances"]:
+        if b["asset"] == asset:
+            return float(b["free"])
+    return 0.0
+
+
+def place_market_order_mr(symbol: str, side: str, quantity: float):
+    try:
+        return mr_client.create_order(
+            symbol=symbol,
+            side=side,
+            type="MARKET",
+            quantity=quantity,
+        )
+    except BinanceAPIException as e:
+        print(f"MR Binance error: {e}")
+        return None
+
+
+# ----- Bollinger helpers -----
+
+
+def get_symbol_price_boll(symbol: str) -> float:
+    ticker = boll_client.get_symbol_ticker(symbol=symbol)
     return float(ticker["price"])
+
+
+def get_free_balance_boll(asset: str) -> float:
+    acc = boll_client.get_account()
+    for b in acc["balances"]:
+        if b["asset"] == asset:
+            return float(b["free"])
+    return 0.0
+
+
+def place_market_order_boll(symbol: str, side: str, quantity: float):
+    try:
+        return boll_client.create_order(
+            symbol=symbol,
+            side=side,
+            type="MARKET",
+            quantity=quantity,
+        )
+    except BinanceAPIException as e:
+        print(f"Bollinger Binance error: {e}")
+        return None
+
+# =========================
+# COMMON / MR HELPERS
+# =========================
 
 
 def compute_stats(ratio: float):
@@ -307,14 +373,6 @@ def compute_stats(ratio: float):
     return mean_r, std, z
 
 
-def get_free_balance(asset: str):
-    acc = client.get_account()
-    for b in acc["balances"]:
-        if b["asset"] == asset:
-            return float(b["free"])
-    return 0.0
-
-
 def init_state_from_balances(st: State):
     """
     Detect what we currently hold (HBAR / DOGE / base asset)
@@ -323,9 +381,9 @@ def init_state_from_balances(st: State):
     Uses approximate USD valuation to choose the dominant asset.
     """
     # live balances
-    hbar_bal = get_free_balance("HBAR")
-    doge_bal = get_free_balance("DOGE")
-    base_bal = get_free_balance(BASE_ASSET)
+    hbar_bal = get_free_balance_mr("HBAR")
+    doge_bal = get_free_balance_mr("DOGE")
+    base_bal = get_free_balance_mr(BASE_ASSET)
 
     # approximate values in "USD" terms
     try:
@@ -368,7 +426,6 @@ def init_state_from_balances(st: State):
     st.unrealized_pnl_usd = 0.0
 
 
-
 def get_state(session):
     st = session.query(State).first()
     if not st:
@@ -402,19 +459,6 @@ def get_boll_state(session) -> BollState:
         session.commit()
         session.refresh(st)
     return st
-
-
-def place_market_order(symbol: str, side: str, quantity: float):
-    try:
-        return client.create_order(
-            symbol=symbol,
-            side=side,
-            type="MARKET",
-            quantity=quantity,
-        )
-    except BinanceAPIException as e:
-        print(f"Binance error: {e}")
-        return None
 
 # =========================
 # BOT LOOP (mean reversion)
@@ -494,16 +538,16 @@ def bot_loop():
                     # HBAR expensive → HBAR -> DOGE
                     if sell_signal and state.current_asset == "HBAR":
                         if bot_config.use_all_balance:
-                            qty_hbar = get_free_balance("HBAR")
+                            qty_hbar = get_free_balance_mr("HBAR")
                         else:
                             notional = bot_config.trade_notional_usd
-                            qty_hbar = min(notional / hbar, get_free_balance("HBAR"))
+                            qty_hbar = min(notional / hbar, get_free_balance_mr("HBAR"))
                         qty_hbar = adjust_quantity("HBARUSDT", qty_hbar)
 
                         if qty_hbar <= 0:
                             print("Qty HBAR too small after LOT_SIZE adjust")
                         else:
-                            order_sell = place_market_order("HBARUSDT", "SELL", qty_hbar)
+                            order_sell = place_market_order_mr("HBARUSDT", "SELL", qty_hbar)
                             if order_sell:
                                 usdt_received = qty_hbar * hbar
                                 qty_doge = usdt_received / doge
@@ -512,7 +556,7 @@ def bot_loop():
                                 if qty_doge <= 0:
                                     print("Qty DOGE too small after LOT_SIZE adjust")
                                 else:
-                                    order_buy = place_market_order("DOGEUSDT", "BUY", qty_doge)
+                                    order_buy = place_market_order_mr("DOGEUSDT", "BUY", qty_doge)
                                     if order_buy:
                                         tr = Trade(
                                             ts=ts,
@@ -533,16 +577,16 @@ def bot_loop():
                     # HBAR cheap → DOGE -> HBAR
                     elif buy_signal and state.current_asset == "DOGE":
                         if bot_config.use_all_balance:
-                            qty_doge = get_free_balance("DOGE")
+                            qty_doge = get_free_balance_mr("DOGE")
                         else:
                             notional = bot_config.trade_notional_usd
-                            qty_doge = min(notional / doge, get_free_balance("DOGE"))
+                            qty_doge = min(notional / doge, get_free_balance_mr("DOGE"))
                         qty_doge = adjust_quantity("DOGEUSDT", qty_doge)
 
                         if qty_doge <= 0:
                             print("Qty DOGE too small after LOT_SIZE adjust")
                         else:
-                            order_sell = place_market_order("DOGEUSDT", "SELL", qty_doge)
+                            order_sell = place_market_order_mr("DOGEUSDT", "SELL", qty_doge)
                             if order_sell:
                                 usdt_received = qty_doge * doge
                                 qty_hbar = usdt_received / hbar
@@ -551,7 +595,7 @@ def bot_loop():
                                 if qty_hbar <= 0:
                                     print("Qty HBAR too small after LOT_SIZE adjust")
                                 else:
-                                    order_buy = place_market_order("HBARUSDT", "BUY", qty_hbar)
+                                    order_buy = place_market_order_mr("HBARUSDT", "BUY", qty_hbar)
                                     if order_buy:
                                         tr = Trade(
                                             ts=ts,
@@ -608,8 +652,8 @@ def boll_loop():
                 symbol = boll_config.symbol
 
                 # network call outside lock
-                price = get_symbol_price(symbol)
-                base_asset, quote_asset = parse_symbol_assets(symbol)
+                price = get_symbol_price_boll(symbol)
+                base_asset, quote_asset = parse_symbol_assets(symbol, for_boll=True)
 
                 # ---- update shared history under lock, compute bands & history_ok ----
                 with boll_lock:
@@ -667,7 +711,7 @@ def boll_loop():
 
                 if action == "BUY":
                     # buy base_asset using quote_asset
-                    quote_bal = get_free_balance(quote_asset)
+                    quote_bal = get_free_balance_boll(quote_asset)
                     if quote_bal <= 0:
                         print(f"No {quote_asset} balance for Bollinger buy")
                     else:
@@ -676,11 +720,11 @@ def boll_loop():
                             print("Bollinger: notional too small")
                         else:
                             qty = notional / price
-                            qty = adjust_quantity(symbol, qty)
+                            qty = adjust_quantity(symbol, qty, for_boll=True)
                             if qty <= 0:
                                 print("Bollinger: qty too small after LOT_SIZE")
                             else:
-                                order = place_market_order(symbol, "BUY", qty)
+                                order = place_market_order_boll(symbol, "BUY", qty)
                                 if order:
                                     notional_filled = qty * price
                                     state.position = "LONG"
@@ -702,12 +746,12 @@ def boll_loop():
 
                 elif action == "SELL" and state.position == "LONG" and state.qty_asset > 0:
                     # sell asset back to quote
-                    qty = min(state.qty_asset, get_free_balance(base_asset))
-                    qty = adjust_quantity(symbol, qty)
+                    qty = min(state.qty_asset, get_free_balance_boll(base_asset))
+                    qty = adjust_quantity(symbol, qty, for_boll=True)
                     if qty <= 0:
                         print("Bollinger: qty too small to sell")
                     else:
-                        order = place_market_order(symbol, "SELL", qty)
+                        order = place_market_order_boll(symbol, "SELL", qty)
                         if order:
                             notional_filled = qty * price
                             pnl = (price - state.entry_price) * qty
@@ -823,11 +867,11 @@ def get_status():
 
         st = get_state(session)
 
-        # --- live balances (always from current env client) ---
-        base_bal = get_free_balance(BASE_ASSET)
-        hbar_bal = get_free_balance("HBAR")
-        doge_bal = get_free_balance("DOGE")
-        usdc_bal = get_free_balance("USDC")  # for display only
+        # --- live balances (MR account) ---
+        base_bal = get_free_balance_mr(BASE_ASSET)
+        hbar_bal = get_free_balance_mr("HBAR")
+        doge_bal = get_free_balance_mr("DOGE")
+        usdc_bal = get_free_balance_mr("USDC")  # for display only
 
         # make sure current_qty is *always* consistent with the chosen asset
         if st.current_asset == "HBAR":
@@ -866,7 +910,6 @@ def get_status():
         )
     finally:
         session.close()
-
 
 
 @app.post("/sync_state_from_balances")
@@ -928,12 +971,12 @@ def manual_trade(req: ManualTradeRequest):
         state = get_state(session)
 
         if req.direction == "HBAR->DOGE":
-            qty_hbar = min(req.notional_usd / hbar, get_free_balance("HBAR"))
+            qty_hbar = min(req.notional_usd / hbar, get_free_balance_mr("HBAR"))
             qty_hbar = adjust_quantity("HBARUSDT", qty_hbar)
             if qty_hbar <= 0:
                 raise HTTPException(status_code=400, detail="Notional too small or no HBAR")
 
-            order_sell = place_market_order("HBARUSDT", "SELL", qty_hbar)
+            order_sell = place_market_order_mr("HBARUSDT", "SELL", qty_hbar)
             if not order_sell:
                 raise HTTPException(status_code=500, detail="HBAR sell failed")
 
@@ -943,7 +986,7 @@ def manual_trade(req: ManualTradeRequest):
             if qty_doge <= 0:
                 raise HTTPException(status_code=400, detail="Converted DOGE qty too small")
 
-            order_buy = place_market_order("DOGEUSDT", "BUY", qty_doge)
+            order_buy = place_market_order_mr("DOGEUSDT", "BUY", qty_doge)
             if not order_buy:
                 raise HTTPException(status_code=500, detail="DOGE buy failed")
 
@@ -964,12 +1007,12 @@ def manual_trade(req: ManualTradeRequest):
             state.current_qty = qty_doge
 
         elif req.direction == "DOGE->HBAR":
-            qty_doge = min(req.notional_usd / doge, get_free_balance("DOGE"))
+            qty_doge = min(req.notional_usd / doge, get_free_balance_mr("DOGE"))
             qty_doge = adjust_quantity("DOGEUSDT", qty_doge)
             if qty_doge <= 0:
                 raise HTTPException(status_code=400, detail="Notional too small or no DOGE")
 
-            order_sell = place_market_order("DOGEUSDT", "SELL", qty_doge)
+            order_sell = place_market_order_mr("DOGEUSDT", "SELL", qty_doge)
             if not order_sell:
                 raise HTTPException(status_code=500, detail="DOGE sell failed")
 
@@ -979,7 +1022,7 @@ def manual_trade(req: ManualTradeRequest):
             if qty_hbar <= 0:
                 raise HTTPException(status_code=400, detail="Converted HBAR qty too small")
 
-            order_buy = place_market_order("HBARUSDT", "BUY", qty_hbar)
+            order_buy = place_market_order_mr("HBARUSDT", "BUY", qty_hbar)
             if not order_buy:
                 raise HTTPException(status_code=500, detail="HBAR buy failed")
 
@@ -1122,10 +1165,10 @@ def next_signal():
 
         if sell_signal and state.current_asset == "HBAR":
             if bot_config.use_all_balance:
-                qty_hbar = get_free_balance("HBAR")
+                qty_hbar = get_free_balance_mr("HBAR")
             else:
                 notional = bot_config.trade_notional_usd
-                qty_hbar = min(notional / hbar, get_free_balance("HBAR"))
+                qty_hbar = min(notional / hbar, get_free_balance_mr("HBAR"))
             qty_hbar = adjust_quantity("HBARUSDT", qty_hbar)
 
             if qty_hbar > 0:
@@ -1141,10 +1184,10 @@ def next_signal():
 
         elif buy_signal and state.current_asset == "DOGE":
             if bot_config.use_all_balance:
-                qty_doge = get_free_balance("DOGE")
+                qty_doge = get_free_balance_mr("DOGE")
             else:
                 notional = bot_config.trade_notional_usd
-                qty_doge = min(notional / doge, get_free_balance("DOGE"))
+                qty_doge = min(notional / doge, get_free_balance_mr("DOGE"))
             qty_doge = adjust_quantity("DOGEUSDT", qty_doge)
 
             if qty_doge > 0:
@@ -1189,7 +1232,7 @@ def get_config():
 
 @app.post("/config", response_model=BotConfig)
 def update_config(cfg: BotConfig):
-    global client, USE_TESTNET
+    global mr_client, boll_client, USE_TESTNET
 
     # Preserve current enabled state so saving config doesn't stop the bot
     current_enabled = bot_config.enabled
@@ -1197,8 +1240,8 @@ def update_config(cfg: BotConfig):
     # Switch between testnet/mainnet if needed
     if cfg.use_testnet != bot_config.use_testnet:
         USE_TESTNET = cfg.use_testnet
-        client = create_client(cfg.use_testnet)
-        symbol_info_cache.clear()  # reset cache when switching env
+        mr_client = create_mr_client(USE_TESTNET)
+        boll_client = create_boll_client(USE_TESTNET)
 
         # reset MR rolling history and state when env changes
         ratio_history.clear()
@@ -1232,10 +1275,10 @@ def stop_bot():
     bot_config.enabled = False
     return {"status": "stopped"}
 
-
 # =========================
 # BOLLINGER API
 # =========================
+
 
 class BollStatusResponse(BaseModel):
     symbol: str
@@ -1276,7 +1319,7 @@ def update_boll_config(cfg: BollConfigModel):
     # sanity: if symbol provided, validate quote asset is in an allowed set
     # We allow stablecoins and majors so you can trade HBARBTC, HBARBNB, etc.
     if cfg.symbol:
-        info = get_symbol_info_cached(cfg.symbol)
+        info = boll_client.get_symbol_info(cfg.symbol)
         quote = info["quoteAsset"]
         allowed_quotes = {"USDT", "USDC", "BTC", "BNB"}
         if quote not in allowed_quotes:
@@ -1319,12 +1362,13 @@ def bollinger_manual_sell(req: ManualBollingerSellRequest):
     """
     Manually sell <qty_base> of the base asset of <symbol> for its quote
     (e.g. sell 10 HBAR in HBARUSDC, or 0.01 BTC in BTCUSDT).
+    Uses the Bollinger account.
     """
     if req.qty_base <= 0:
         raise HTTPException(status_code=400, detail="qty_base must be > 0")
 
     try:
-        info = client.get_symbol_info(req.symbol)
+        info = boll_client.get_symbol_info(req.symbol)
         if not info:
             raise HTTPException(status_code=400, detail=f"Unknown symbol: {req.symbol}")
 
@@ -1332,7 +1376,7 @@ def bollinger_manual_sell(req: ManualBollingerSellRequest):
         quote_asset = info["quoteAsset"]
 
         # Check available balance of the base asset
-        free_base = get_free_balance(base_asset)
+        free_base = get_free_balance_boll(base_asset)
         if free_base <= 0:
             raise HTTPException(
                 status_code=400,
@@ -1342,7 +1386,7 @@ def bollinger_manual_sell(req: ManualBollingerSellRequest):
         qty_requested = min(req.qty_base, free_base)
 
         # Clamp to LOT_SIZE
-        qty_adj = adjust_quantity(req.symbol, qty_requested)
+        qty_adj = adjust_quantity(req.symbol, qty_requested, for_boll=True)
         if qty_adj <= 0:
             raise HTTPException(
                 status_code=400,
@@ -1350,16 +1394,16 @@ def bollinger_manual_sell(req: ManualBollingerSellRequest):
             )
 
         # Get current price for estimate
-        ticker = client.get_symbol_ticker(symbol=req.symbol)
+        ticker = boll_client.get_symbol_ticker(symbol=req.symbol)
         price = float(ticker["price"])
         quote_est = qty_adj * price
 
         # Place market SELL
-        order = place_market_order(req.symbol, "SELL", qty_adj)
+        order = place_market_order_boll(req.symbol, "SELL", qty_adj)
         if not order:
             raise HTTPException(status_code=500, detail="Sell order failed")
 
-        # Record into Trade table (optional but nice)
+        # Record into Trade table (for history)
         session = SessionLocal()
         try:
             ts = datetime.utcnow()
@@ -1419,10 +1463,10 @@ def boll_status():
             )
 
         symbol = boll_config.symbol
-        base_asset, quote_asset = parse_symbol_assets(symbol)
+        base_asset, quote_asset = parse_symbol_assets(symbol, for_boll=True)
 
         # price fetch outside lock
-        price = get_symbol_price(symbol)
+        price = get_symbol_price_boll(symbol)
 
         with boll_lock:
             if boll_price_history:
@@ -1525,8 +1569,10 @@ def list_symbols():
     """
     OLD/FLAT VERSION – kept for backwards compatibility.
     Returns a flat list of symbols that have one of the allowed quote assets.
+
+    Uses the Bollinger client (same env) so you see what that account can trade.
     """
-    info = client.get_exchange_info()
+    info = boll_client.get_exchange_info()
     allowed_quotes = {"USDT", "USDC", "BTC", "BNB"}
     out = []
     for s in info["symbols"]:
@@ -1560,8 +1606,10 @@ def list_symbols_grouped():
       "BTC":  [ ... ],
       "BNB":  [ ... ]
     }
+
+    Also uses the Bollinger client.
     """
-    info = client.get_exchange_info()
+    info = boll_client.get_exchange_info()
     allowed_quotes = ["USDT", "USDC", "BTC", "BNB"]
 
     grouped = {q: [] for q in allowed_quotes}
