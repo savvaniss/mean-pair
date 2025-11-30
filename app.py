@@ -378,7 +378,8 @@ def init_state_from_balances(st: State):
     Detect what we currently hold (HBAR / DOGE / base asset)
     and set current_asset + current_qty + starting portfolio value.
 
-    Uses approximate USD valuation to choose the dominant asset.
+    Now we ALWAYS choose the asset with the largest USD value
+    (unless all balances are basically zero).
     """
     # live balances
     hbar_bal = get_free_balance_mr("HBAR")
@@ -387,7 +388,7 @@ def init_state_from_balances(st: State):
 
     # approximate values in "USD" terms
     try:
-        _btc, hbar_price, doge_price = get_prices()  # HBAR/USDT, DOGE/USDT
+        _btc, hbar_price, doge_price = get_prices()  # HBARUSDT, DOGEUSDT prices
         hbar_val = hbar_bal * hbar_price
         doge_val = doge_bal * doge_price
         base_val = base_bal  # BASE_ASSET is USDT/USDC → ~1 USD
@@ -396,9 +397,6 @@ def init_state_from_balances(st: State):
         hbar_val = hbar_bal
         doge_val = doge_bal
         base_val = base_bal
-
-    trade_notional = bot_config.trade_notional_usd or 0.0
-    min_position_value = max(5.0, 0.5 * trade_notional)
 
     asset_values = {
         "HBAR": hbar_val,
@@ -409,21 +407,26 @@ def init_state_from_balances(st: State):
     best_asset = max(asset_values, key=asset_values.get)
     best_value = asset_values[best_asset]
 
-    # if one coin clearly dominates above threshold → treat as current asset
-    if best_asset != BASE_ASSET and best_value >= min_position_value:
-        st.current_asset = best_asset
-        if best_asset == "HBAR":
-            st.current_qty = hbar_bal
-        elif best_asset == "DOGE":
-            st.current_qty = doge_bal
-    else:
-        # otherwise we consider ourselves flat in base (USDC/USDT)
+    # if everything is basically zero → treat as flat in base
+    if best_value <= 1e-6:
         st.current_asset = BASE_ASSET
         st.current_qty = base_bal
+    else:
+        # choose the truly largest asset
+        if best_asset == "HBAR":
+            st.current_asset = "HBAR"
+            st.current_qty = hbar_bal
+        elif best_asset == "DOGE":
+            st.current_asset = "DOGE"
+            st.current_qty = doge_bal
+        else:
+            st.current_asset = BASE_ASSET
+            st.current_qty = base_bal
 
     # store starting portfolio value (for unrealized PnL calc)
     st.realized_pnl_usd = base_val + hbar_val + doge_val
     st.unrealized_pnl_usd = 0.0
+
 
 
 def get_state(session):
