@@ -1,0 +1,213 @@
+# HBAR–DOGE Mean Reversion & Bollinger Bot
+
+A modular cryptocurrency trading bot using **mean reversion** (HBAR/DOGE ratio) and **Bollinger Band** strategies on single trading pairs.
+
+The backend is implemented using FastAPI, Python, and SQLite, with a lightweight HTML/JavaScript dashboard.  
+The repository includes a full pytest suite and GitHub Actions CI pipeline.
+
+---
+
+## Features
+
+### 1. Mean Reversion Bot (HBAR ↔ DOGE)
+
+- Trades ratio: `HBARUSDC / DOGEUSDC`
+- Rolling statistics:
+  - Mean
+  - Standard deviation
+  - Z-score
+- Signal generation:
+  - `z_entry` / `z_exit`
+  - Optional fixed ratio thresholds
+- Maintains internal state:
+  - Current asset
+  - Quantity
+  - Realized & unrealized PnL
+- Full trade logging
+- Manual trade functionality
+- Works on testnet and mainnet
+
+---
+
+### 2. Single-Coin Bollinger Bot
+
+- Trades any supported symbol vs USDC, USDT, or BTC (e.g., `BNBUSDC`, `ETHUSDT`)
+- Rolling Bollinger Band calculations:
+  - Moving average
+  - Standard deviation
+  - Upper and lower bands
+- Configurable parameters:
+  - Window size
+  - Band width (number of standard deviations)
+  - Maximum position size
+  - Stop-loss / Take-profit
+  - Cooldown interval
+- Tracks:
+  - Quote balance
+  - Asset quantity
+  - Realized and unrealized PnL
+- Full trade logging
+
+---
+
+## Dashboard
+
+A single-page HTML/JS dashboard provides:
+
+- Live bot status
+- Mean-reversion ratio charts
+- Bollinger charts
+- Configuration editor
+- Manual trading controls
+- Trade history tables
+
+The UI is served from `/` by FastAPI.
+
+---
+
+## Project Structure
+
+```
+mean-pair/
+│
+├── app.py                     # Main FastAPI app, bots, DB models, logic
+├── index.html                 # Front-end dashboard UI
+├── requirements.txt
+├── docker-compose.yml
+│
+├── tests/                     # Full pytest suite
+│   ├── conftest.py
+│   ├── test_core_logic.py
+│   ├── test_api_mr.py
+│   ├── test_api_bollinger.py
+│
+└── .github/
+    └── workflows/
+        └── ci.yml            # GitHub Actions CI
+```
+
+---
+
+## Environment Variables
+
+Provided via `.env`:
+
+```
+# Mean Reversion bot keys
+BINANCE_TESTNET_API_KEY=
+BINANCE_TESTNET_API_SECRET=
+BINANCE_MAINNET_API_KEY=
+BINANCE_MAINNET_API_SECRET=
+
+# Bollinger bot keys (optional)
+BINANCE_BOLL_TESTNET_API_KEY=
+BINANCE_BOLL_TESTNET_API_SECRET=
+BINANCE_BOLL_MAINNET_API_KEY=
+BINANCE_BOLL_MAINNET_API_SECRET=
+
+# Environment: "testnet" or "mainnet"
+ENV=testnet
+
+# Internal flags (used by CI)
+BOT_DISABLE_THREADS=0
+DISABLE_BINANCE_CLIENT=0
+```
+
+---
+
+## Running Locally
+
+Install dependencies:
+
+```
+pip install -r requirements.txt
+```
+
+Start server:
+
+```
+uvicorn app:app --reload
+```
+
+Open dashboard:
+
+```
+http://localhost:8000
+```
+
+---
+
+## Running with Docker
+
+```
+docker-compose up --build -d
+```
+
+Services:
+- FastAPI app: http://localhost:8000
+- Nginx Proxy Manager (if enabled): http://localhost:81
+
+---
+
+## Testing
+
+Run all tests locally:
+
+```
+pytest
+```
+
+CI runs with:
+
+```
+DISABLE_BINANCE_CLIENT=1
+BOT_DISABLE_THREADS=1
+```
+
+This allows tests to run without Binance network calls.
+
+---
+
+## API Endpoints
+
+### Mean Reversion
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/status` | Current MR bot status (prices, ratio, PnL) |
+| GET | `/next_signal` | Predict next MR trade action |
+| GET | `/config` | Get MR config |
+| POST | `/config` | Update MR config |
+| POST | `/start` | Start MR bot loop |
+| POST | `/stop` | Stop MR bot loop |
+| POST | `/manual_trade` | Execute manual HBAR↔DOGE trade |
+| GET | `/trades` | List MR trades |
+
+### Bollinger
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/boll_config` | Get Bollinger config |
+| POST | `/boll_config` | Update Bollinger config |
+| GET | `/boll_status` | Current Bollinger status |
+| GET | `/boll_history` | Band/MA/price history |
+| GET | `/boll_trades` | List Bollinger trades |
+| POST | `/bollinger_manual_sell` | Manual exit trade |
+| GET | `/symbols_grouped` | Binance symbols grouped by quote asset |
+
+---
+
+## Roadmap
+
+- Split monolithic `app.py` into modules
+- Add async DB writer
+- Add historical backtester
+- Improve Bollinger trend filters
+- Add WebSocket price streaming
+- Extend charting system in UI
+
+---
+
+## License
+
+MIT License © 2025 Savvaniss
