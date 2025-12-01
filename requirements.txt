@@ -6,3 +6,4 @@ SQLAlchemy
 python-dotenv
 pytest
 pytest-cov
+httpx

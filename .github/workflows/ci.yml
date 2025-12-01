@@ -1,0 +1,40 @@
+name: CI
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    env:
+      # disable real bot threads during tests
+      BOT_DISABLE_THREADS: "1"
+      DISABLE_BINANCE_CLIENT: "1"
+      # dummy Binance keys so app import doesn't raise
+      BINANCE_TESTNET_API_KEY: "dummy"
+      BINANCE_TESTNET_API_SECRET: "dummy"
+      BINANCE_MAINNET_API_KEY: "dummy"
+      BINANCE_MAINNET_API_SECRET: "dummy"
+      BINANCE_BOL_MAINNET_API_KEY: "dummy"
+      BINANCE_BOL_MAINNET_API_SECRET: "dummy"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run tests
+        run: |
+          pytest -q

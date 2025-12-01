@@ -15,17 +15,30 @@ def test_compute_stats_single_value():
 
 def test_compute_stats_multiple_values():
     app.ratio_history.clear()
-    values = [1.0, 2.0, 3.0]
+    values = [1.0, 2.0, 3.0, 4.0, 5.0]
     last = None
     for v in values:
         last = app.compute_stats(v)
 
     mean, std, z = last
-    assert math.isclose(mean, 2.0, rel_tol=1e-9)
-    # population std of [1,2,3] = sqrt(2/3)
-    assert math.isclose(std, math.sqrt(2 / 3), rel_tol=1e-9)
-    # last value is 3 → positive z
-    assert z > 0
+    # mean of [1..5] = 3.0
+    assert math.isclose(mean, 3.0, rel_tol=1e-9)
+    assert std > 0.0
+    assert z > 0.0
+    assert len(app.ratio_history) == len(values)
+    
+def test_compute_stats_insufficient_history_returns_last_ratio():
+    app.ratio_history.clear()
+    values = [1.0, 2.0, 3.0]  # < 5 samples
+    last = None
+    for v in values:
+        last = app.compute_stats(v)
+
+    mean, std, z = last
+    # With <5 samples, function should just echo last ratio and zero stats
+    assert mean == values[-1]
+    assert std == 0.0
+    assert z == 0.0
 
 
 def test_decide_signal_uses_z_score_for_hbar_sell(monkeypatch):
