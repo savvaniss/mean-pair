@@ -537,16 +537,13 @@ def bot_loop():
     session = SessionLocal()
     try:
         while not bot_stop_flag:
-            if not bot_config.enabled:
-                time.sleep(1)
-                continue
-
             try:
                 ts = datetime.utcnow()
                 btc, hbar, doge = get_prices()
                 ratio = hbar / doge
 
                 with mr_lock:
+                    # --- always update stats & history for charts ---
                     mean_r, std_r, z = compute_stats(ratio)
 
                     snap = PriceSnapshot(
@@ -563,100 +560,105 @@ def bot_loop():
                     state.last_ratio = ratio
                     state.last_z = z
 
-                    sell_signal, buy_signal, _ = decide_signal(
-                        ratio, mean_r, std_r, z, state
-                    )
+                    # --- ONLY trade if bot is enabled ---
+                    if bot_config.enabled:
+                        sell_signal, buy_signal, _ = decide_signal(
+                            ratio, mean_r, std_r, z, state
+                        )
 
-                    hbar_sym = mr_symbol("HBAR")
-                    doge_sym = mr_symbol("DOGE")
+                        hbar_sym = mr_symbol("HBAR")
+                        doge_sym = mr_symbol("DOGE")
 
-                    # HBAR expensive → HBAR -> DOGE
-                    if sell_signal and state.current_asset == "HBAR":
-                        if bot_config.use_all_balance:
-                            qty_hbar = get_free_balance_mr("HBAR")
-                        else:
-                            notional = bot_config.trade_notional_usd
-                            qty_hbar = min(notional / hbar, get_free_balance_mr("HBAR"))
-                        qty_hbar = adjust_quantity(hbar_sym, qty_hbar)
+                        # HBAR expensive → HBAR -> DOGE
+                        if sell_signal and state.current_asset == "HBAR":
+                            if bot_config.use_all_balance:
+                                qty_hbar = get_free_balance_mr("HBAR")
+                            else:
+                                notional = bot_config.trade_notional_usd
+                                qty_hbar = min(notional / hbar, get_free_balance_mr("HBAR"))
+                            qty_hbar = adjust_quantity(hbar_sym, qty_hbar)
 
-                        if qty_hbar <= 0:
-                            print("Qty HBAR too small after LOT_SIZE adjust")
-                        else:
-                            order_sell = place_market_order_mr(hbar_sym, "SELL", qty_hbar)
-                            if order_sell:
-                                quote_received = qty_hbar * hbar
-                                qty_doge = quote_received / doge
-                                qty_doge = adjust_quantity(doge_sym, qty_doge)
+                            if qty_hbar <= 0:
+                                print("Qty HBAR too small after LOT_SIZE adjust")
+                            else:
+                                order_sell = place_market_order_mr(hbar_sym, "SELL", qty_hbar)
+                                if order_sell:
+                                    quote_received = qty_hbar * hbar
+                                    qty_doge = quote_received / doge
+                                    qty_doge = adjust_quantity(doge_sym, qty_doge)
 
-                                if qty_doge <= 0:
-                                    print("Qty DOGE too small after LOT_SIZE adjust")
-                                else:
-                                    order_buy = place_market_order_mr(doge_sym, "BUY", qty_doge)
-                                    if order_buy:
-                                        tr = Trade(
-                                            ts=ts,
-                                            side="HBAR->DOGE",
-                                            from_asset="HBAR",
-                                            to_asset="DOGE",
-                                            qty_from=qty_hbar,
-                                            qty_to=qty_doge,
-                                            price=ratio,
-                                            fee=0.0,
-                                            pnl_usd=0.0,
-                                            is_testnet=int(bot_config.use_testnet),
-                                        )
-                                        session.add(tr)
-                                        state.current_asset = "DOGE"
-                                        state.current_qty = qty_doge
+                                    if qty_doge <= 0:
+                                        print("Qty DOGE too small after LOT_SIZE adjust")
+                                    else:
+                                        order_buy = place_market_order_mr(doge_sym, "BUY", qty_doge)
+                                        if order_buy:
+                                            tr = Trade(
+                                                ts=ts,
+                                                side="HBAR->DOGE",
+                                                from_asset="HBAR",
+                                                to_asset="DOGE",
+                                                qty_from=qty_hbar,
+                                                qty_to=qty_doge,
+                                                price=ratio,
+                                                fee=0.0,
+                                                pnl_usd=0.0,
+                                                is_testnet=int(bot_config.use_testnet),
+                                            )
+                                            session.add(tr)
+                                            state.current_asset = "DOGE"
+                                            state.current_qty = qty_doge
 
-                    # HBAR cheap → DOGE -> HBAR
-                    elif buy_signal and state.current_asset == "DOGE":
-                        if bot_config.use_all_balance:
-                            qty_doge = get_free_balance_mr("DOGE")
-                        else:
-                            notional = bot_config.trade_notional_usd
-                            qty_doge = min(notional / doge, get_free_balance_mr("DOGE"))
-                        qty_doge = adjust_quantity(doge_sym, qty_doge)
+                        # HBAR cheap → DOGE -> HBAR
+                        elif buy_signal and state.current_asset == "DOGE":
+                            if bot_config.use_all_balance:
+                                qty_doge = get_free_balance_mr("DOGE")
+                            else:
+                                notional = bot_config.trade_notional_usd
+                                qty_doge = min(notional / doge, get_free_balance_mr("DOGE"))
+                            qty_doge = adjust_quantity(doge_sym, qty_doge)
 
-                        if qty_doge <= 0:
-                            print("Qty DOGE too small after LOT_SIZE adjust")
-                        else:
-                            order_sell = place_market_order_mr(doge_sym, "SELL", qty_doge)
-                            if order_sell:
-                                quote_received = qty_doge * doge
-                                qty_hbar = quote_received / hbar
-                                qty_hbar = adjust_quantity(hbar_sym, qty_hbar)
+                            if qty_doge <= 0:
+                                print("Qty DOGE too small after LOT_SIZE adjust")
+                            else:
+                                order_sell = place_market_order_mr(doge_sym, "SELL", qty_doge)
+                                if order_sell:
+                                    quote_received = qty_doge * doge
+                                    qty_hbar = quote_received / hbar
+                                    qty_hbar = adjust_quantity(hbar_sym, qty_hbar)
 
-                                if qty_hbar <= 0:
-                                    print("Qty HBAR too small after LOT_SIZE adjust")
-                                else:
-                                    order_buy = place_market_order_mr(hbar_sym, "BUY", qty_hbar)
-                                    if order_buy:
-                                        tr = Trade(
-                                            ts=ts,
-                                            side="DOGE->HBAR",
-                                            from_asset="DOGE",
-                                            to_asset="HBAR",
-                                            qty_from=qty_doge,
-                                            qty_to=qty_hbar,
-                                            price=ratio,
-                                            fee=0.0,
-                                            pnl_usd=0.0,
-                                            is_testnet=int(bot_config.use_testnet),
-                                        )
-                                        session.add(tr)
-                                        state.current_asset = "HBAR"
-                                        state.current_qty = qty_hbar
+                                    if qty_hbar <= 0:
+                                        print("Qty HBAR too small after LOT_SIZE adjust")
+                                    else:
+                                        order_buy = place_market_order_mr(hbar_sym, "BUY", qty_hbar)
+                                        if order_buy:
+                                            tr = Trade(
+                                                ts=ts,
+                                                side="DOGE->HBAR",
+                                                from_asset="DOGE",
+                                                to_asset="HBAR",
+                                                qty_from=qty_doge,
+                                                qty_to=qty_hbar,
+                                                price=ratio,
+                                                fee=0.0,
+                                                pnl_usd=0.0,
+                                                is_testnet=int(bot_config.use_testnet),
+                                            )
+                                            session.add(tr)
+                                            state.current_asset = "HBAR"
+                                            state.current_qty = qty_hbar
 
+                    # commit snapshots + optional trades
                     session.commit()
 
             except Exception as e:
                 print(f"Error in bot loop: {e}")
                 session.rollback()
 
+            # Same polling interval whether trading is enabled or not
             time.sleep(bot_config.poll_interval_sec)
     finally:
         session.close()
+
 
 # =========================
 # BOLLINGER LOOP
