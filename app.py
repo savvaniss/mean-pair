@@ -50,12 +50,22 @@ AUTO_START = os.getenv("BOT_AUTO_START", "false").lower() == "true"
 TESTNET_QUOTE = os.getenv("BINANCE_TESTNET_QUOTE", "USDT").upper()
 MAINNET_QUOTE = os.getenv("BINANCE_MAINNET_QUOTE", "USDT").upper()
 
+#for test cases on github ci
+DISABLE_BINANCE_CLIENT = os.getenv("DISABLE_BINANCE_CLIENT", "0") == "1"
+
 if DEFAULT_ENV not in ("testnet", "mainnet"):
     raise RuntimeError("BINANCE_DEFAULT_ENV must be 'testnet' or 'mainnet'")
 
 
-def create_mr_client(use_testnet: bool) -> Client:
+from typing import Optional  # you already have this at the top
+
+def create_mr_client(use_testnet: bool) -> Optional[Client]:
     """Client for mean-reversion bot."""
+    # 👇 New: in CI (GitHub) we completely skip creating a real client
+    if DISABLE_BINANCE_CLIENT:
+        print("[MR] Binance client disabled (DISABLE_BINANCE_CLIENT=1)")
+        return None
+
     if use_testnet:
         if not MR_TESTNET_API_KEY or not MR_TESTNET_API_SECRET:
             raise RuntimeError(
@@ -70,7 +80,7 @@ def create_mr_client(use_testnet: bool) -> Client:
         return Client(MR_MAINNET_API_KEY, MR_MAINNET_API_SECRET)
 
 
-def create_boll_client(use_testnet: bool) -> Client:
+def create_boll_client(use_testnet: bool) -> Optional[Client]:
     """
     Client for Bollinger bot (separate sub-account).
 
@@ -78,6 +88,11 @@ def create_boll_client(use_testnet: bool) -> Client:
       - if Bollinger keys are set -> use them
       - else -> fall back to MR keys (so you can still run with one account)
     """
+    # 👇 New: in CI we skip real client creation
+    if DISABLE_BINANCE_CLIENT:
+        print("[BOLL] Binance client disabled (DISABLE_BINANCE_CLIENT=1)")
+        return None
+
     if use_testnet:
         key = BOLL_TESTNET_API_KEY or MR_TESTNET_API_KEY
         sec = BOLL_TESTNET_API_SECRET or MR_TESTNET_API_SECRET
@@ -94,6 +109,7 @@ def create_boll_client(use_testnet: bool) -> Client:
                 "No mainnet keys for Bollinger bot (BINANCE_BOLL_MAINNET_API_KEY or BINANCE_MAINNET_API_KEY)"
             )
         return Client(key, sec)
+
 
 
 # Global clients, start in default env
