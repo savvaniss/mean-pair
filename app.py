@@ -881,8 +881,9 @@ def stop_boll_thread():
 
 app = FastAPI(title="HBAR-DOGE Mean Reversion Bot")
 app.mount("/static", StaticFiles(directory="static"), name="static")
-start_bot_thread()
-start_boll_thread()
+if os.getenv("BOT_DISABLE_THREADS", "0") != "1":
+    start_bot_thread()
+    start_boll_thread()
 
 # =========================
 # API MODELS / ENDPOINTS
