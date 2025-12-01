@@ -1,7 +1,9 @@
-# tests/conftest.py
 import os
 import sys
 from pathlib import Path
+
+import pytest
+from fastapi.testclient import TestClient
 
 # Make sure the repo root is on PYTHONPATH so `import app` works in CI
 ROOT_DIR = Path(__file__).resolve().parents[1]
