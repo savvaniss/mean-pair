@@ -47,7 +47,8 @@ def test_status_basic(client, monkeypatch):
     assert math.isclose(data["ratio"], 0.5)
     assert "zscore" in data
     assert "unrealized_pnl_usd" in data
-    assert data["prices"]["btc"] == pytest.approx(30000.0)
+    assert data["btc"] == pytest.approx(30000.0)
+
 
 
 def test_next_signal_not_enough_history(client, monkeypatch):

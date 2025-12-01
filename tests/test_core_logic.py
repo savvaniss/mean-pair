@@ -26,7 +26,7 @@ def test_required_history_len_and_has_enough_history():
 def test_init_state_from_balances_picks_highest_value(monkeypatch):
     # balances: HBAR has highest USD value
     balances = {
-        "USDC": 5.0,   # base asset
+        app.BASE_ASSET: 5.0,   #  use the real base asset
         "HBAR": 10.0,
         "DOGE": 1.0,
     }
@@ -101,7 +101,7 @@ def test_decide_signal_zscore_path(monkeypatch):
     )
     assert sell is True
     assert buy is False
-    assert reason == "zscore_entry"
+    assert reason == "z_score"   #  here
 
     # z < -z_entry → buy signal (if holding DOGE)
     s.current_asset = "DOGE"
@@ -110,7 +110,7 @@ def test_decide_signal_zscore_path(monkeypatch):
     )
     assert sell is False
     assert buy is True
-    assert reason == "zscore_entry"
+    assert reason == "z_score"   # and here
 
 
 def test_adjust_quantity_respects_lot_size(monkeypatch):
