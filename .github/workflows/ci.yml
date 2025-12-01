@@ -12,6 +12,7 @@ jobs:
     env:
       # disable real bot threads during tests
       BOT_DISABLE_THREADS: "1"
+      DISABLE_BINANCE_CLIENT: "1"
       # dummy Binance keys so app import doesn't raise
       BINANCE_TESTNET_API_KEY: "dummy"
       BINANCE_TESTNET_API_SECRET: "dummy"
