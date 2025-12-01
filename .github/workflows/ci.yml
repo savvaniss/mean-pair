@@ -17,6 +17,8 @@ jobs:
       BINANCE_TESTNET_API_SECRET: "dummy"
       BINANCE_MAINNET_API_KEY: "dummy"
       BINANCE_MAINNET_API_SECRET: "dummy"
+      BINANCE_BOL_MAINNET_API_KEY: "dummy"
+      BINANCE_BOL_MAINNET_API_SECRET: "dummy"
 
     steps:
       - name: Checkout
