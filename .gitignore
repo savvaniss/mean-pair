@@ -2,4 +2,5 @@
 venv
 mean_reversion.db
 npm_data
-npm_letsencrypt
+npm_letsencryptnpm_data/
+*.sqlite
