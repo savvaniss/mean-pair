@@ -4,3 +4,6 @@ python-binance
 pydantic
 SQLAlchemy
 python-dotenv
+pytest
+pytest-cov
+httpx
