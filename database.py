@@ -44,6 +44,20 @@ class Trade(Base):
     is_testnet = Column(Integer)  # 1 testnet, 0 mainnet
 
 
+class MRTradeStat(Base):
+    __tablename__ = "mr_trade_stats"
+    id = Column(Integer, primary_key=True, index=True)
+    entry_ts = Column(DateTime, index=True)
+    exit_ts = Column(DateTime, index=True)
+    entry_z = Column(Float)
+    exit_z = Column(Float)
+    entry_ratio = Column(Float)
+    exit_ratio = Column(Float)
+    holding_secs = Column(Float)
+    pnl_usd = Column(Float)
+    z_entry_bucket = Column(String)
+
+
 class State(Base):
     __tablename__ = "state"
     id = Column(Integer, primary_key=True, index=True)

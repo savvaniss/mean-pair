@@ -251,6 +251,37 @@ def boll_history(symbol: Optional[str] = None, limit: int = 300):
     if not target_symbol:
         raise HTTPException(status_code=400, detail="Set a symbol to load history")
 
+    with eng.boll_lock:
+        if eng.boll_price_history and eng.boll_ts_history:
+            n = min(len(eng.boll_price_history), limit)
+            prices = eng.boll_price_history[-n:]
+            tss = eng.boll_ts_history[-n:]
+        else:
+            prices = []
+            tss = []
+
+    if prices:
+        points: List[BollHistoryPoint] = []
+        for i in range(len(prices)):
+            sub_prices = prices[max(0, i - eng.boll_config.window_size + 1) : i + 1]
+            if not sub_prices:
+                ma = prices[i]
+                std = 0.0
+            else:
+                ma, std = eng.compute_ma_std_window(sub_prices, len(sub_prices))
+            upper = ma + eng.boll_config.num_std * std
+            lower = ma - eng.boll_config.num_std * std
+            points.append(
+                BollHistoryPoint(
+                    ts=tss[i].isoformat(),
+                    price=prices[i],
+                    ma=ma,
+                    upper=upper,
+                    lower=lower,
+                )
+            )
+        return points
+
     session = SessionLocal()
     try:
         rows = (
@@ -273,35 +304,7 @@ def boll_history(symbol: Optional[str] = None, limit: int = 300):
                 for r in rows
             ]
 
-        # Fallback to in-memory buffers so fresh sessions still render charts
-        with eng.boll_lock:
-            n = min(len(eng.boll_price_history), limit)
-            prices = eng.boll_price_history[-n:]
-            tss = eng.boll_ts_history[-n:]
-
-        if not prices:
-            return []
-
-        points: List[BollHistoryPoint] = []
-        for i in range(len(prices)):
-            sub_prices = prices[max(0, i - eng.boll_config.window_size + 1) : i + 1]
-            if not sub_prices:
-                ma = prices[i]
-                std = 0.0
-            else:
-                ma, std = eng.compute_ma_std_window(sub_prices, len(sub_prices))
-            upper = ma + eng.boll_config.num_std * std
-            lower = ma - eng.boll_config.num_std * std
-            points.append(
-                BollHistoryPoint(
-                    ts=tss[i].isoformat(),
-                    price=prices[i],
-                    ma=ma,
-                    upper=upper,
-                    lower=lower,
-                )
-            )
-        return points
+        return []
     finally:
         session.close()
 
