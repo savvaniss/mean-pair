@@ -1,5 +1,4 @@
 import pytest
-
 import config
 from database import SessionLocal, Trade
 
@@ -103,3 +102,26 @@ def test_trading_order_adjusts_qty_and_logs(monkeypatch, client):
         session.query(Trade).delete()
         session.commit()
         session.close()
+
+
+def test_trading_balances_survives_missing_account(monkeypatch, client):
+    boll_client = StubClient("boll", env=False)
+
+    def boom(_use_testnet: bool):
+        raise RuntimeError("no MR keys configured")
+
+    monkeypatch.setattr(config, "create_mr_client", boom)
+    monkeypatch.setattr(config, "create_boll_client", lambda env: boll_client)
+
+    resp = client.get("/trading/balances?use_testnet=false")
+    assert resp.status_code == 200
+
+    payload = resp.json()
+    accounts = {entry["account"]: entry for entry in payload}
+
+    assert accounts["mr"]["balances"] == []
+    assert accounts["mr"].get("error")
+
+    boll = accounts["boll"]
+    assert boll["error"] is None
+    assert len(boll["balances"]) == 2

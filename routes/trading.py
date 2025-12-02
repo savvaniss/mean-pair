@@ -22,6 +22,7 @@ class AccountSummary(BaseModel):
     account: str
     use_testnet: bool
     balances: List[BalanceItem]
+    error: str | None = None
 
 
 class ManualOrderRequest(BaseModel):
@@ -73,31 +74,43 @@ def _adjust_quantity(info: dict, qty: float) -> float:
 
 
 def _balances_for_account(account: str, use_testnet: bool) -> AccountSummary:
-    client = _client_for_account(account, use_testnet)
-    if not client:
-        return AccountSummary(account=account, use_testnet=use_testnet, balances=[])
+    try:
+        client = _client_for_account(account, use_testnet)
+        if not client:
+            return AccountSummary(
+                account=account,
+                use_testnet=use_testnet,
+                balances=[],
+                error="Binance client unavailable",
+            )
 
-    acc = client.get_account()
-    balances = [
-        BalanceItem(asset=b["asset"], free=float(b["free"]), locked=float(b["locked"]))
-        for b in acc.get("balances", [])
-        if float(b.get("free", 0)) > 0 or float(b.get("locked", 0)) > 0
-    ]
-    return AccountSummary(account=account, use_testnet=use_testnet, balances=balances)
+        acc = client.get_account()
+        balances = [
+            BalanceItem(asset=b["asset"], free=float(b["free"]), locked=float(b["locked"]))
+            for b in acc.get("balances", [])
+            if float(b.get("free", 0)) > 0 or float(b.get("locked", 0)) > 0
+        ]
+        return AccountSummary(account=account, use_testnet=use_testnet, balances=balances)
+    except BinanceAPIException as e:
+        return AccountSummary(
+            account=account,
+            use_testnet=use_testnet,
+            balances=[],
+            error=f"Binance error: {e.message}",
+        )
+    except Exception as e:
+        return AccountSummary(
+            account=account, use_testnet=use_testnet, balances=[], error=str(e)
+        )
 
 
 @router.get("/trading/balances", response_model=List[AccountSummary])
 def trading_balances(use_testnet: bool | None = None):
     env = config.USE_TESTNET if use_testnet is None else use_testnet
-    try:
-        return [
-            _balances_for_account("mr", env),
-            _balances_for_account("boll", env),
-        ]
-    except BinanceAPIException as e:
-        raise HTTPException(status_code=400, detail=f"Binance error: {e.message}")
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    return [
+        _balances_for_account("mr", env),
+        _balances_for_account("boll", env),
+    ]
 
 
 @router.post("/trading/order", response_model=ManualOrderResponse)

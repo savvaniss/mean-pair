@@ -60,7 +60,12 @@ async function loadBalances() {
       const list = document.createElement('div');
       list.className = 'balance-grid';
 
-      if (account.balances.length === 0) {
+      if (account.error) {
+        const error = document.createElement('div');
+        error.className = 'muted';
+        error.textContent = account.error;
+        list.appendChild(error);
+      } else if (account.balances.length === 0) {
         const empty = document.createElement('div');
         empty.className = 'muted';
         empty.textContent = 'No balances for this environment.';
