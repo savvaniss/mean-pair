@@ -3,18 +3,22 @@ import { applyQuoteLabels } from './ui.js';
 let bollConfig = null;
 let bollChart = null;
 let cachedQuote = 'USDT';
+let lastBollPrice = null;
+let groupedSymbols = {};
+const curatedSymbols = ['BTCUSDT', 'ETHUSDT', 'BNBUSDT', 'SOLUSDT', 'XRPUSDT', 'HBARUSDC', 'DOGEUSDC', 'LINKUSDT', 'MATICUSDT'];
 
 export function initBollinger() {
   document.getElementById('bollConfigForm').addEventListener('submit', saveBollConfig);
   document.getElementById('startBollBtn').addEventListener('click', startBoll);
   document.getElementById('stopBollBtn').addEventListener('click', stopBoll);
-  document.getElementById('bollManualForm').addEventListener('submit', bollingerManualSell);
+  document.getElementById('bollQuoteFilter').addEventListener('change', renderSymbolSelect);
 }
 
 export async function refreshBollinger() {
   await fetchSymbols();
-  await fetchBollStatus();
   await fetchBollConfig();
+  await fetchBollStatus();
+  await fetchBollBalances();
   await fetchBollTrades();
   await fetchBollHistory();
 }
@@ -22,58 +26,63 @@ export async function refreshBollinger() {
 async function fetchSymbols() {
   try {
     const r = await fetch('/symbols_grouped');
-    const grouped = await r.json();
+    groupedSymbols = await r.json();
+    renderSymbolSelect();
+    renderSymbolPills();
+  } catch (e) {
+    console.error(e);
+  }
+}
 
-    const select = document.getElementById('boll_symbol');
-    const manualSelect = document.getElementById('boll_manual_symbol');
+function renderSymbolSelect() {
+  const select = document.getElementById('boll_symbol');
+  const current = select.value;
+  const filter = document.getElementById('bollQuoteFilter').value;
 
-    const current = select.value;
-    const currentManual = manualSelect.value;
+  select.innerHTML = '';
+  const placeholder = document.createElement('option');
+  placeholder.value = '';
+  placeholder.textContent = 'Select symbol';
+  select.appendChild(placeholder);
 
-    select.innerHTML = '';
-    manualSelect.innerHTML = '';
-
-    const placeholder = document.createElement('option');
-    placeholder.value = '';
-    placeholder.textContent = 'Select symbol';
-    select.appendChild(placeholder.cloneNode(true));
-    manualSelect.appendChild(placeholder.cloneNode(true));
-
-    const order = ['USDT', 'USDC', 'BTC', 'BNB'];
-
-    order.forEach((quote) => {
-      const list = grouped[quote];
-      if (!list || list.length === 0) return;
-
-      const og = document.createElement('optgroup');
-      og.label = `${quote} pairs`;
-
-      const ogManual = document.createElement('optgroup');
-      ogManual.label = `${quote} pairs`;
-
-      list.forEach((s) => {
+  const order = ['USDT', 'USDC', 'BTC', 'BNB'];
+  order.forEach((quote) => {
+    if (filter !== 'all' && filter !== quote) return;
+    const list = groupedSymbols[quote] || [];
+    if (list.length === 0) return;
+    const og = document.createElement('optgroup');
+    og.label = `${quote} pairs`;
+    list
+      .slice(0, 50)
+      .sort((a, b) => a.baseAsset.localeCompare(b.baseAsset))
+      .forEach((s) => {
         const label = `${s.symbol} (${s.baseAsset}/${s.quoteAsset})`;
-
         const opt = document.createElement('option');
         opt.value = s.symbol;
         opt.textContent = label;
         og.appendChild(opt);
-
-        const opt2 = document.createElement('option');
-        opt2.value = s.symbol;
-        opt2.textContent = label;
-        ogManual.appendChild(opt2);
       });
+    select.appendChild(og);
+  });
 
-      select.appendChild(og);
-      manualSelect.appendChild(ogManual);
+  if (current) select.value = current;
+}
+
+function renderSymbolPills() {
+  const pills = document.getElementById('bollSymbolPills');
+  pills.innerHTML = '';
+  curatedSymbols.forEach((sym) => {
+    const pill = document.createElement('button');
+    pill.type = 'button';
+    pill.className = 'pill';
+    pill.textContent = sym;
+    pill.addEventListener('click', () => {
+      document.getElementById('boll_symbol').value = sym;
+      fetchBollHistory();
+      fetchBollStatus();
     });
-
-    if (current) select.value = current;
-    if (currentManual) manualSelect.value = currentManual;
-  } catch (e) {
-    console.error(e);
-  }
+    pills.appendChild(pill);
+  });
 }
 
 async function fetchBollConfig() {
@@ -128,6 +137,19 @@ async function fetchBollStatus() {
       data.enabled ? 'RUNNING' : 'STOPPED'
     }</span>`;
 
+    const priceDirection =
+      data.price && lastBollPrice
+        ? data.price > lastBollPrice
+          ? 'price-up'
+          : data.price < lastBollPrice
+            ? 'price-down'
+            : 'price-flat'
+        : 'price-flat';
+
+    const priceLabel = data.price ? data.price.toFixed(4) : '—';
+    const priceIcon =
+      priceDirection === 'price-up' ? '↗' : priceDirection === 'price-down' ? '↘' : '';
+
     document.getElementById('bollStatus').innerHTML = `
       <div class="status-chip-row">
         ${envChip}
@@ -136,8 +158,12 @@ async function fetchBollStatus() {
       </div>
       <div class="metric-grid">
         <div class="metric-group">
-          <div class="metric-label">Base balance</div>
-          <div class="metric-value">${(data.base_balance || 0).toFixed(6)}</div>
+          <div class="metric-label">Position</div>
+          <div class="metric-value">${data.position}</div>
+        </div>
+        <div class="metric-group">
+          <div class="metric-label">Base held (${data.base_asset || '—'})</div>
+          <div class="metric-value">${(data.qty_asset || 0).toFixed(6)}</div>
         </div>
         <div class="metric-group">
           <div class="metric-label">Quote balance (${cachedQuote})</div>
@@ -145,7 +171,12 @@ async function fetchBollStatus() {
         </div>
         <div class="metric-group">
           <div class="metric-label">Last price</div>
-          <div class="metric-value">${data.last_price ? data.last_price.toFixed(4) : '—'}</div>
+          <div class="metric-value">
+            <span class="price-pill ${priceDirection}">
+              ${priceLabel}
+              ${priceIcon ? `<span class="price-trend-icon">${priceIcon}</span>` : ''}
+            </span>
+          </div>
         </div>
       </div>
       <div class="status-line">
@@ -154,9 +185,42 @@ async function fetchBollStatus() {
         <b>Lower:</b> ${data.lower ? data.lower.toFixed(6) : '—'}
       </div>
     `;
+
+    document.getElementById('bollPosition').innerHTML = `
+      <div class="chip">Unrealized: ${(data.unrealized_pnl_usd || 0).toFixed(2)} ${cachedQuote}</div>
+      <div class="chip">Realized: ${(data.realized_pnl_usd || 0).toFixed(2)} ${cachedQuote}</div>
+    `;
+
+    lastBollPrice = data.price ?? lastBollPrice;
   } catch (e) {
     console.error(e);
     document.getElementById('bollStatus').innerText = 'Error loading Bollinger status';
+  }
+}
+
+async function fetchBollBalances() {
+  try {
+    const r = await fetch('/boll_balances');
+    const balances = await r.json();
+    const container = document.getElementById('bollBalances');
+    container.innerHTML = '';
+
+    balances
+      .sort((a, b) => b.free - a.free)
+      .slice(0, 15)
+      .forEach((b) => {
+        const row = document.createElement('div');
+        row.className = 'balance-row';
+        row.innerHTML = `
+          <div class="balance-asset">${b.asset}</div>
+          <div class="balance-qty">${b.free.toFixed(6)}</div>
+          <div class="balance-locked">locked: ${b.locked.toFixed(4)}</div>
+        `;
+        container.appendChild(row);
+      });
+  } catch (e) {
+    console.error(e);
+    document.getElementById('bollBalances').textContent = 'Unable to load balances';
   }
 }
 
@@ -266,51 +330,4 @@ async function stopBoll() {
   } catch (e) {
     console.error(e);
   }
-}
-
-async function bollingerManualSell(event) {
-  event.preventDefault();
-  const symbol = document.getElementById('boll_manual_symbol').value;
-  const qtyStr = document.getElementById('boll_manual_qty').value;
-  const qty = parseFloat(qtyStr);
-
-  if (!symbol) {
-    alert('Please select a symbol.');
-    return false;
-  }
-  if (isNaN(qty) || qty <= 0) {
-    alert('Enter a valid quantity > 0.');
-    return false;
-  }
-
-  if (!confirm(`Sell ${qty} of the base asset in ${symbol}?`)) {
-    return false;
-  }
-
-  try {
-    const r = await fetch('/bollinger_manual_sell', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ symbol: symbol, qty_base: qty }),
-    });
-
-    const data = await r.json();
-
-    if (!r.ok) {
-      alert('Error: ' + (data.detail || r.statusText));
-      return false;
-    }
-
-    alert(
-      `Sold ${data.qty_sold.toFixed(6)} ${data.base_asset} ` +
-        `for ~${data.quote_received_est.toFixed(2)} ${data.quote_asset}.`
-    );
-
-    await refreshBollinger();
-  } catch (e) {
-    console.error(e);
-    alert('Request failed. Check console for details.');
-  }
-
-  return false;
 }

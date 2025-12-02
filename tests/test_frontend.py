@@ -43,3 +43,23 @@ def test_mean_and_bollinger_forms_exist():
     assert dom.find("form", id="configForm") is not None
     assert dom.find("form", id="manualTradeForm") is not None
     assert dom.find("form", id="bollConfigForm") is not None
+
+
+def test_trading_tab_and_form_present():
+    dom = _load_dom()
+
+    tab = dom.find("div", id="tab-trading")
+    assert tab is not None
+
+    # Environment/account selectors
+    assert tab.find("select", id="tradingEnv") is not None
+    assert tab.find("select", id="tradingAccount") is not None
+
+    # Balance grid and manual order form
+    assert tab.find("div", id="tradingBalances") is not None
+
+    form = tab.find("form", id="tradingOrderForm")
+    assert form is not None
+    assert form.find("input", id="tradingSymbol") is not None
+    assert form.find("select", id="tradingSide") is not None
+    assert form.find("input", id="tradingQty") is not None
