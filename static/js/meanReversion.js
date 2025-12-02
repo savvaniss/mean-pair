@@ -5,8 +5,28 @@ let priceChart = null;
 let ratioChart = null;
 let lastMeanRatio = null;
 let lastStdRatio = null;
+let lastPriceA = null;
+let lastPriceB = null;
+let lastRatio = null;
 let currentQuote = 'USDT';
 let currentPair = { asset_a: 'HBAR', asset_b: 'DOGE' };
+
+function getDirectionClass(current, last) {
+  if (current === undefined || current === null || last === null) return 'price-flat';
+  if (current > last) return 'price-up';
+  if (current < last) return 'price-down';
+  return 'price-flat';
+}
+
+function renderPricePill(value, direction) {
+  const icon = direction === 'price-up' ? '↗' : direction === 'price-down' ? '↘' : '';
+  return `
+    <span class="price-pill ${direction}">
+      ${value}
+      ${icon ? `<span class="price-trend-icon">${icon}</span>` : ''}
+    </span>
+  `;
+}
 
 function updatePairControls(pairs, selected) {
   const select = document.getElementById('pair_select');
@@ -128,6 +148,10 @@ async function fetchStatus() {
     lastMeanRatio = data.mean_ratio;
     lastStdRatio = data.std_ratio;
 
+    const priceADirection = getDirectionClass(data.price_a, lastPriceA);
+    const priceBDirection = getDirectionClass(data.price_b, lastPriceB);
+    const ratioDirection = getDirectionClass(data.ratio, lastRatio);
+
     currentPair = { asset_a: data.asset_a, asset_b: data.asset_b };
     if (botConfig && botConfig.available_pairs) {
       updatePairControls(botConfig.available_pairs, [data.asset_a, data.asset_b]);
@@ -157,16 +181,16 @@ async function fetchStatus() {
         </div>
         <div class="metric-group">
           <div class="metric-label">${data.asset_a}${currentQuote}</div>
-          <div class="metric-value">${data.price_a.toFixed(4)}</div>
+          <div class="metric-value">${renderPricePill(data.price_a.toFixed(4), priceADirection)}</div>
         </div>
         <div class="metric-group">
           <div class="metric-label">${data.asset_b}${currentQuote}</div>
-          <div class="metric-value">${data.price_b.toFixed(4)}</div>
+          <div class="metric-value">${renderPricePill(data.price_b.toFixed(4), priceBDirection)}</div>
         </div>
 
         <div class="metric-group">
           <div class="metric-label">Ratio (${data.asset_a}/${data.asset_b})</div>
-          <div class="metric-value">${data.ratio.toFixed(6)}</div>
+          <div class="metric-value">${renderPricePill(data.ratio.toFixed(6), ratioDirection)}</div>
         </div>
         <div class="metric-group">
           <div class="metric-label">Mean ratio</div>
@@ -207,6 +231,10 @@ async function fetchStatus() {
       priceChart.data.datasets[1].label = data.asset_b + currentQuote;
       priceChart.update();
     }
+
+    lastPriceA = data.price_a ?? lastPriceA;
+    lastPriceB = data.price_b ?? lastPriceB;
+    lastRatio = data.ratio ?? lastRatio;
   } catch (e) {
     console.error(e);
     document.getElementById('status').innerText = 'Error loading status';

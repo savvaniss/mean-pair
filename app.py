@@ -8,6 +8,7 @@ from engines import mean_reversion as mr_engine
 from engines import bollinger as boll_engine
 from routes import mean_reversion as mr_routes
 from routes import bollinger as boll_routes
+from routes import trading as trading_routes
 
 
 # =========================
@@ -22,6 +23,7 @@ app.mount("/static", StaticFiles(directory="static"), name="static")
 # API routes
 app.include_router(mr_routes.router)
 app.include_router(boll_routes.router)
+app.include_router(trading_routes.router)
 
 
 # =========================

@@ -23,6 +23,7 @@
   <div class="tab-bar">
     <button class="tab active" data-tab="mean">Mean Reversion (Pairs)</button>
     <button class="tab" data-tab="boll">Single-Coin Bollinger</button>
+    <button class="tab" data-tab="trading">Trading Desk</button>
   </div>
 
   <div id="tab-mean" class="tab-content active">
@@ -198,18 +199,53 @@
       <button class="btn btn-danger" id="stopBollBtn">Stop Bollinger bot</button>
     </div>
 
+    <div class="row">
+      <div class="card" data-collapsible>
+        <div class="card-header">
+          <h2>Bollinger Overview</h2>
+          <span class="toggle-icon">▼</span>
+        </div>
+        <div class="card-body">
+          <div id="bollStatus" class="status-section">Loading...</div>
+          <div class="inline-metrics" id="bollPosition"></div>
+        </div>
+      </div>
+
+      <div class="card" data-collapsible>
+        <div class="card-header">
+          <h2>Account snapshot</h2>
+          <span class="toggle-icon">▼</span>
+        </div>
+        <div class="card-body">
+          <div id="bollBalances" class="balance-grid">Loading...</div>
+        </div>
+      </div>
+    </div>
+
     <div class="card" data-collapsible>
       <div class="card-header">
         <h2>Bollinger Config</h2>
         <span class="toggle-icon">▼</span>
       </div>
       <div class="card-body">
+        <div class="symbol-picker">
+          <div>
+            <label for="boll_symbol">Symbol</label>
+            <div class="symbol-select-row">
+              <select id="boll_symbol"></select>
+              <select id="bollQuoteFilter">
+                <option value="all">All quotes</option>
+                <option value="USDT">USDT</option>
+                <option value="USDC">USDC</option>
+                <option value="BTC">BTC</option>
+                <option value="BNB">BNB</option>
+              </select>
+            </div>
+          </div>
+          <div class="pill-row" id="bollSymbolPills"></div>
+        </div>
         <form id="bollConfigForm">
           <div class="form-row">
-            <div>
-              <label for="boll_symbol">Symbol</label>
-              <select id="boll_symbol"></select>
-            </div>
             <div>
               <label for="boll_trade_notional">Trade notional (<span class="quote-label">USDT</span>)</label>
               <input id="boll_trade_notional" type="number" step="1" />
@@ -233,45 +269,7 @@
           </div>
           <button type="submit" class="btn btn-primary">Save Bollinger config</button>
         </form>
-      </div>
-    </div>
-
-    <div class="row">
-      <div class="card" data-collapsible>
-        <div class="card-header">
-          <h2>Bollinger Status</h2>
-          <span class="toggle-icon">▼</span>
-        </div>
-        <div class="card-body">
-          <div id="bollStatus" class="status-section">Loading...</div>
-        </div>
-      </div>
-
-      <div class="card" data-collapsible>
-        <div class="card-header">
-          <h2>Manual Single-Coin Sell</h2>
-          <span class="toggle-icon">▼</span>
-        </div>
-        <div class="card-body">
-          <form id="bollManualForm">
-            <div class="form-row">
-              <div>
-                <label for="boll_manual_symbol">Symbol</label>
-                <select id="boll_manual_symbol"></select>
-              </div>
-              <div>
-                <label for="boll_manual_qty">Quantity (base)</label>
-                <input id="boll_manual_qty" type="number" step="0.0001" />
-              </div>
-            </div>
-            <button type="submit" class="btn btn-primary">Sell now</button>
-          </form>
-          <div class="help-text">
-            Sells the selected base asset (e.g. HBAR in HBARUSDC) for its quote
-            asset (USDT / USDC / BTC / BNB) using a market order.
-            Uses the same environment (testnet / mainnet) as the rest of the bot.
-          </div>
-        </div>
+        <div class="help-text">Curated chips keep you away from scrolling through hundreds of pairs. Use the quote filter to narrow the list.</div>
       </div>
     </div>
 
@@ -310,6 +308,67 @@
           </thead>
           <tbody id="bollTradesBody"></tbody>
         </table>
+      </div>
+    </div>
+  </div>
+
+  <div id="tab-trading" class="tab-content">
+    <div class="row">
+      <div class="card" data-collapsible>
+        <div class="card-header">
+          <h2>Accounts</h2>
+          <span class="toggle-icon">▼</span>
+        </div>
+        <div class="card-body">
+          <div class="form-row">
+            <div>
+              <label for="tradingEnv">Environment</label>
+              <select id="tradingEnv">
+                <option value="testnet">Testnet</option>
+                <option value="mainnet">Mainnet</option>
+              </select>
+            </div>
+            <div>
+              <label for="tradingAccount">Account keys</label>
+              <select id="tradingAccount">
+                <option value="mr">Mean Reversion keys</option>
+                <option value="boll">Bollinger keys</option>
+              </select>
+            </div>
+          </div>
+          <div id="tradingBalances" class="balance-grid">Loading...</div>
+        </div>
+      </div>
+
+      <div class="card" data-collapsible>
+        <div class="card-header">
+          <h2>Manual order</h2>
+          <span class="toggle-icon">▼</span>
+        </div>
+        <div class="card-body">
+          <form id="tradingOrderForm">
+            <div class="form-row">
+              <div>
+                <label for="tradingSymbol">Symbol</label>
+                <input id="tradingSymbol" list="tradingSymbolList" placeholder="e.g. BTCUSDT" />
+                <datalist id="tradingSymbolList"></datalist>
+              </div>
+              <div>
+                <label for="tradingSide">Side</label>
+                <select id="tradingSide">
+                  <option value="BUY">Buy</option>
+                  <option value="SELL">Sell</option>
+                </select>
+              </div>
+              <div>
+                <label for="tradingQty">Qty (base)</label>
+                <input id="tradingQty" type="number" min="0" step="0.0001" />
+              </div>
+            </div>
+            <button type="submit" class="btn btn-primary">Execute</button>
+          </form>
+          <div class="help-text">Uses whichever API key set you pick above. Balances refresh automatically after the trade.</div>
+        </div>
       </div>
     </div>
   </div>
