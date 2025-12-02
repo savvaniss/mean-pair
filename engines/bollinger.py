@@ -283,7 +283,37 @@ def boll_loop():
             time.sleep(boll_config.poll_interval_sec)
     finally:
         session.close()
+        
+def boll_history(limit: int = 200):
+    """
+    Return recent Bollinger history with computed bands.
+    Used by tests and UI.
+    """
+    hist = []
+    n = len(boll_price_history)
+    if n == 0:
+        return hist
 
+    start = max(0, n - limit)
+    prices = boll_price_history[start:]
+    times = boll_ts_history[start:]
+
+    for i in range(len(prices)):
+        window_prices = prices[max(0, i - boll_config.window_size + 1) : i + 1]
+        ma, std = compute_ma_std_window(window_prices, window=len(window_prices))
+        upper = ma + boll_config.num_std * std
+        lower = ma - boll_config.num_std * std
+        hist.append(
+            BollHistoryItem(
+                ts=times[i],
+                price=prices[i],
+                ma=ma,
+                upper=upper,
+                lower=lower,
+            )
+        )
+
+    return hist
 
 def start_boll_thread():
     global boll_thread, boll_stop_flag
@@ -297,3 +327,4 @@ def start_boll_thread():
 def stop_boll_thread():
     global boll_stop_flag
     boll_stop_flag = True
+

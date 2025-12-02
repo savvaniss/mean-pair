@@ -122,20 +122,19 @@ def test_boll_status_with_symbol(client, monkeypatch):
             now - dt.timedelta(seconds=(len(prices) - i))
         )
 
-    # status endpoint calls helpers imported in routes.bollinger
+    # /boll_status uses a helper for price (imported into routes)
     monkeypatch.setattr(
         boll_routes, "get_symbol_price_boll", lambda symbol: 1.5, raising=False
     )
-    monkeypatch.setattr(
-        boll_routes, "get_free_balance_boll", lambda asset: 42.0, raising=False
-    )
 
+    # NOTE: quote balance is now taken from FakeBollClient.get_account()
+    # which returns 50.0 USDC, so we assert 50.0 to match real logic.
     r = client.get("/boll_status")
     assert r.status_code == 200
     data = r.json()
     assert data["symbol"] == "HBARUSDC"
     assert data["quote_asset"] == "USDC"
-    assert data["quote_balance"] == pytest.approx(42.0)
+    assert data["quote_balance"] == pytest.approx(50.0)
     assert data["price"] == pytest.approx(1.5)
 
 
@@ -154,8 +153,8 @@ def test_boll_history_computes_bands(monkeypatch):
             now - dt.timedelta(seconds=(len(prices) - i))
         )
 
-    # boll_history lives in engines.bollinger
-    r = boll_engine.boll_history(limit=10)
+    # boll_history lives in routes.bollinger (not engines.bollinger)
+    r = boll_routes.boll_history(limit=10)
     assert len(r) == 3
     last = r[-1]
     assert last.price == pytest.approx(1.2)
