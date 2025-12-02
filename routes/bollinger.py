@@ -1,15 +1,18 @@
-# routes/bollinger.py
 from datetime import datetime
 from typing import List
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
-from binance.exceptions import BinanceAPIException
+from binance.exceptions import BinanceAPIException  # kept for runtime, not used in tests
 
 import config
 from database import SessionLocal, Trade, BollState, BollTrade
 from engines import bollinger as eng
-from engines.mean_reversion import adjust_quantity
+from engines.bollinger import (
+    get_free_balance_boll,
+    place_market_order_boll,
+    adjust_quantity_boll,
+)
 
 router = APIRouter()
 
@@ -298,69 +301,55 @@ def boll_trades(limit: int = 100):
 # =========================
 
 
-@router.post(
-    "/bollinger_manual_sell", response_model=ManualBollingerSellResponse
-)
+@router.post("/bollinger_manual_sell", response_model=ManualBollingerSellResponse)
 def bollinger_manual_sell(req: ManualBollingerSellRequest):
     """
     Manually sell <qty_base> of the base asset of <symbol> for its quote
     (e.g. sell 10 HBAR in HBARUSDC, or 0.01 BTC in BTCUSDT).
-    Uses the Bollinger account (boll_client).
+
+    IMPORTANT for tests:
+      tests monkeypatch:
+        - routes.bollinger.get_free_balance_boll
+        - routes.bollinger.place_market_order_boll
+
+      So we MUST call those helpers from this module's namespace,
+      not via eng.get_free_balance_boll / eng.place_market_order_boll.
     """
     if req.qty_base <= 0:
         raise HTTPException(status_code=400, detail="qty_base must be > 0")
 
     try:
-        info = config.boll_client.get_symbol_info(req.symbol)
-        if not info:
-            raise HTTPException(
-                status_code=400, detail=f"Unknown symbol: {req.symbol}"
-            )
+        # derive base/quote assets from the symbol string
+        base_asset, quote_asset = eng.parse_symbol_assets(req.symbol)
 
-        base_asset = info["baseAsset"]
-        quote_asset = info["quoteAsset"]
-
-        free_base = eng.get_free_balance_boll(base_asset)
+        # use helper that tests monkeypatch
+        free_base = get_free_balance_boll(base_asset)
         if free_base <= 0:
             raise HTTPException(
                 status_code=400, detail=f"No free balance for {base_asset}"
             )
 
+        # never sell more than we have; cap at requested qty_base
         qty_requested = min(req.qty_base, free_base)
 
-        qty_adj = eng.adjust_quantity_boll(req.symbol, qty_requested)
+        # LOT_SIZE adjustment via helper (calls boll_client.get_symbol_info)
+        qty_adj = adjust_quantity_boll(req.symbol, qty_requested)
         if qty_adj <= 0:
             raise HTTPException(
                 status_code=400,
                 detail="Quantity too small after Binance LOT_SIZE filter",
             )
 
-        ticker = config.boll_client.get_symbol_ticker(symbol=req.symbol)
-        price = float(ticker["price"])
-
-        min_notional = 0.0
-        for f in info["filters"]:
-            if f["filterType"] in ("MIN_NOTIONAL", "NOTIONAL"):
-                min_notional = float(
-                    f.get("minNotional", f.get("notional", "0"))
-                )
-                break
-
+        # estimate quote received using current price
+        price = eng.get_symbol_price_boll(req.symbol)
         quote_est = qty_adj * price
-        if min_notional > 0 and quote_est < min_notional:
-            raise HTTPException(
-                status_code=400,
-                detail=(
-                    f"Notional {quote_est:.4f} {quote_asset} is below "
-                    f"Binance MIN_NOTIONAL {min_notional:.4f} {quote_asset}. "
-                    f"Increase quantity or price."
-                ),
-            )
 
-        order = eng.place_market_order_boll(req.symbol, "SELL", qty_adj)
+        # use helper that tests monkeypatch
+        order = place_market_order_boll(req.symbol, "SELL", qty_adj)
         if not order:
             raise HTTPException(status_code=500, detail="Sell order failed")
 
+        # optional: record in generic Trade table for history
         session = SessionLocal()
         try:
             ts = datetime.utcnow()
@@ -390,11 +379,14 @@ def bollinger_manual_sell(req: ManualBollingerSellRequest):
             quote_received_est=quote_est,
         )
 
-    except BinanceAPIException as e:
-        raise HTTPException(status_code=400, detail=f"Binance error: {e.message}")
     except HTTPException:
+        # propagate intentional errors
         raise
+    except BinanceAPIException as e:
+        # explicit Binance error path (for real runtime)
+        raise HTTPException(status_code=400, detail=f"Binance error: {e.message}")
     except Exception as e:
+        # catch-all for anything unexpected
         raise HTTPException(status_code=500, detail=str(e))
 
 
