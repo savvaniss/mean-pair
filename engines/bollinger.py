@@ -48,11 +48,21 @@ def boll_has_enough_history() -> bool:
 
 
 # ========== Binance helpers ==========
-
-
 def get_symbol_price_boll(symbol: str) -> float:
-    # Positional call so tests' lambda s: {...} works
-    ticker = config.boll_client.get_symbol_ticker(symbol)
+    """
+    Return latest price for the given symbol using the Bollinger client.
+
+    Supports both:
+      - Real Binance Client (expects keyword 'symbol')
+      - Test monkeypatches that define get_symbol_ticker(symbol) positional-only
+    """
+    # Try keyword (real Binance client)
+    try:
+        ticker = config.boll_client.get_symbol_ticker(symbol=symbol)
+    except TypeError:
+        # Fallback for tests where get_symbol_ticker is monkeypatched
+        ticker = config.boll_client.get_symbol_ticker(symbol)
+
     return float(ticker["price"])
 
 
