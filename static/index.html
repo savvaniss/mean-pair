@@ -3,393 +3,10 @@
 <head>
   <meta charset="UTF-8" />
   <title>HBAR-DOGE Mean Reversion Bot</title>
-
-  <!-- Material-ish font -->
-  <link rel="stylesheet"
-        href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap"/>
-
-  <style>
-    :root {
-      --bg: #121212;
-      --surface: #1e1e1e;
-      --surface-light: #222;
-      --border: #333;
-      --primary: #90caf9;   /* calm blue */
-      --primary-soft: #64b5f6;
-      --accent: #26c6da;    /* teal */
-      --text-main: #e0e0e0;
-      --text-subtle: #b0bec5;
-      --text-muted: #90a4ae;
-      --danger: #ef5350;
-      --success: #66bb6a;
-    }
-
-    * {
-      box-sizing: border-box;
-    }
-
-    body {
-      font-family: "Roboto", Arial, sans-serif;
-      margin: 0;
-      padding: 20px;
-      background: var(--bg);
-      color: var(--text-main);
-    }
-
-    /* Top bar */
-
-    .top-bar {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 10px;
-      gap: 12px;
-      flex-wrap: wrap;
-    }
-
-    .title-block h1 {
-      margin: 0;
-      font-size: 1.6rem;
-      font-weight: 500;
-      color: var(--primary);
-    }
-
-    .title-sub {
-      font-size: 0.85rem;
-      color: var(--text-muted);
-      margin-top: 4px;
-    }
-
-    .control-buttons {
-      display: flex;
-      gap: 8px;
-      flex-wrap: wrap;
-    }
-
-    .btn {
-      border: none;
-      border-radius: 999px;
-      padding: 6px 14px;
-      font-size: 0.85rem;
-      font-weight: 500;
-      cursor: pointer;
-      background: var(--surface-light);
-      color: var(--text-main);
-      display: inline-flex;
-      align-items: center;
-      gap: 4px;
-      transition: background 0.15s, transform 0.05s;
-    }
-
-    .btn-primary {
-      background: var(--primary-soft);
-      color: #0b1720;
-    }
-
-    .btn-primary:hover {
-      background: var(--primary);
-    }
-
-    .btn-ghost {
-      background: transparent;
-      border: 1px solid var(--border);
-    }
-
-    .btn-danger {
-      background: var(--danger);
-      color: #111;
-    }
-
-    .btn.small {
-      padding: 4px 10px;
-      font-size: 0.8rem;
-    }
-
-    .btn:hover {
-      transform: translateY(-1px);
-    }
-
-    /* Tabs */
-
-    .tab-bar {
-      display: flex;
-      gap: 8px;
-      margin-bottom: 14px;
-      flex-wrap: wrap;
-    }
-
-    .tab {
-      padding: 6px 12px;
-      font-size: 0.85rem;
-      border-radius: 999px;
-      border: 1px solid var(--border);
-      background: var(--surface-light);
-      color: var(--text-subtle);
-      cursor: pointer;
-    }
-
-    .tab.active {
-      background: var(--primary-soft);
-      color: #0b1720;
-      border-color: var(--primary-soft);
-    }
-
-    .tab-content {
-      display: none;
-    }
-
-    .tab-content.active {
-      display: block;
-    }
-
-    /* Cards / layout */
-
-    .card {
-      border-radius: 10px;
-      margin-bottom: 14px;
-      background: var(--surface);
-      box-shadow: 0 2px 6px rgba(0,0,0,0.45);
-      border: 1px solid var(--border);
-    }
-
-    .card-header {
-      padding: 10px 16px;
-      border-bottom: 1px solid var(--border);
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      cursor: pointer;
-      background: var(--surface-light);
-    }
-
-    .card-header h2 {
-      margin: 0;
-      font-size: 1rem;
-      font-weight: 500;
-      color: var(--text-main);
-    }
-
-    .toggle-icon {
-      font-size: 0.9em;
-      color: var(--text-subtle);
-    }
-
-    .card-body {
-      padding: 12px 16px 16px 16px;
-    }
-
-    .row {
-      display: flex;
-      gap: 14px;
-      flex-wrap: wrap;
-    }
-
-    .row > .card {
-      flex: 1 1 330px;
-    }
-
-    /* Status layout */
-
-    .status-section {
-      font-size: 0.9rem;
-    }
-
-    .status-line {
-      margin: 4px 0;
-      color: var(--text-subtle);
-    }
-
-    .status-chip-row {
-      display: flex;
-      gap: 8px;
-      flex-wrap: wrap;
-      margin: 6px 0 10px;
-    }
-
-    .chip {
-      font-size: 0.75rem;
-      padding: 3px 8px;
-      border-radius: 999px;
-      background: #263238;
-      color: var(--text-subtle);
-    }
-
-    .chip-primary {
-      background: rgba(144,202,249,0.12);
-      color: var(--primary);
-    }
-
-    .chip-muted {
-      background: rgba(120,144,156,0.25);
-    }
-
-    .metric-grid {
-      display: grid;
-      grid-template-columns: repeat(3, minmax(0, 1fr));
-      gap: 4px 10px;
-      margin-top: 6px;
-    }
-
-    .metric-label {
-      font-size: 0.75rem;
-      color: var(--text-muted);
-    }
-
-    .metric-value {
-      font-size: 0.9rem;
-      font-weight: 500;
-    }
-
-    .metric-group {
-      margin-bottom: 6px;
-    }
-
-    /* Forms / inputs */
-
-    label {
-      display: block;
-      font-size: 0.8rem;
-      color: var(--text-muted);
-      margin-bottom: 2px;
-    }
-
-    .form-row {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      column-gap: 14px;
-      row-gap: 10px;
-      margin-bottom: 4px;
-    }
-
-    input[type="text"],
-    input[type="number"],
-    select {
-      width: 100%;
-      padding: 4px 6px;
-      font-size: 0.85rem;
-      border-radius: 6px;
-      border: 1px solid var(--border);
-      background: #101010;
-      color: var(--text-main);
-    }
-
-    input[type="checkbox"] {
-      transform: scale(0.95);
-    }
-
-    .form-checkbox {
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      font-size: 0.8rem;
-      color: var(--text-muted);
-    }
-
-    /* Tables */
-
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      margin-top: 10px;
-      font-size: 0.8rem;
-    }
-
-    th, td {
-      border: 1px solid var(--border);
-      padding: 6px;
-    }
-
-    th {
-      background: #212121;
-      color: var(--text-subtle);
-      font-weight: 400;
-    }
-
-    td {
-      color: var(--text-main);
-    }
-
-    /* Charts */
-
-    canvas {
-      background: #000;
-      border-radius: 6px;
-    }
-
-    #bandInfo,
-    #bollBandInfo {
-      font-size: 0.8rem;
-      color: var(--text-muted);
-      margin-top: 6px;
-    }
-
-    .help-text {
-      font-size: 0.8rem;
-      color: var(--text-muted);
-      margin-top: 6px;
-    }
-
-    .chart-row {
-      display: flex;
-      gap: 14px;
-      flex-wrap: wrap;
-      margin-top: 10px;
-    }
-
-    .chart-col {
-      flex: 1 1 360px;
-    }
-
-    /* Modal */
-
-    .modal-overlay {
-      position: fixed;
-      inset: 0;
-      background: rgba(0,0,0,0.6);
-      display: none;
-      align-items: center;
-      justify-content: center;
-      z-index: 1000;
-    }
-
-    .modal {
-      background: var(--surface);
-      border-radius: 10px;
-      border: 1px solid var(--border);
-      box-shadow: 0 8px 24px rgba(0,0,0,0.7);
-      width: min(520px, 92%);
-      max-height: 80vh;
-      display: flex;
-      flex-direction: column;
-    }
-
-    .modal-header,
-    .modal-footer {
-      padding: 10px 16px;
-      border-bottom: 1px solid var(--border);
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      background: var(--surface-light);
-    }
-
-    .modal-footer {
-      border-top: 1px solid var(--border);
-      border-bottom: none;
-    }
-
-    .modal-header-title {
-      font-size: 1rem;
-      font-weight: 500;
-    }
-
-    .modal-body {
-      padding: 12px 16px 14px 16px;
-      overflow-y: auto;
-    }
-  </style>
-
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" />
+  <link rel="stylesheet" href="/static/css/theme.css" />
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script type="module" src="/static/js/main.js"></script>
 </head>
 <body>
   <div class="top-bar">
@@ -398,8 +15,8 @@
       <div class="title-sub">Binance mean-reversion & Bollinger dashboard</div>
     </div>
     <div class="control-buttons">
-      <button class="btn btn-ghost" onclick="syncState()">Sync MR balances</button>
-      <button class="btn btn-ghost" onclick="openNextModal()">Next MR trade</button>
+      <button class="btn btn-ghost" id="syncStateBtn">Sync MR balances</button>
+      <button class="btn btn-ghost" id="nextTradeBtn">Next MR trade</button>
     </div>
   </div>
 
@@ -408,16 +25,12 @@
     <button class="tab" data-tab="boll">Single-Coin Bollinger</button>
   </div>
 
-  <!-- =======================
-       TAB: MEAN REVERSION
-       ======================= -->
   <div id="tab-mean" class="tab-content active">
     <div class="control-buttons" style="margin-bottom:10px;">
-      <button class="btn btn-primary" onclick="startBot()">Start MR bot</button>
-      <button class="btn btn-danger" onclick="stopBot()">Stop MR bot</button>
+      <button class="btn btn-primary" id="startBotBtn">Start MR bot</button>
+      <button class="btn btn-danger" id="stopBotBtn">Stop MR bot</button>
     </div>
 
-    <!-- Top row: Status / Config / Manual trade -->
     <div class="row">
       <div class="card" data-collapsible>
         <div class="card-header">
@@ -435,7 +48,7 @@
           <span class="toggle-icon">▼</span>
         </div>
         <div class="card-body">
-          <form id="configForm" onsubmit="saveConfig(); return false;">
+          <form id="configForm">
             <div class="form-row">
               <div>
                 <label for="poll_interval_sec">Poll interval (sec)</label>
@@ -495,7 +108,7 @@
           <span class="toggle-icon">▼</span>
         </div>
         <div class="card-body">
-          <form onsubmit="manualTrade(); return false;">
+          <form id="manualTradeForm">
             <div class="form-row">
               <div>
                 <label for="manual_direction">Direction</label>
@@ -514,14 +127,12 @@
             <button type="submit" class="btn btn-primary">Execute manual trade</button>
           </form>
           <div class="help-text">
-            Uses market orders on your current environment (testnet / mainnet).  
+            Uses market orders on your current environment (testnet / mainnet).
             Start with small amounts to test.
           </div>
         </div>
       </div>
     </div>
-
-    <!-- Charts -->
 
     <div class="card" data-collapsible>
       <div class="card-header">
@@ -529,26 +140,23 @@
         <span class="toggle-icon">▼</span>
       </div>
       <div class="card-body">
-        <div class="help-text">
-          Left: HBAR / DOGE prices (<span class="quote-label">USDT</span>). Right: ratio with z-entry / z-exit bands and optional fixed thresholds.
-        </div>
         <div class="chart-row">
           <div class="chart-col">
-            <canvas id="priceChart" height="140"></canvas>
+            <h3>HBAR / DOGE Prices</h3>
+            <canvas id="priceChart" height="160"></canvas>
           </div>
           <div class="chart-col">
-            <canvas id="ratioChart" height="140"></canvas>
+            <h3>Ratio & Bands</h3>
+            <canvas id="ratioChart" height="160"></canvas>
+            <p id="bandInfo"></p>
           </div>
         </div>
-        <p id="bandInfo"></p>
       </div>
     </div>
 
-    <!-- Trades at the end -->
-
     <div class="card" data-collapsible>
       <div class="card-header">
-        <h2>Trades (latest 100)</h2>
+        <h2>Recent Trades (latest 100)</h2>
         <span class="toggle-icon">▼</span>
       </div>
       <div class="card-body">
@@ -559,9 +167,9 @@
               <th>Side</th>
               <th>From</th>
               <th>To</th>
-              <th>Qty From</th>
-              <th>Qty To</th>
-              <th>Ratio</th>
+              <th>Qty from</th>
+              <th>Qty to</th>
+              <th>Price</th>
               <th>PnL (<span class="quote-label">USDT</span>)</th>
               <th>Env</th>
             </tr>
@@ -572,17 +180,51 @@
     </div>
   </div>
 
-  <!-- =======================
-       TAB: BOLLINGER
-       ======================= -->
   <div id="tab-boll" class="tab-content">
     <div class="control-buttons" style="margin-bottom:10px;">
-      <button class="btn btn-primary" onclick="startBoll()">Start Bollinger bot</button>
-      <button class="btn btn-danger" onclick="stopBoll()">Stop Bollinger bot</button>
+      <button class="btn btn-primary" id="startBollBtn">Start Bollinger bot</button>
+      <button class="btn btn-danger" id="stopBollBtn">Stop Bollinger bot</button>
+    </div>
+
+    <div class="card" data-collapsible>
+      <div class="card-header">
+        <h2>Bollinger Config</h2>
+        <span class="toggle-icon">▼</span>
+      </div>
+      <div class="card-body">
+        <form id="bollConfigForm">
+          <div class="form-row">
+            <div>
+              <label for="boll_symbol">Symbol</label>
+              <select id="boll_symbol"></select>
+            </div>
+            <div>
+              <label for="boll_trade_notional">Trade notional (<span class="quote-label">USDT</span>)</label>
+              <input id="boll_trade_notional" type="number" step="1" />
+            </div>
+            <div>
+              <label for="boll_window">Window size</label>
+              <input id="boll_window" type="number" min="5" step="1" />
+            </div>
+            <div>
+              <label for="boll_dev">Std Dev (k)</label>
+              <input id="boll_dev" type="number" step="0.1" />
+            </div>
+            <div class="form-checkbox">
+              <input type="checkbox" id="boll_use_testnet" />
+              <label for="boll_use_testnet">Use Binance testnet</label>
+            </div>
+            <div class="form-checkbox">
+              <input type="checkbox" id="boll_only_buy" />
+              <label for="boll_only_buy">Only buy on dips</label>
+            </div>
+          </div>
+          <button type="submit" class="btn btn-primary">Save Bollinger config</button>
+        </form>
+      </div>
     </div>
 
     <div class="row">
-      <!-- Boll status -->
       <div class="card" data-collapsible>
         <div class="card-header">
           <h2>Bollinger Status</h2>
@@ -590,102 +232,36 @@
         </div>
         <div class="card-body">
           <div id="bollStatus" class="status-section">Loading...</div>
-          <div class="help-text">
-            This bot trades a single coin vs
-            <span class="quote-label">USDT</span> / USDC / BTC / BNB
-            using Bollinger bands: buy near lower band, sell near upper band,
-            plus stop-loss / take-profit & cooldown.
-          </div>
         </div>
       </div>
 
-      <!-- Boll config -->
       <div class="card" data-collapsible>
         <div class="card-header">
-          <h2>Bollinger Config</h2>
+          <h2>Manual Single-Coin Sell</h2>
           <span class="toggle-icon">▼</span>
         </div>
         <div class="card-body">
-          <form id="bollConfigForm" onsubmit="saveBollConfig(); return false;">
+          <form id="bollManualForm">
             <div class="form-row">
               <div>
-                <label for="boll_symbol">Symbol (coin vs quote)</label>
-                <select id="boll_symbol"></select>
+                <label for="boll_manual_symbol">Symbol</label>
+                <select id="boll_manual_symbol"></select>
               </div>
               <div>
-                <label for="boll_poll_interval">Poll interval (sec)</label>
-                <input id="boll_poll_interval" type="number" min="5" step="1" />
-              </div>
-              <div>
-                <label for="boll_window_size">Window size</label>
-                <input id="boll_window_size" type="number" min="5" step="1" />
-              </div>
-              <div>
-                <label for="boll_num_std">Band width (std)</label>
-                <input id="boll_num_std" type="number" step="0.1" />
+                <label for="boll_manual_qty">Quantity (base)</label>
+                <input id="boll_manual_qty" type="number" step="0.0001" />
               </div>
             </div>
-
-            <div class="form-row">
-              <div>
-                <label for="boll_max_position">
-                  Max position (<span class="quote-label">USDT</span>)
-                </label>
-                <input id="boll_max_position" type="number" step="1" />
-              </div>
-              <div class="form-checkbox">
-                <input type="checkbox" id="boll_use_all_balance" />
-                <label for="boll_use_all_balance">Use all quote balance (up to max)</label>
-              </div>
-              <div>
-                <label for="boll_stop_loss">Stop-loss (%)</label>
-                <input id="boll_stop_loss" type="number" step="0.1" />
-              </div>
-              <div>
-                <label for="boll_take_profit">Take-profit (%)</label>
-                <input id="boll_take_profit" type="number" step="0.1" />
-              </div>
-              <div>
-                <label for="boll_cooldown">Cooldown (sec)</label>
-                <input id="boll_cooldown" type="number" step="1" />
-              </div>
-            </div>
-
-            <button type="submit" class="btn btn-primary">Save Bollinger config</button>
+            <button type="submit" class="btn btn-primary">Sell now</button>
           </form>
-        </div>
-      </div>
-    </div>
-
-    <!-- Manual single-coin sell -->
-    <div class="card" data-collapsible>
-      <div class="card-header">
-        <h2>Manual single-coin sell</h2>
-        <span class="toggle-icon">▼</span>
-      </div>
-      <div class="card-body">
-        <form onsubmit="return bollingerManualSell();">
-          <div class="form-row">
-            <div>
-              <label for="boll_manual_symbol">Symbol (coin vs quote)</label>
-              <select id="boll_manual_symbol"></select>
-            </div>
-            <div>
-              <label for="boll_manual_qty">Qty (base asset)</label>
-              <input id="boll_manual_qty" type="number" min="0" step="0.00000001" />
-            </div>
+          <div class="help-text">
+            Sells the selected base asset (e.g. HBAR in HBARUSDC) for its quote
+            asset (USDT / USDC / BTC / BNB) using a market order.
+            Uses the same environment (testnet / mainnet) as the rest of the bot.
           </div>
-          <button type="submit" class="btn btn-primary">Sell now</button>
-        </form>
-        <div class="help-text">
-          Sells the selected base asset (e.g. HBAR in HBARUSDC) for its quote
-          asset (USDT / USDC / BTC / BNB) using a market order.
-          Uses the same environment (testnet / mainnet) as the rest of the bot.
         </div>
       </div>
     </div>
-
-    <!-- Bollinger chart -->
 
     <div class="card" data-collapsible>
       <div class="card-header">
@@ -700,8 +276,6 @@
         <p id="bollBandInfo"></p>
       </div>
     </div>
-
-    <!-- Boll trades -->
 
     <div class="card" data-collapsible>
       <div class="card-header">
@@ -728,901 +302,20 @@
     </div>
   </div>
 
-  <!-- Next Possible Trade Modal (mean reversion) -->
-
   <div id="nextModalOverlay" class="modal-overlay">
     <div class="modal">
       <div class="modal-header">
         <div class="modal-header-title">Next possible MR trade</div>
-        <button class="btn btn-ghost small" onclick="closeNextModal()">✕</button>
+        <button class="btn btn-ghost small" id="nextModalClose">✕</button>
       </div>
       <div class="modal-body">
         <div id="nextSignalModalBody" class="status-section">Loading...</div>
       </div>
       <div class="modal-footer">
-        <button class="btn btn-primary small" onclick="fetchNextSignal()">Recalculate</button>
-        <button class="btn btn-ghost small" onclick="closeNextModal()">Close</button>
+        <button class="btn btn-primary small" id="nextModalRecalc">Recalculate</button>
+        <button class="btn btn-ghost small" id="nextModalCloseFooter">Close</button>
       </div>
     </div>
   </div>
-
-  <!-- SCRIPT -->
-
-  <script>
-    let botConfig = null;
-    let priceChart = null;
-    let ratioChart = null;
-    let lastMeanRatio = null;
-    let lastStdRatio = null;
-    let currentQuote = 'USDT';  // USDT on testnet, USDC on mainnet
-
-    let bollConfig = null;
-    let bollChart = null;
-
-    function initCollapsibles() {
-      document.querySelectorAll('[data-collapsible]').forEach(card => {
-        const header = card.querySelector('.card-header');
-        const body = card.querySelector('.card-body');
-        const icon = card.querySelector('.toggle-icon');
-
-        header.addEventListener('click', (e) => {
-          if (e.target.closest('button')) return;
-          const isHidden = body.style.display === 'none';
-          body.style.display = isHidden ? 'block' : 'none';
-          icon.textContent = isHidden ? '▼' : '▲';
-        });
-      });
-    }
-
-    function initTabs() {
-      const tabs = document.querySelectorAll('.tab');
-      const contents = document.querySelectorAll('.tab-content');
-
-      tabs.forEach(tab => {
-        tab.addEventListener('click', () => {
-          const target = tab.dataset.tab;
-          tabs.forEach(t => t.classList.remove('active'));
-          contents.forEach(c => c.classList.remove('active'));
-          tab.classList.add('active');
-          document.getElementById('tab-' + target).classList.add('active');
-        });
-      });
-    }
-
-    function applyQuoteLabels() {
-      document.querySelectorAll('.quote-label').forEach(el => {
-        el.textContent = currentQuote;
-      });
-    }
-
-    function openNextModal() {
-      document.getElementById('nextModalOverlay').style.display = 'flex';
-      fetchNextSignal();
-    }
-
-    function closeNextModal() {
-      document.getElementById('nextModalOverlay').style.display = 'none';
-    }
-
-    // ================
-    // MEAN REVERSION
-    // ================
-
-    async function manualTrade() {
-      const direction = document.getElementById('manual_direction').value;
-      const notional = parseFloat(document.getElementById('manual_notional').value);
-
-      if (isNaN(notional) || notional <= 0) {
-        alert('Enter a valid notional amount > 0');
-        return;
-      }
-
-      try {
-        const r = await fetch('/manual_trade', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ direction: direction, notional_usd: notional })
-        });
-
-        if (!r.ok) {
-          const err = await r.json();
-          alert('Error: ' + (err.detail || r.statusText));
-          return;
-        }
-
-        alert('Manual trade executed.');
-        await refreshAll();
-      } catch (e) {
-        console.error(e);
-        alert('Request failed. See console.');
-      }
-    }
-
-    async function syncState() {
-      try {
-        const r = await fetch('/sync_state_from_balances', { method: 'POST' });
-        if (!r.ok) {
-          const err = await r.json();
-          alert('Sync failed: ' + (err.detail || r.statusText));
-          return;
-        }
-        const data = await r.json();
-        alert(`Synced to ${data.current_asset} @ ${data.current_qty.toFixed(4)}`);
-        await refreshAll();
-      } catch (e) {
-        console.error(e);
-        alert('Sync request failed.');
-      }
-    }
-
-    async function fetchStatus() {
-      try {
-        const r = await fetch('/status');
-        const data = await r.json();
-
-        lastMeanRatio = data.mean_ratio;
-        lastStdRatio = data.std_ratio;
-
-        currentQuote = data.use_testnet ? 'USDT' : 'USDC';
-        applyQuoteLabels();
-
-        const envChip = `<span class="chip chip-primary">${data.use_testnet ? 'TESTNET' : 'MAINNET'}</span>`;
-        const botChip = `<span class="chip ${data.enabled ? 'chip-primary' : 'chip-muted'}">MR Bot: ${data.enabled ? 'RUNNING' : 'STOPPED'}</span>`;
-
-        document.getElementById('status').innerHTML = `
-          <div class="status-chip-row">
-            ${envChip}
-            ${botChip}
-          </div>
-
-          <div class="metric-grid">
-            <div class="metric-group">
-              <div class="metric-label">BTC${currentQuote}</div>
-              <div class="metric-value">${data.btc.toFixed(2)}</div>
-            </div>
-            <div class="metric-group">
-              <div class="metric-label">HBAR${currentQuote}</div>
-              <div class="metric-value">${data.hbar.toFixed(4)}</div>
-            </div>
-            <div class="metric-group">
-              <div class="metric-label">DOGE${currentQuote}</div>
-              <div class="metric-value">${data.doge.toFixed(4)}</div>
-            </div>
-
-            <div class="metric-group">
-              <div class="metric-label">Ratio (HBAR/DOGE)</div>
-              <div class="metric-value">${data.ratio.toFixed(6)}</div>
-            </div>
-            <div class="metric-group">
-              <div class="metric-label">Mean ratio</div>
-              <div class="metric-value">${data.mean_ratio.toFixed(6)}</div>
-            </div>
-            <div class="metric-group">
-              <div class="metric-label">Std dev</div>
-              <div class="metric-value">${data.std_ratio.toFixed(6)}</div>
-            </div>
-
-            <div class="metric-group">
-              <div class="metric-label">z-score</div>
-              <div class="metric-value">${data.zscore.toFixed(2)}</div>
-            </div>
-            <div class="metric-group">
-              <div class="metric-label">Current asset</div>
-              <div class="metric-value">${data.current_asset}</div>
-            </div>
-            <div class="metric-group">
-              <div class="metric-label">Current qty</div>
-              <div class="metric-value">${data.current_qty.toFixed(4)}</div>
-            </div>
-          </div>
-
-          <div class="status-line">
-            <b>PnL (realized):</b> ${data.realized_pnl_usd.toFixed(2)} ${currentQuote} |
-            <b>PnL (unrealized):</b> ${data.unrealized_pnl_usd.toFixed(2)} ${currentQuote}
-          </div>
-          <div class="status-line">
-            <b>Balances:</b> ${currentQuote}: ${data.usdc_balance.toFixed(2)} |
-            HBAR: ${data.hbar_balance.toFixed(2)} |
-            DOGE: ${data.doge_balance.toFixed(2)}
-          </div>
-        `;
-
-        if (priceChart) {
-          priceChart.data.datasets[0].label = 'HBAR' + currentQuote;
-          priceChart.data.datasets[1].label = 'DOGE' + currentQuote;
-          priceChart.update();
-        }
-
-      } catch (e) {
-        console.error(e);
-        document.getElementById('status').innerText = 'Error loading status';
-      }
-    }
-
-    async function fetchConfig() {
-      const r = await fetch('/config');
-      const cfg = await r.json();
-      botConfig = cfg;
-      document.getElementById('poll_interval_sec').value = cfg.poll_interval_sec;
-      document.getElementById('window_size').value = cfg.window_size;
-      document.getElementById('z_entry').value = cfg.z_entry;
-      document.getElementById('z_exit').value = cfg.z_exit;
-      document.getElementById('trade_notional_usd').value = cfg.trade_notional_usd;
-      document.getElementById('use_all_balance').checked = cfg.use_all_balance;
-      document.getElementById('use_ratio_thresholds').checked = cfg.use_ratio_thresholds;
-      document.getElementById('sell_ratio_threshold').value = cfg.sell_ratio_threshold;
-      document.getElementById('buy_ratio_threshold').value = cfg.buy_ratio_threshold;
-      document.getElementById('use_testnet').checked = cfg.use_testnet;
-
-      currentQuote = cfg.use_testnet ? 'USDT' : 'USDC';
-      applyQuoteLabels();
-    }
-
-    async function saveConfig() {
-      const cfg = {
-        poll_interval_sec: parseInt(document.getElementById('poll_interval_sec').value),
-        window_size: parseInt(document.getElementById('window_size').value),
-        z_entry: parseFloat(document.getElementById('z_entry').value),
-        z_exit: parseFloat(document.getElementById('z_exit').value),
-        trade_notional_usd: parseFloat(document.getElementById('trade_notional_usd').value),
-        use_all_balance: document.getElementById('use_all_balance').checked,
-        use_ratio_thresholds: document.getElementById('use_ratio_thresholds').checked,
-        sell_ratio_threshold: parseFloat(document.getElementById('sell_ratio_threshold').value || '0'),
-        buy_ratio_threshold: parseFloat(document.getElementById('buy_ratio_threshold').value || '0'),
-        use_testnet: document.getElementById('use_testnet').checked
-      };
-      const r = await fetch('/config', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(cfg)
-      });
-      const newCfg = await r.json();
-      botConfig = newCfg;
-
-      currentQuote = botConfig.use_testnet ? 'USDT' : 'USDC';
-      applyQuoteLabels();
-
-      alert('Config saved. If you switched testnet/mainnet, verify your balances.');
-      // Reload symbols for Bollinger as quote asset changed
-      fetchSymbols();
-    }
-
-    async function startBot() {
-      await fetch('/start', { method: 'POST' });
-      fetchStatus();
-      fetchNextSignal();
-    }
-
-    async function stopBot() {
-      await fetch('/stop', { method: 'POST' });
-      fetchStatus();
-      fetchNextSignal();
-    }
-
-    async function fetchTrades() {
-      const r = await fetch('/trades?limit=100');
-      const data = await r.json();
-      const tbody = document.getElementById('tradesBody');
-      tbody.innerHTML = '';
-      data.forEach(t => {
-        const tr = document.createElement('tr');
-        tr.innerHTML = `
-          <td>${t.ts}</td>
-          <td>${t.side}</td>
-          <td>${t.from_asset}</td>
-          <td>${t.to_asset}</td>
-          <td>${t.qty_from.toFixed(4)}</td>
-          <td>${t.qty_to.toFixed(4)}</td>
-          <td>${t.price.toFixed(4)}</td>
-          <td>${t.pnl_usd.toFixed(2)}</td>
-          <td>${t.is_testnet ? 'Testnet' : 'Mainnet'}</td>
-        `;
-        tbody.appendChild(tr);
-      });
-    }
-
-    async function fetchNextSignal() {
-      try {
-        const r = await fetch('/next_signal');
-        if (!r.ok) {
-          const err = await r.json();
-          document.getElementById('nextSignalModalBody').innerText =
-            'Error: ' + (err.detail || r.statusText);
-          return;
-        }
-        const s = await r.json();
-
-        let msg = `
-          <div class="status-line"><b>Decision engine:</b> ${s.reason === 'z_score' ? 'z-score bands' : (s.reason === 'ratio_thresholds' ? 'ratio thresholds' : s.reason)}</div>
-          <div class="metric-grid">
-            <div class="metric-group">
-              <div class="metric-label">Ratio now</div>
-              <div class="metric-value">${s.ratio.toFixed(6)}</div>
-            </div>
-            <div class="metric-group">
-              <div class="metric-label">Mean</div>
-              <div class="metric-value">${s.mean_ratio.toFixed(6)}</div>
-            </div>
-            <div class="metric-group">
-              <div class="metric-label">Std dev</div>
-              <div class="metric-value">${s.std_ratio.toFixed(6)}</div>
-            </div>
-          </div>
-          <div class="status-line">
-            Z upper (sell HBAR): <b>${s.upper_band.toFixed(6)}</b> |
-            Z lower (buy HBAR): <b>${s.lower_band.toFixed(6)}</b>
-          </div>
-        `;
-
-        if (s.sell_threshold > 0 || s.buy_threshold > 0) {
-          msg += `<div class="status-line">
-                    Thresholds → Sell: <b>${s.sell_threshold.toFixed(6)}</b> |
-                    Buy: <b>${s.buy_threshold.toFixed(6)}</b>
-                  </div>`;
-        }
-
-        if (s.direction === 'NONE') {
-          msg += `<div class="status-line"><b>Next trade:</b> No trade would be executed right now.</div>`;
-        } else {
-          msg += `
-            <div class="status-line"><b>Next trade:</b> ${s.direction}</div>
-            <div class="status-line">
-              From <b>${s.from_asset}</b> ≈ ${s.qty_from.toFixed(6)}
-              → To <b>${s.to_asset}</b> ≈ ${s.qty_to.toFixed(6)}
-            </div>
-          `;
-        }
-
-        document.getElementById('nextSignalModalBody').innerHTML = msg;
-
-      } catch (e) {
-        console.error(e);
-        document.getElementById('nextSignalModalBody').innerText =
-          'Error calculating next signal.';
-      }
-    }
-
-    async function fetchHistory() {
-      const r = await fetch('/history?limit=300');
-      const data = await r.json();
-      if (data.length === 0) return;
-
-      const labels = data.map(d => new Date(d.ts).toLocaleTimeString());
-      const hbar = data.map(d => d.hbar);
-      const doge = data.map(d => d.doge);
-      const ratio = data.map(d => d.ratio);
-
-      // price chart
-      if (!priceChart) {
-        const ctx1 = document.getElementById('priceChart').getContext('2d');
-        priceChart = new Chart(ctx1, {
-          type: 'line',
-          data: {
-            labels: labels,
-            datasets: [
-              { label: 'HBAR' + currentQuote, data: hbar, borderWidth: 1, fill: false, borderColor: '#4bc0c0' },
-              { label: 'DOGE' + currentQuote, data: doge, borderWidth: 1, fill: false, borderColor: '#90caf9' }
-            ]
-          },
-          options: {
-            interaction: { mode: 'index', intersect: false },
-            plugins: { legend: { labels: { color: '#eee' } } },
-            scales: {
-              x: { ticks: { color: '#ccc' }, grid: { color: '#333' } },
-              y: { ticks: { color: '#ccc' }, grid: { color: '#333' } }
-            }
-          }
-        });
-      } else {
-        priceChart.data.labels = labels;
-        priceChart.data.datasets[0].data = hbar;
-        priceChart.data.datasets[1].data = doge;
-        priceChart.data.datasets[0].label = 'HBAR' + currentQuote;
-        priceChart.data.datasets[1].label = 'DOGE' + currentQuote;
-        priceChart.update();
-      }
-
-      // ratio chart – z-entry and z-exit bands
-      let upperEntry = null, lowerEntry = null;
-      let upperExit = null, lowerExit = null;
-
-      if (botConfig && lastMeanRatio !== null) {
-        const std = lastStdRatio || 0;
-
-        if (std > 0) {
-          upperEntry = lastMeanRatio + botConfig.z_entry * std;
-          lowerEntry = lastMeanRatio - botConfig.z_entry * std;
-
-          if (botConfig.z_exit && botConfig.z_exit > 0) {
-            upperExit = lastMeanRatio + botConfig.z_exit * std;
-            lowerExit = lastMeanRatio - botConfig.z_exit * std;
-          }
-        }
-      }
-
-      const upperEntryArr = ratio.map(() => upperEntry);
-      const lowerEntryArr = ratio.map(() => lowerEntry);
-
-      const upperExitArr = ratio.map(() => (upperExit !== null ? upperExit : null));
-      const lowerExitArr = ratio.map(() => (lowerExit !== null ? lowerExit : null));
-
-      let info = '';
-      if (upperEntry !== null && lowerEntry !== null) {
-        info += `Z-entry bands → Upper: ${upperEntry.toFixed(6)} | Lower: ${lowerEntry.toFixed(6)}. `;
-      }
-      if (upperExit !== null && lowerExit !== null) {
-        info += `Z-exit bands → Upper: ${upperExit.toFixed(6)} | Lower: ${lowerExit.toFixed(6)}. `;
-      }
-
-      // fixed thresholds
-      let sellArr = ratio.map(() => null);
-      let buyArr = ratio.map(() => null);
-      if (botConfig && botConfig.use_ratio_thresholds) {
-        if (botConfig.sell_ratio_threshold > 0) {
-          sellArr = ratio.map(() => botConfig.sell_ratio_threshold);
-          info += `Sell threshold: ${botConfig.sell_ratio_threshold.toFixed(6)}. `;
-        }
-        if (botConfig.buy_ratio_threshold > 0) {
-          buyArr = ratio.map(() => botConfig.buy_ratio_threshold);
-          info += `Buy threshold: ${botConfig.buy_ratio_threshold.toFixed(6)}.`;
-        }
-      }
-
-      document.getElementById('bandInfo').textContent =
-        info || 'Bands/thresholds not available yet (need some history or config).';
-
-      if (!ratioChart) {
-        const ctx2 = document.getElementById('ratioChart').getContext('2d');
-        ratioChart = new Chart(ctx2, {
-          type: 'line',
-          data: {
-            labels: labels,
-            datasets: [
-              {
-                label: 'Ratio HBAR/DOGE',
-                data: ratio,
-                borderWidth: 2,
-                fill: false,
-                borderColor: '#4bc0c0'
-              },
-              {
-                label: 'Upper z-band (sell HBAR)',
-                data: upperEntryArr,
-                borderWidth: 1,
-                borderColor: '#90caf9',
-                borderDash: [6, 4],
-                fill: false
-              },
-              {
-                label: 'Lower z-band (buy HBAR)',
-                data: lowerEntryArr,
-                borderWidth: 1,
-                borderColor: '#26c6da',
-                borderDash: [6, 4],
-                fill: false
-              },
-              {
-                label: 'Upper z-exit (take profit HBAR→DOGE)',
-                data: upperExitArr,
-                borderWidth: 1,
-                borderColor: '#ffb300',
-                borderDash: [4, 3],
-                fill: false
-              },
-              {
-                label: 'Lower z-exit (take profit DOGE→HBAR)',
-                data: lowerExitArr,
-                borderWidth: 1,
-                borderColor: '#ffb300',
-                borderDash: [4, 3],
-                fill: false
-              },
-              {
-                label: 'Sell ratio threshold',
-                data: sellArr,
-                borderWidth: 1,
-                borderColor: '#66bb6a',
-                borderDash: [2, 2],
-                fill: false
-              },
-              {
-                label: 'Buy ratio threshold',
-                data: buyArr,
-                borderWidth: 1,
-                borderColor: '#ef5350',
-                borderDash: [2, 2],
-                fill: false
-              }
-            ]
-          },
-          options: {
-            interaction: { mode: 'index', intersect: false },
-            plugins: { legend: { labels: { color: '#eee' } } },
-            scales: {
-              x: { ticks: { color: '#ccc' }, grid: { color: '#333' } },
-              y: { ticks: { color: '#ccc' }, grid: { color: '#333' } }
-            }
-          }
-        });
-      } else {
-        ratioChart.data.labels = labels;
-        ratioChart.data.datasets[0].data = ratio;
-        ratioChart.data.datasets[1].data = upperEntryArr;
-        ratioChart.data.datasets[2].data = lowerEntryArr;
-        ratioChart.data.datasets[3].data = upperExitArr;
-        ratioChart.data.datasets[4].data = lowerExitArr;
-        ratioChart.data.datasets[5].data = sellArr;
-        ratioChart.data.datasets[6].data = buyArr;
-        ratioChart.update();
-      }
-    }
-
-    async function refreshAll() {
-      await fetchStatus();
-      await fetchConfig();
-      await fetchTrades();
-      await fetchHistory();
-      await fetchNextSignal().catch(() => {});
-    }
-
-    // ================
-    // BOLLINGER FRONTEND
-    // ================
-
-    async function fetchSymbols() {
-      try {
-        // New grouped endpoint
-        const r = await fetch('/symbols_grouped');
-        const grouped = await r.json();
-
-        const select = document.getElementById('boll_symbol');
-        const manualSelect = document.getElementById('boll_manual_symbol');
-
-        const current = select.value;
-        const currentManual = manualSelect.value;
-
-        select.innerHTML = '';
-        manualSelect.innerHTML = '';
-
-        // Placeholder option
-        const placeholder = document.createElement('option');
-        placeholder.value = '';
-        placeholder.textContent = 'Select symbol';
-        select.appendChild(placeholder.cloneNode(true));
-        manualSelect.appendChild(placeholder.cloneNode(true));
-
-        // Preferred order
-        const order = ['USDT', 'USDC', 'BTC', 'BNB'];
-
-        order.forEach(quote => {
-          const list = grouped[quote];
-          if (!list || list.length === 0) return;
-
-          const og = document.createElement('optgroup');
-          og.label = `${quote} pairs`;
-
-          const ogManual = document.createElement('optgroup');
-          ogManual.label = `${quote} pairs`;
-
-          list.forEach(s => {
-            const label = `${s.symbol} (${s.baseAsset}/${s.quoteAsset})`;
-
-            const opt = document.createElement('option');
-            opt.value = s.symbol;
-            opt.textContent = label;
-            og.appendChild(opt);
-
-            const opt2 = document.createElement('option');
-            opt2.value = s.symbol;
-            opt2.textContent = label;
-            ogManual.appendChild(opt2);
-          });
-
-          select.appendChild(og);
-          manualSelect.appendChild(ogManual);
-        });
-
-        if (current) select.value = current;
-        if (currentManual) manualSelect.value = currentManual;
-      } catch (e) {
-        console.error('Failed to load symbols', e);
-      }
-    }
-
-    async function fetchBollConfig() {
-      const r = await fetch('/boll_config');
-      const cfg = await r.json();
-      bollConfig = cfg;
-
-      const select = document.getElementById('boll_symbol');
-      if (cfg.symbol && [...select.options].some(o => o.value === cfg.symbol)) {
-        select.value = cfg.symbol;
-      }
-
-      document.getElementById('boll_poll_interval').value = cfg.poll_interval_sec;
-      document.getElementById('boll_window_size').value = cfg.window_size;
-      document.getElementById('boll_num_std').value = cfg.num_std;
-      document.getElementById('boll_max_position').value = cfg.max_position_usd;
-      document.getElementById('boll_use_all_balance').checked = cfg.use_all_balance;
-      document.getElementById('boll_stop_loss').value = (cfg.stop_loss_pct * 100).toFixed(1);
-      document.getElementById('boll_take_profit').value = (cfg.take_profit_pct * 100).toFixed(1);
-      document.getElementById('boll_cooldown').value = cfg.cooldown_sec;
-    }
-
-    async function saveBollConfig() {
-      const cfg = {
-        enabled: bollConfig ? bollConfig.enabled : false,
-        symbol: document.getElementById('boll_symbol').value,
-        poll_interval_sec: parseInt(document.getElementById('boll_poll_interval').value),
-        window_size: parseInt(document.getElementById('boll_window_size').value),
-        num_std: parseFloat(document.getElementById('boll_num_std').value),
-        max_position_usd: parseFloat(document.getElementById('boll_max_position').value),
-        use_all_balance: document.getElementById('boll_use_all_balance').checked,
-        stop_loss_pct: parseFloat(document.getElementById('boll_stop_loss').value) / 100,
-        take_profit_pct: parseFloat(document.getElementById('boll_take_profit').value) / 100,
-        cooldown_sec: parseInt(document.getElementById('boll_cooldown').value)
-      };
-
-      try {
-        const r = await fetch('/boll_config', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(cfg)
-        });
-        if (!r.ok) {
-          const err = await r.json();
-          alert('Bollinger config error: ' + (err.detail || r.statusText));
-          return;
-        }
-        const newCfg = await r.json();
-        bollConfig = newCfg;
-        alert('Bollinger config saved.');
-      } catch (e) {
-        console.error(e);
-        alert('Failed to save Bollinger config.');
-      }
-    }
-
-    async function fetchBollStatus() {
-      try {
-        const r = await fetch('/boll_status');
-        const data = await r.json();
-
-        const envLabel = botConfig && botConfig.use_testnet ? 'TESTNET' : 'MAINNET';
-        const botChip = `<span class="chip ${data.enabled ? 'chip-primary' : 'chip-muted'}">Bollinger: ${data.enabled ? 'RUNNING' : 'STOPPED'}</span>`;
-        const envChip = `<span class="chip chip-primary">${envLabel}</span>`;
-
-        const symbolLabel = data.symbol || '(no symbol)';
-        const quote = data.quote_asset || currentQuote;
-
-        const pos = data.position || 'FLAT';
-
-        document.getElementById('bollStatus').innerHTML = `
-          <div class="status-chip-row">
-            ${envChip}
-            ${botChip}
-          </div>
-          <div class="status-line"><b>Symbol:</b> ${symbolLabel}</div>
-          <div class="metric-grid">
-            <div class="metric-group">
-              <div class="metric-label">Price (${quote})</div>
-              <div class="metric-value">${data.price.toFixed(6)}</div>
-            </div>
-            <div class="metric-group">
-              <div class="metric-label">MA</div>
-              <div class="metric-value">${data.ma.toFixed(6)}</div>
-            </div>
-            <div class="metric-group">
-              <div class="metric-label">Upper band</div>
-              <div class="metric-value">${data.upper.toFixed(6)}</div>
-            </div>
-            <div class="metric-group">
-              <div class="metric-label">Lower band</div>
-              <div class="metric-value">${data.lower.toFixed(6)}</div>
-            </div>
-            <div class="metric-group">
-              <div class="metric-label">Position</div>
-              <div class="metric-value">${pos}</div>
-            </div>
-            <div class="metric-group">
-              <div class="metric-label">Qty (asset)</div>
-              <div class="metric-value">${data.qty_asset.toFixed(6)}</div>
-            </div>
-            <div class="metric-group">
-              <div class="metric-label">Quote balance (${quote})</div>
-              <div class="metric-value">${data.quote_balance.toFixed(6)}</div>
-            </div>
-          </div>
-          <div class="status-line">
-            <b>Realized PnL:</b> ${data.realized_pnl_usd.toFixed(2)} ${quote} |
-            <b>Unrealized PnL:</b> ${data.unrealized_pnl_usd.toFixed(2)} ${quote}
-          </div>
-        `;
-
-      } catch (e) {
-        console.error(e);
-        document.getElementById('bollStatus').innerText = 'Error loading Bollinger status';
-      }
-    }
-
-    async function fetchBollHistory() {
-      try {
-        const r = await fetch('/boll_history?limit=300');
-        const data = await r.json();
-        if (!data || data.length === 0) {
-          document.getElementById('bollBandInfo').textContent = 'No Bollinger history yet.';
-          return;
-        }
-
-        const labels = data.map(d => new Date(d.ts).toLocaleTimeString());
-        const price = data.map(d => d.price);
-        const ma = data.map(d => d.ma);
-        const upper = data.map(d => d.upper);
-        const lower = data.map(d => d.lower);
-
-        let last = data[data.length - 1];
-
-        document.getElementById('bollBandInfo').textContent =
-          `Bands → MA: ${last.ma.toFixed(6)} | Upper: ${last.upper.toFixed(6)} | Lower: ${last.lower.toFixed(6)}`;
-
-        if (!bollChart) {
-          const ctx = document.getElementById('bollChart').getContext('2d');
-          bollChart = new Chart(ctx, {
-            type: 'line',
-            data: {
-              labels: labels,
-              datasets: [
-                { label: 'Price', data: price, borderWidth: 2, fill: false, borderColor: '#4bc0c0' },
-                { label: 'MA', data: ma, borderWidth: 1, fill: false, borderColor: '#90caf9', borderDash: [4, 3] },
-                { label: 'Upper band', data: upper, borderWidth: 1, fill: false, borderColor: '#ef5350', borderDash: [6, 4] },
-                { label: 'Lower band', data: lower, borderWidth: 1, fill: false, borderColor: '#66bb6a', borderDash: [6, 4] }
-              ]
-            },
-            options: {
-              interaction: { mode: 'index', intersect: false },
-              plugins: { legend: { labels: { color: '#eee' } } },
-              scales: {
-                x: { ticks: { color: '#ccc' }, grid: { color: '#333' } },
-                y: { ticks: { color: '#ccc' }, grid: { color: '#333' } }
-              }
-            }
-          });
-        } else {
-          bollChart.data.labels = labels;
-          bollChart.data.datasets[0].data = price;
-          bollChart.data.datasets[1].data = ma;
-          bollChart.data.datasets[2].data = upper;
-          bollChart.data.datasets[3].data = lower;
-          bollChart.update();
-        }
-      } catch (e) {
-        console.error(e);
-        document.getElementById('bollBandInfo').textContent = 'Error loading Bollinger history.';
-      }
-    }
-
-    async function fetchBollTrades() {
-      try {
-        const r = await fetch('/boll_trades?limit=100');
-        const data = await r.json();
-        const tbody = document.getElementById('bollTradesBody');
-        tbody.innerHTML = '';
-        data.forEach(t => {
-          const tr = document.createElement('tr');
-          tr.innerHTML = `
-            <td>${t.ts}</td>
-            <td>${t.symbol}</td>
-            <td>${t.side}</td>
-            <td>${t.qty.toFixed(6)}</td>
-            <td>${t.price.toFixed(6)}</td>
-            <td>${t.notional.toFixed(2)}</td>
-            <td>${t.pnl_usd.toFixed(2)}</td>
-            <td>${t.is_testnet ? 'Testnet' : 'Mainnet'}</td>
-          `;
-          tbody.appendChild(tr);
-        });
-      } catch (e) {
-        console.error(e);
-      }
-    }
-
-    async function startBoll() {
-      try {
-        const r = await fetch('/boll_start', { method: 'POST' });
-        if (!r.ok) {
-          const err = await r.json();
-          alert('Cannot start Bollinger bot: ' + (err.detail || r.statusText));
-        }
-        await fetchBollStatus();
-      } catch (e) {
-        console.error(e);
-      }
-    }
-
-    async function stopBoll() {
-      try {
-        await fetch('/boll_stop', { method: 'POST' });
-        await fetchBollStatus();
-      } catch (e) {
-        console.error(e);
-      }
-    }
-
-    async function refreshBollAll() {
-      await fetchBollStatus();
-      await fetchBollConfig();
-      await fetchBollTrades();
-      await fetchBollHistory();
-    }
-
-    // Manual single-coin sell
-    async function bollingerManualSell() {
-      const symbol = document.getElementById('boll_manual_symbol').value;
-      const qtyStr = document.getElementById('boll_manual_qty').value;
-      const qty = parseFloat(qtyStr);
-
-      if (!symbol) {
-        alert('Please select a symbol.');
-        return false;
-      }
-      if (isNaN(qty) || qty <= 0) {
-        alert('Enter a valid quantity > 0.');
-        return false;
-      }
-
-      if (!confirm(`Sell ${qty} of the base asset in ${symbol}?`)) {
-        return false;
-      }
-
-      try {
-        const r = await fetch('/bollinger_manual_sell', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ symbol: symbol, qty_base: qty })
-        });
-
-        const data = await r.json();
-
-        if (!r.ok) {
-          alert('Error: ' + (data.detail || r.statusText));
-          return false;
-        }
-
-        alert(
-          `Sold ${data.qty_sold.toFixed(6)} ${data.base_asset} ` +
-          `for ~${data.quote_received_est.toFixed(2)} ${data.quote_asset}.`
-        );
-
-        await refreshBollAll();
-        await fetchTrades(); // MR trades list, manual entry is stored there
-      } catch (e) {
-        console.error(e);
-        alert('Request failed. Check console for details.');
-      }
-
-      return false; // prevent form submit reload
-    }
-
-    // ================
-    // INIT
-    // ================
-
-    initCollapsibles();
-    initTabs();
-
-    // Load configs & start periodic refresh
-    (async () => {
-      await fetchConfig();
-      await fetchSymbols();
-      await fetchBollConfig();
-      applyQuoteLabels();
-      await refreshAll();
-      await refreshBollAll();
-      setInterval(async () => {
-        await refreshAll();
-        await refreshBollAll();
-      }, 10000);
-    })();
-  </script>
 </body>
 </html>

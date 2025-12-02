@@ -1,0 +1,376 @@
+:root {
+  --bg: #0b1221;
+  --surface: #111b2f;
+  --surface-light: #15243c;
+  --border: #1f2d4a;
+  --primary: #82d6ff;
+  --primary-soft: #4aa3f4;
+  --accent: #7ee0c2;
+  --text-main: #e8edf7;
+  --text-subtle: #b9c2d9;
+  --text-muted: #94a1c3;
+  --danger: #ef5350;
+  --success: #7bd38b;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  font-family: "Roboto", Arial, sans-serif;
+  margin: 0;
+  padding: 20px;
+  background: radial-gradient(circle at 10% 20%, rgba(76, 99, 163, 0.18) 0, transparent 25%),
+    radial-gradient(circle at 80% 0%, rgba(77, 188, 255, 0.12) 0, transparent 32%),
+    var(--bg);
+  color: var(--text-main);
+}
+
+.top-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.title-block h1 {
+  margin: 0;
+  font-size: 1.6rem;
+  font-weight: 600;
+  color: var(--primary);
+}
+
+.title-sub {
+  font-size: 0.9rem;
+  color: var(--text-muted);
+  margin-top: 4px;
+}
+
+.control-buttons {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.btn {
+  border: none;
+  border-radius: 999px;
+  padding: 8px 16px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  background: var(--surface-light);
+  color: var(--text-main);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: background 0.15s, transform 0.05s, box-shadow 0.15s;
+  box-shadow: 0 6px 14px rgba(0, 0, 0, 0.2);
+}
+
+.btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 10px 22px rgba(0, 0, 0, 0.28);
+}
+
+.btn-primary {
+  background: linear-gradient(120deg, var(--primary-soft), var(--accent));
+  color: #081019;
+}
+
+.btn-ghost {
+  background: transparent;
+  border: 1px solid var(--border);
+}
+
+.btn-danger {
+  background: var(--danger);
+  color: #111;
+}
+
+.btn.small {
+  padding: 4px 12px;
+  font-size: 0.8rem;
+}
+
+.tab-bar {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 14px;
+  flex-wrap: wrap;
+}
+
+.tab {
+  padding: 8px 14px;
+  font-size: 0.9rem;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--surface-light);
+  color: var(--text-subtle);
+  cursor: pointer;
+  letter-spacing: 0.02em;
+}
+
+.tab.active {
+  background: var(--primary-soft);
+  color: #0b1720;
+  border-color: var(--primary-soft);
+}
+
+.tab-content {
+  display: none;
+}
+
+.tab-content.active {
+  display: block;
+}
+
+.card {
+  border-radius: 12px;
+  margin-bottom: 14px;
+  background: var(--surface);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+  border: 1px solid var(--border);
+}
+
+.card-header {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  cursor: pointer;
+  background: var(--surface-light);
+}
+
+.card-header h2 {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--text-main);
+}
+
+.toggle-icon {
+  font-size: 0.9em;
+  color: var(--text-subtle);
+}
+
+.card-body {
+  padding: 12px 16px 16px 16px;
+}
+
+.row {
+  display: flex;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+
+.row > .card {
+  flex: 1 1 330px;
+}
+
+.status-section {
+  font-size: 0.9rem;
+}
+
+.status-line {
+  margin: 4px 0;
+  color: var(--text-subtle);
+}
+
+.status-chip-row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin: 6px 0 10px;
+}
+
+.chip {
+  font-size: 0.75rem;
+  padding: 5px 10px;
+  border-radius: 999px;
+  background: #1a2742;
+  color: var(--text-subtle);
+  border: 1px solid var(--border);
+}
+
+.chip-primary {
+  background: rgba(130, 214, 255, 0.16);
+  color: var(--primary);
+}
+
+.chip-muted {
+  background: rgba(120, 144, 156, 0.18);
+}
+
+.metric-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 4px 10px;
+  margin-top: 6px;
+}
+
+.metric-label {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.metric-value {
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+
+.metric-group {
+  margin-bottom: 6px;
+}
+
+label {
+  display: block;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  margin-bottom: 2px;
+}
+
+.form-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  column-gap: 14px;
+  row-gap: 10px;
+  margin-bottom: 4px;
+}
+
+input[type="text"],
+input[type="number"],
+select {
+  width: 100%;
+  padding: 6px 8px;
+  font-size: 0.9rem;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: #0d1423;
+  color: var(--text-main);
+}
+
+input[type="checkbox"] {
+  transform: scale(0.95);
+}
+
+.form-checkbox {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 10px;
+  font-size: 0.8rem;
+}
+
+th,
+td {
+  border: 1px solid var(--border);
+  padding: 8px;
+}
+
+th {
+  background: #1a2742;
+  color: var(--text-subtle);
+  font-weight: 600;
+}
+
+td {
+  color: var(--text-main);
+}
+
+canvas {
+  background: #020611;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+}
+
+#bandInfo,
+#bollBandInfo {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  margin-top: 6px;
+}
+
+.help-text {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  margin-top: 6px;
+}
+
+.chart-row {
+  display: flex;
+  gap: 14px;
+  flex-wrap: wrap;
+  margin-top: 10px;
+}
+
+.chart-col {
+  flex: 1 1 360px;
+}
+
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.modal {
+  background: var(--surface);
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  box-shadow: 0 20px 38px rgba(0, 0, 0, 0.55);
+  width: min(520px, 92%);
+  max-height: 80vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.modal-header,
+.modal-footer {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: var(--surface-light);
+}
+
+.modal-footer {
+  border-top: 1px solid var(--border);
+  border-bottom: none;
+}
+
+.modal-header-title {
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.modal-body {
+  padding: 12px 16px 14px 16px;
+  overflow-y: auto;
+}
+
+@media (max-width: 720px) {
+  .metric-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .form-row {
+    grid-template-columns: 1fr;
+  }
+}
