@@ -165,23 +165,38 @@ def manual_trade(req: ManualTradeRequest):
         # HBAR → DOGE
         # -----------------------------------------------------------
         if req.direction == "HBAR->DOGE":
+            # First leg: sell HBAR for BASE_ASSET (USDT/USDC)
             qty_hbar = min(req.notional_usd / hbar, mr.get_free_balance_mr("HBAR"))
             qty_hbar = mr.adjust_quantity(hbar_sym, qty_hbar)
             if qty_hbar <= 0:
-                raise HTTPException(400, "Notional too small or no HBAR")
+                raise HTTPException(status_code=400, detail="Notional too small or no HBAR")
 
             order_sell = mr.place_market_order_mr(hbar_sym, "SELL", qty_hbar)
             if not order_sell:
-                raise HTTPException(500, "HBAR sell failed")
+                raise HTTPException(status_code=500, detail="HBAR sell failed")
 
-            quote_received = qty_hbar * hbar
-            qty_doge = mr.adjust_quantity(doge_sym, quote_received / doge)
+            # Refresh actual quote (BASE_ASSET) balance after the sell
+            base_balance = mr.get_free_balance_mr(BASE_ASSET)
+
+            # Use up to the requested notional, but never more than what we really have,
+            # and leave a small margin for fees/rounding.
+            quote_to_spend = min(req.notional_usd, base_balance) * 0.99
+            if quote_to_spend <= 0:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Not enough {BASE_ASSET} after HBAR sell to buy DOGE",
+                )
+
+            qty_doge = mr.adjust_quantity(doge_sym, quote_to_spend / doge)
             if qty_doge <= 0:
-                raise HTTPException(400, "Converted DOGE qty too small")
+                raise HTTPException(
+                    status_code=400,
+                    detail="Converted DOGE qty too small after precision adjustment",
+                )
 
             order_buy = mr.place_market_order_mr(doge_sym, "BUY", qty_doge)
             if not order_buy:
-                raise HTTPException(500, "DOGE buy failed")
+                raise HTTPException(status_code=500, detail="DOGE buy failed")
 
             tr = Trade(
                 ts=ts,
@@ -203,23 +218,37 @@ def manual_trade(req: ManualTradeRequest):
         # DOGE → HBAR
         # -----------------------------------------------------------
         elif req.direction == "DOGE->HBAR":
+            # First leg: sell DOGE for BASE_ASSET
             qty_doge = min(req.notional_usd / doge, mr.get_free_balance_mr("DOGE"))
             qty_doge = mr.adjust_quantity(doge_sym, qty_doge)
             if qty_doge <= 0:
-                raise HTTPException(400, "Notional too small or no DOGE")
+                raise HTTPException(status_code=400, detail="Notional too small or no DOGE")
 
             order_sell = mr.place_market_order_mr(doge_sym, "SELL", qty_doge)
             if not order_sell:
-                raise HTTPException(500, "DOGE sell failed")
+                raise HTTPException(status_code=500, detail="DOGE sell failed")
 
-            quote_received = qty_doge * doge
-            qty_hbar = mr.adjust_quantity(hbar_sym, quote_received / hbar)
+            # Refresh actual quote (BASE_ASSET) balance after the sell
+            base_balance = mr.get_free_balance_mr(BASE_ASSET)
+
+            # Same safety: cap by requested notional and real balance, minus a small margin
+            quote_to_spend = min(req.notional_usd, base_balance) * 0.99
+            if quote_to_spend <= 0:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Not enough {BASE_ASSET} after DOGE sell to buy HBAR",
+                )
+
+            qty_hbar = mr.adjust_quantity(hbar_sym, quote_to_spend / hbar)
             if qty_hbar <= 0:
-                raise HTTPException(400, "Converted HBAR qty too small")
+                raise HTTPException(
+                    status_code=400,
+                    detail="Converted HBAR qty too small after precision adjustment",
+                )
 
             order_buy = mr.place_market_order_mr(hbar_sym, "BUY", qty_hbar)
             if not order_buy:
-                raise HTTPException(500, "HBAR buy failed")
+                raise HTTPException(status_code=500, detail="HBAR buy failed")
 
             tr = Trade(
                 ts=ts,
@@ -238,7 +267,7 @@ def manual_trade(req: ManualTradeRequest):
             state.current_qty = qty_hbar
 
         else:
-            raise HTTPException(400, "Invalid direction")
+            raise HTTPException(status_code=400, detail="Invalid direction")
 
         session.commit()
         return {"status": "ok"}
@@ -249,7 +278,7 @@ def manual_trade(req: ManualTradeRequest):
 
     except Exception as e:
         session.rollback()
-        raise HTTPException(500, str(e))
+        raise HTTPException(status_code=500, detail=str(e))
 
     finally:
         session.close()
