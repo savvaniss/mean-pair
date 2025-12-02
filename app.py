@@ -32,16 +32,8 @@ if not config.BOT_DISABLE_THREADS:
 def index():
     return FileResponse("static/index.html")
 
-
 # =========================
-# Backwards-compat exports
-# (so tests & other code that import from `app` still work)
-# =========================
-
-# ---- Mean Reversion (MR) re-exports ----
-# =========================
-# Minimal safe re-exports
-# (used by tests & backwards compatibility)
+# Public API / re-exports
 # =========================
 
 # ---- Mean Reversion exports ----
@@ -75,3 +67,6 @@ from config import (
     mr_symbol,
     BASE_ASSET,
 )
+
+# ---- Database model exports (for tests) ----
+from database import State, Trade, PriceSnapshot, BollState, BollTrade
