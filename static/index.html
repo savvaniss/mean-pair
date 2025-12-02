@@ -11,7 +11,7 @@
 <body>
   <div class="top-bar">
     <div class="title-block">
-      <h1>HBAR–DOGE Trading Suite</h1>
+      <h1>Pair Trading Suite</h1>
       <div class="title-sub">Unified mean-reversion and Bollinger toolkit</div>
     </div>
     <div class="control-buttons">
@@ -21,7 +21,7 @@
   </div>
 
   <div class="tab-bar">
-    <button class="tab active" data-tab="mean">HBAR–DOGE Mean Reversion</button>
+    <button class="tab active" data-tab="mean">Mean Reversion (Pairs)</button>
     <button class="tab" data-tab="boll">Single-Coin Bollinger</button>
   </div>
 
@@ -50,6 +50,10 @@
         <div class="card-body">
           <form id="configForm">
             <div class="form-row">
+              <div>
+                <label for="pair_select">Trading pair</label>
+                <select id="pair_select"></select>
+              </div>
               <div>
                 <label for="poll_interval_sec">Poll interval (sec)</label>
                 <input id="poll_interval_sec" type="number" min="5" step="1" />
@@ -100,6 +104,14 @@
             <button type="submit" class="btn btn-primary">Save config</button>
           </form>
         </div>
+      </div>
+
+      <div class="card" data-collapsible>
+        <div class="card-header">
+          <h2>Pair Health & History</h2>
+          <span class="toggle-icon">▼</span>
+        </div>
+        <div class="card-body" id="pairHealth">Loading...</div>
       </div>
 
       <div class="card" data-collapsible>

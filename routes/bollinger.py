@@ -35,6 +35,7 @@ class BollStatusResponse(BaseModel):
     unrealized_pnl_usd: float
     enabled: bool
     quote_balance: float
+    use_testnet: bool
 
 
 class BollHistoryPoint(BaseModel):
@@ -85,7 +86,12 @@ def update_boll_config(cfg: BollConfigModel):
     """
     global eng
 
-    # validate symbol's quote asset
+    env_changed = cfg.use_testnet != eng.boll_config.use_testnet
+    if env_changed:
+        config.switch_env(cfg.use_testnet)
+        eng.boll_config.use_testnet = cfg.use_testnet
+
+    # validate symbol's quote asset using the (possibly switched) client
     if cfg.symbol:
         info = config.boll_client.get_symbol_info(cfg.symbol)
         quote = info["quoteAsset"]
@@ -103,7 +109,7 @@ def update_boll_config(cfg: BollConfigModel):
     new_symbol = cfg.symbol
 
     # symbol changed -> reset history and DB state
-    if new_symbol and new_symbol != old_symbol:
+    if env_changed or (new_symbol and new_symbol != old_symbol):
         with eng.boll_lock:
             eng.boll_ts_history.clear()
             eng.boll_price_history.clear()
@@ -116,7 +122,7 @@ def update_boll_config(cfg: BollConfigModel):
         finally:
             session.close()
 
-        eng.current_boll_symbol = new_symbol
+        eng.current_boll_symbol = new_symbol or eng.current_boll_symbol
 
     # preserve current enabled state
     current_enabled = eng.boll_config.enabled
@@ -172,6 +178,7 @@ def boll_status():
                 unrealized_pnl_usd=0.0,
                 enabled=eng.boll_config.enabled,
                 quote_balance=0.0,
+                use_testnet=eng.boll_config.use_testnet,
             )
 
         symbol = eng.boll_config.symbol
@@ -214,6 +221,7 @@ def boll_status():
             unrealized_pnl_usd=state.unrealized_pnl_usd,
             enabled=eng.boll_config.enabled,
             quote_balance=quote_balance,
+            use_testnet=eng.boll_config.use_testnet,
         )
     finally:
         session.close()

@@ -21,9 +21,10 @@ class PriceSnapshot(Base):
     __tablename__ = "price_snapshots"
     id = Column(Integer, primary_key=True, index=True)
     ts = Column(DateTime, index=True)
-    btc = Column(Float)
-    hbar = Column(Float)
-    doge = Column(Float)
+    asset_a = Column(String)
+    asset_b = Column(String)
+    price_a = Column(Float)
+    price_b = Column(Float)
     ratio = Column(Float)
     zscore = Column(Float)
 

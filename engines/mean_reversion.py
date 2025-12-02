@@ -2,7 +2,7 @@
 import threading
 import time
 from datetime import datetime
-from typing import List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple
 
 from binance.exceptions import BinanceAPIException
 from pydantic import BaseModel
@@ -14,6 +14,13 @@ from engines.common import compute_ma_std_window
 
 # Rolling window (in memory)
 ratio_history: List[float] = []
+
+# Available pair universe (ordered)
+AVAILABLE_PAIRS: List[Tuple[str, str]] = [
+    ("HBAR", "DOGE"),
+    ("ETH", "BTC"),
+    ("ADA", "XRP"),
+]
 
 # Lock & thread
 mr_lock = threading.Lock()
@@ -38,11 +45,25 @@ class BotConfig(BaseModel):
     use_ratio_thresholds: bool = False
     sell_ratio_threshold: float = 0.0
     buy_ratio_threshold: float = 0.0
+    asset_a: str = "HBAR"
+    asset_b: str = "DOGE"
+    available_pairs: List[Tuple[str, str]] = AVAILABLE_PAIRS
 
 
 bot_config = BotConfig()
 bot_config.use_testnet = config.USE_TESTNET
 bot_config.enabled = config.AUTO_START
+
+
+def current_pair() -> Tuple[str, str]:
+    return bot_config.asset_a, bot_config.asset_b
+
+
+def set_pair(asset_a: str, asset_b: str) -> None:
+    if (asset_a, asset_b) not in bot_config.available_pairs:
+        raise ValueError("Pair not available")
+    bot_config.asset_a = asset_a
+    bot_config.asset_b = asset_b
 
 
 def required_history_len() -> int:
@@ -51,6 +72,11 @@ def required_history_len() -> int:
 
 def has_enough_history() -> bool:
     return len(ratio_history) >= required_history_len()
+
+
+def reset_history():
+    global ratio_history
+    ratio_history = []
 
 
 # ========= Binance client access =========
@@ -70,7 +96,7 @@ def get_mr_client():
 def get_prices() -> Tuple[float, float, float]:
     """
     Mean reversion bot prices – uses MR client and the configured quote asset.
-    (e.g. BTCUSDT/HBARUSDT/DOGEUSDT on testnet, BTCUSDC/HBARUSDC/DOGEUSDC on mainnet)
+    Returns (btc_quote, asset_a_quote, asset_b_quote) for the active pair.
     """
     client = get_mr_client()
     if client is None:
@@ -78,15 +104,15 @@ def get_prices() -> Tuple[float, float, float]:
 
     quote = get_mr_quote()
     tickers = client.get_all_tickers()
-    price_map = {t["symbol"]: float(t["price"]) for t in tickers}
+    price_map: Dict[str, float] = {t["symbol"]: float(t["price"]) for t in tickers}
     btc = price_map.get(f"BTC{quote}")
-    hbar = price_map.get(f"HBAR{quote}")
-    doge = price_map.get(f"DOGE{quote}")
-    if btc is None or hbar is None or doge is None:
+    asset_a_price = price_map.get(f"{bot_config.asset_a}{quote}")
+    asset_b_price = price_map.get(f"{bot_config.asset_b}{quote}")
+    if btc is None or asset_a_price is None or asset_b_price is None:
         raise RuntimeError(
-            f"Missing one of BTC{quote} / HBAR{quote} / DOGE{quote} from Binance"
+            f"Missing BTC{quote} / {bot_config.asset_a}{quote} / {bot_config.asset_b}{quote} from Binance"
         )
-    return btc, hbar, doge
+    return btc, asset_a_price, asset_b_price
 
 
 def get_free_balance_mr(asset: str) -> float:
@@ -154,9 +180,11 @@ def place_market_order_mr(symbol: str, side: str, quantity: float):
 def load_ratio_history(session):
     """Warm up the in-memory ratio history from recent DB snapshots."""
     global ratio_history
+    asset_a, asset_b = current_pair()
     ratio_history = [
         snap.ratio
         for snap in session.query(PriceSnapshot)
+        .filter(PriceSnapshot.asset_a == asset_a, PriceSnapshot.asset_b == asset_b)
         .order_by(PriceSnapshot.id.desc())
         .limit(bot_config.window_size)
     ][::-1]
@@ -184,26 +212,28 @@ def compute_stats(ratio: float):
 
 def init_state_from_balances(st: State):
     """
-    Detect what we currently hold (HBAR / DOGE / base asset)
+    Detect what we currently hold (asset_a / asset_b / base asset)
     and set current_asset + current_qty + starting portfolio value.
 
     We ALWAYS choose the asset with the largest USD value.
     """
-    hbar_bal = get_free_balance_mr("HBAR")
-    doge_bal = get_free_balance_mr("DOGE")
+    asset_a, asset_b = current_pair()
+
+    asset_a_bal = get_free_balance_mr(asset_a)
+    asset_b_bal = get_free_balance_mr(asset_b)
     base_bal = get_free_balance_mr(BASE_ASSET)
 
     try:
-        _, hbar_price, doge_price = get_prices()
-        hbar_val = hbar_bal * hbar_price
-        doge_val = doge_bal * doge_price
+        _, asset_a_price, asset_b_price = get_prices()
+        a_val = asset_a_bal * asset_a_price
+        b_val = asset_b_bal * asset_b_price
         base_val = base_bal  # BASE_ASSET ~ 1 USD (USDT/USDC)
     except Exception:
-        hbar_val = hbar_bal
-        doge_val = doge_bal
+        a_val = asset_a_bal
+        b_val = asset_b_bal
         base_val = base_bal
 
-    asset_values = {"HBAR": hbar_val, "DOGE": doge_val, BASE_ASSET: base_val}
+    asset_values = {asset_a: a_val, asset_b: b_val, BASE_ASSET: base_val}
     best_asset = max(asset_values, key=asset_values.get)
     best_value = asset_values[best_asset]
 
@@ -211,17 +241,17 @@ def init_state_from_balances(st: State):
         st.current_asset = BASE_ASSET
         st.current_qty = base_bal
     else:
-        if best_asset == "HBAR":
-            st.current_asset = "HBAR"
-            st.current_qty = hbar_bal
-        elif best_asset == "DOGE":
-            st.current_asset = "DOGE"
-            st.current_qty = doge_bal
+        if best_asset == asset_a:
+            st.current_asset = asset_a
+            st.current_qty = asset_a_bal
+        elif best_asset == asset_b:
+            st.current_asset = asset_b
+            st.current_qty = asset_b_bal
         else:
             st.current_asset = BASE_ASSET
             st.current_qty = base_bal
 
-    st.realized_pnl_usd = base_val + hbar_val + doge_val
+    st.realized_pnl_usd = base_val + a_val + b_val
     st.unrealized_pnl_usd = 0.0
 
 
@@ -253,7 +283,7 @@ def decide_signal(
     - First require enough history.
     - If ratio thresholds enabled → use those.
     - Else fall back to z-score (z_entry).
-    - Only act when current_asset is HBAR or DOGE.
+    - Only act when current_asset is the active pair.
     """
     sell_signal = False
     buy_signal = False
@@ -286,8 +316,8 @@ def decide_signal(
         else:
             reason = "std_zero"
 
-    # We only trade when we are actually in HBAR or DOGE
-    if state.current_asset not in ("HBAR", "DOGE"):
+    asset_a, asset_b = current_pair()
+    if state.current_asset not in (asset_a, asset_b):
         sell_signal = False
         buy_signal = False
 
@@ -314,6 +344,40 @@ def compute_ma_std_window(prices: List[float], window: int) -> Tuple[float, floa
     var = sum((p - mean) ** 2 for p in subset) / len(subset)
     std = var ** 0.5 if var > 0 else 0.0
     return mean, std
+
+
+def evaluate_pair_health(history: List[PriceSnapshot]) -> Tuple[bool, float]:
+    ratios = [h.ratio for h in history if h.ratio is not None]
+    if len(ratios) < 5:
+        return False, 0.0
+
+    _, std = compute_ma_std_window(ratios, min(len(ratios), bot_config.window_size))
+    # Consider pair "good" if it shows movement (std) but not extreme noise
+    is_good = std > 0.0001
+    return is_good, std
+
+
+def get_pair_history(session, limit: int = 50):
+    asset_a, asset_b = current_pair()
+    snaps = (
+        session.query(PriceSnapshot)
+        .filter(PriceSnapshot.asset_a == asset_a, PriceSnapshot.asset_b == asset_b)
+        .order_by(PriceSnapshot.ts.desc())
+        .limit(limit)
+        .all()
+    )
+    health, std = evaluate_pair_health(snaps)
+    history = [
+        {
+            "ts": s.ts.isoformat() if s.ts else None,
+            "price_a": s.price_a,
+            "price_b": s.price_b,
+            "ratio": s.ratio,
+            "zscore": s.zscore,
+        }
+        for s in snaps
+    ][::-1]
+    return {"pair": f"{asset_a}/{asset_b}", "std": std, "is_good_pair": health, "history": history}
 
 
 # ========== Shared trade helpers (used by bot & manual) ==========
@@ -343,9 +407,9 @@ def execute_mr_trade(
     use_all_balance: bool,
 ):
     """
-    Execute a single HBAR <-> DOGE rotation.
+    Execute a single pair rotation.
 
-    direction: "HBAR->DOGE" or "DOGE->HBAR"
+    direction: f"{asset_a}->{asset_b}" or the reverse
     notional_usd: how much USD(notional) to trade when use_all_balance=False
     use_all_balance: if True, ignore notional and use the full balance
                      of the *from* asset.
@@ -354,22 +418,26 @@ def execute_mr_trade(
       (from_asset, to_asset, qty_from, qty_to, ratio)
     or None if the trade could not be executed (qty too small, Binance error, etc).
     """
-    if direction not in ("HBAR->DOGE", "DOGE->HBAR"):
+    asset_a, asset_b = current_pair()
+    sell_dir = f"{asset_a}->{asset_b}"
+    buy_dir = f"{asset_b}->{asset_a}"
+
+    if direction not in (sell_dir, buy_dir):
         raise ValueError(f"Unsupported MR direction: {direction}")
 
-    # Current prices (HBAR & DOGE vs MR quote: USDT on testnet / USDC on mainnet)
-    _, hbar_price, doge_price = get_prices()
+    # Current prices vs MR quote: USDT on testnet / USDC on mainnet
+    _, price_a, price_b = get_prices()
 
-    if direction == "HBAR->DOGE":
-        from_asset = "HBAR"
-        to_asset = "DOGE"
-        price_from = hbar_price
-        price_to = doge_price
+    if direction == sell_dir:
+        from_asset = asset_a
+        to_asset = asset_b
+        price_from = price_a
+        price_to = price_b
     else:
-        from_asset = "DOGE"
-        to_asset = "HBAR"
-        price_from = doge_price
-        price_to = hbar_price
+        from_asset = asset_b
+        to_asset = asset_a
+        price_from = price_b
+        price_to = price_a
 
     sym_from = mr_symbol(from_asset)
     sym_to = mr_symbol(to_asset)
@@ -407,8 +475,8 @@ def execute_mr_trade(
         print("[MR] execute_mr_trade: buy order failed")
         return None
 
-    # Strategy uses HBAR/DOGE ratio as its "price"
-    ratio = hbar_price / doge_price
+    # Strategy uses pair ratio as its "price"
+    ratio = price_from / price_to
     return from_asset, to_asset, qty_from, qty_to, ratio
 
 
@@ -423,17 +491,18 @@ def bot_loop():
         while not bot_stop_flag:
             try:
                 ts = datetime.utcnow()
-                btc, hbar, doge = get_prices()
-                ratio = hbar / doge
+                btc, price_a, price_b = get_prices()
+                ratio = price_a / price_b
 
                 with mr_lock:
                     mean_r, std_r, z = compute_stats(ratio)
 
                     snap = PriceSnapshot(
                         ts=ts,
-                        btc=btc,
-                        hbar=hbar,
-                        doge=doge,
+                        asset_a=bot_config.asset_a,
+                        asset_b=bot_config.asset_b,
+                        price_a=price_a,
+                        price_b=price_b,
                         ratio=ratio,
                         zscore=z,
                     )
@@ -448,22 +517,26 @@ def bot_loop():
                             ratio, mean_r, std_r, z, state
                         )
 
-                        # HBAR expensive → HBAR -> DOGE
-                        if sell_signal and state.current_asset == "HBAR":
+                        sell_dir = f"{bot_config.asset_a}->{bot_config.asset_b}"
+                        buy_dir = f"{bot_config.asset_b}->{bot_config.asset_a}"
+
+                        if sell_signal and state.current_asset == bot_config.asset_a:
                             res = execute_mr_trade(
-                                "HBAR->DOGE",
+                                sell_dir,
                                 bot_config.trade_notional_usd,
                                 bot_config.use_all_balance,
                             )
                             if res:
                                 from_asset, to_asset, qty_from, qty_to, trade_ratio = res
-                                start_value = qty_from * (hbar if from_asset == "HBAR" else doge)
-                                end_value = qty_to * (doge if to_asset == "DOGE" else hbar)
+                                start_price = price_a if from_asset == bot_config.asset_a else price_b
+                                end_price = price_b if to_asset == bot_config.asset_b else price_a
+                                start_value = qty_from * start_price
+                                end_value = qty_to * end_price
                                 fee_quote = (start_value + end_value) * TRADE_FEE_RATE
                                 pnl_usd = end_value - start_value - fee_quote
                                 tr = Trade(
                                     ts=ts,
-                                    side="HBAR->DOGE",
+                                    side=sell_dir,
                                     from_asset=from_asset,
                                     to_asset=to_asset,
                                     qty_from=qty_from,
@@ -478,22 +551,23 @@ def bot_loop():
                                 state.current_qty = qty_to
                                 state.realized_pnl_usd += pnl_usd
 
-                        # HBAR cheap → DOGE -> HBAR
-                        elif buy_signal and state.current_asset == "DOGE":
+                        elif buy_signal and state.current_asset == bot_config.asset_b:
                             res = execute_mr_trade(
-                                "DOGE->HBAR",
+                                buy_dir,
                                 bot_config.trade_notional_usd,
                                 bot_config.use_all_balance,
                             )
                             if res:
                                 from_asset, to_asset, qty_from, qty_to, trade_ratio = res
-                                start_value = qty_from * (doge if from_asset == "DOGE" else hbar)
-                                end_value = qty_to * (hbar if to_asset == "HBAR" else doge)
+                                start_price = price_b if from_asset == bot_config.asset_b else price_a
+                                end_price = price_a if to_asset == bot_config.asset_a else price_b
+                                start_value = qty_from * start_price
+                                end_value = qty_to * end_price
                                 fee_quote = (start_value + end_value) * TRADE_FEE_RATE
                                 pnl_usd = end_value - start_value - fee_quote
                                 tr = Trade(
                                     ts=ts,
-                                    side="DOGE->HBAR",
+                                    side=buy_dir,
                                     from_asset=from_asset,
                                     to_asset=to_asset,
                                     qty_from=qty_from,
