@@ -21,8 +21,10 @@ router = APIRouter()
 
 class StatusResponse(BaseModel):
     btc: float
-    hbar: float
-    doge: float
+    asset_a: str
+    asset_b: str
+    price_a: float
+    price_b: float
     ratio: float
     zscore: float
     mean_ratio: float
@@ -33,9 +35,9 @@ class StatusResponse(BaseModel):
     unrealized_pnl_usd: float
     enabled: bool
     use_testnet: bool
-    usdc_balance: float
-    hbar_balance: float
-    doge_balance: float
+    base_balance: float
+    asset_a_balance: float
+    asset_b_balance: float
 
 
 # ============================================================
@@ -46,10 +48,10 @@ class StatusResponse(BaseModel):
 def get_status():
     session = SessionLocal()
     try:
-        btc, hbar, doge = mr.get_prices()
+        btc, price_a, price_b = mr.get_prices()
 
         with mr.mr_lock:
-            ratio = hbar / doge
+            ratio = price_a / price_b
             if mr.ratio_history:
                 mean_r = sum(mr.ratio_history) / len(mr.ratio_history)
                 var = sum((r - mean_r) ** 2 for r in mr.ratio_history) / len(mr.ratio_history)
@@ -63,20 +65,19 @@ def get_status():
         st = mr.get_state(session)
 
         base_bal = mr.get_free_balance_mr(BASE_ASSET)
-        hbar_bal = mr.get_free_balance_mr("HBAR")
-        doge_bal = mr.get_free_balance_mr("DOGE")
-        usdc_bal = mr.get_free_balance_mr("USDC")
+        asset_a_bal = mr.get_free_balance_mr(mr.bot_config.asset_a)
+        asset_b_bal = mr.get_free_balance_mr(mr.bot_config.asset_b)
 
         # Update current_qty based on balances
-        if st.current_asset == "HBAR":
-            st.current_qty = hbar_bal
-        elif st.current_asset == "DOGE":
-            st.current_qty = doge_bal
+        if st.current_asset == mr.bot_config.asset_a:
+            st.current_qty = asset_a_bal
+        elif st.current_asset == mr.bot_config.asset_b:
+            st.current_qty = asset_b_bal
         else:
             st.current_asset = BASE_ASSET
             st.current_qty = base_bal
 
-        current_value = base_bal + hbar_bal * hbar + doge_bal * doge
+        current_value = base_bal + asset_a_bal * price_a + asset_b_bal * price_b
         starting_value = st.realized_pnl_usd or 0.0
         unrealized_pnl = current_value - starting_value
 
@@ -85,8 +86,10 @@ def get_status():
 
         return StatusResponse(
             btc=btc,
-            hbar=hbar,
-            doge=doge,
+            asset_a=mr.bot_config.asset_a,
+            asset_b=mr.bot_config.asset_b,
+            price_a=price_a,
+            price_b=price_b,
             ratio=ratio,
             zscore=z,
             mean_ratio=mean_r,
@@ -97,9 +100,9 @@ def get_status():
             unrealized_pnl_usd=unrealized_pnl,
             enabled=mr.bot_config.enabled,
             use_testnet=mr.bot_config.use_testnet,
-            usdc_balance=usdc_bal,
-            hbar_balance=hbar_bal,
-            doge_balance=doge_bal,
+            base_balance=base_bal,
+            asset_a_balance=asset_a_bal,
+            asset_b_balance=asset_b_bal,
         )
     finally:
         session.close()
@@ -150,7 +153,11 @@ def manual_trade(req: ManualTradeRequest):
     if req.notional_usd <= 0:
         raise HTTPException(status_code=400, detail="notional_usd must be > 0")
 
-    if req.direction not in ("HBAR->DOGE", "DOGE->HBAR"):
+    asset_a, asset_b = mr.current_pair()
+    sell_dir = f"{asset_a}->{asset_b}"
+    buy_dir = f"{asset_b}->{asset_a}"
+
+    if req.direction not in (sell_dir, buy_dir):
         raise HTTPException(status_code=400, detail="Invalid direction")
 
     session = SessionLocal()
@@ -212,6 +219,10 @@ def get_history(limit: int = 300):
     try:
         rows = (
             session.query(PriceSnapshot)
+            .filter(
+                PriceSnapshot.asset_a == mr.bot_config.asset_a,
+                PriceSnapshot.asset_b == mr.bot_config.asset_b,
+            )
             .order_by(PriceSnapshot.ts.desc())
             .limit(limit)
             .all()
@@ -220,9 +231,8 @@ def get_history(limit: int = 300):
         return [
             {
                 "ts": r.ts.isoformat(),
-                "btc": r.btc,
-                "hbar": r.hbar,
-                "doge": r.doge,
+                "price_a": r.price_a,
+                "price_b": r.price_b,
                 "ratio": r.ratio,
                 "zscore": r.zscore,
             }
@@ -281,10 +291,10 @@ class NextSignalResponse(BaseModel):
 def next_signal():
     session = SessionLocal()
     try:
-        btc, hbar, doge = mr.get_prices()
+        btc, price_a, price_b = mr.get_prices()
 
         with mr.mr_lock:
-            ratio = hbar / doge
+            ratio = price_a / price_b
             if mr.ratio_history:
                 mean_r = sum(mr.ratio_history) / len(mr.ratio_history)
                 var = sum((r - mean_r) ** 2 for r in mr.ratio_history) / len(mr.ratio_history)
@@ -307,46 +317,50 @@ def next_signal():
         qty_from = 0.0
         qty_to = 0.0
 
-        hbar_sym = mr_symbol("HBAR")
-        doge_sym = mr_symbol("DOGE")
+        asset_a, asset_b = mr.current_pair()
+        sell_dir = f"{asset_a}->{asset_b}"
+        buy_dir = f"{asset_b}->{asset_a}"
 
-        if sell_signal and state.current_asset == "HBAR":
-            if mr.bot_config.use_all_balance:
-                qty_hbar = mr.get_free_balance_mr("HBAR")
-            else:
-                qty_hbar = min(
-                    mr.bot_config.trade_notional_usd / hbar,
-                    mr.get_free_balance_mr("HBAR")
-                )
-            qty_hbar = mr.adjust_quantity(hbar_sym, qty_hbar)
-            if qty_hbar > 0:
-                quote_received = qty_hbar * hbar
-                qty_doge = mr.adjust_quantity(doge_sym, quote_received / doge)
-                if qty_doge > 0:
-                    direction = "HBAR->DOGE"
-                    from_asset = "HBAR"
-                    to_asset = "DOGE"
-                    qty_from = qty_hbar
-                    qty_to = qty_doge
+        sym_a = mr_symbol(asset_a)
+        sym_b = mr_symbol(asset_b)
 
-        elif buy_signal and state.current_asset == "DOGE":
+        if sell_signal and state.current_asset == asset_a:
             if mr.bot_config.use_all_balance:
-                qty_doge = mr.get_free_balance_mr("DOGE")
+                qty_a = mr.get_free_balance_mr(asset_a)
             else:
-                qty_doge = min(
-                    mr.bot_config.trade_notional_usd / doge,
-                    mr.get_free_balance_mr("DOGE")
+                qty_a = min(
+                    mr.bot_config.trade_notional_usd / price_a,
+                    mr.get_free_balance_mr(asset_a)
                 )
-            qty_doge = mr.adjust_quantity(doge_sym, qty_doge)
-            if qty_doge > 0:
-                quote_received = qty_doge * doge
-                qty_hbar = mr.adjust_quantity(hbar_sym, quote_received / hbar)
-                if qty_hbar > 0:
-                    direction = "DOGE->HBAR"
-                    from_asset = "DOGE"
-                    to_asset = "HBAR"
-                    qty_from = qty_doge
-                    qty_to = qty_hbar
+            qty_a = mr.adjust_quantity(sym_a, qty_a)
+            if qty_a > 0:
+                quote_received = qty_a * price_a
+                qty_b = mr.adjust_quantity(sym_b, quote_received / price_b)
+                if qty_b > 0:
+                    direction = sell_dir
+                    from_asset = asset_a
+                    to_asset = asset_b
+                    qty_from = qty_a
+                    qty_to = qty_b
+
+        elif buy_signal and state.current_asset == asset_b:
+            if mr.bot_config.use_all_balance:
+                qty_b = mr.get_free_balance_mr(asset_b)
+            else:
+                qty_b = min(
+                    mr.bot_config.trade_notional_usd / price_b,
+                    mr.get_free_balance_mr(asset_b)
+                )
+            qty_b = mr.adjust_quantity(sym_b, qty_b)
+            if qty_b > 0:
+                quote_received = qty_b * price_b
+                qty_a = mr.adjust_quantity(sym_a, quote_received / price_a)
+                if qty_a > 0:
+                    direction = buy_dir
+                    from_asset = asset_b
+                    to_asset = asset_a
+                    qty_from = qty_b
+                    qty_to = qty_a
 
         return NextSignalResponse(
             direction=direction,
@@ -366,6 +380,20 @@ def next_signal():
             qty_from=qty_from,
             qty_to=qty_to,
         )
+    finally:
+        session.close()
+
+
+# ============================================================
+# PAIR HISTORY / HEALTH
+# ============================================================
+
+
+@router.get("/pair_history")
+def pair_history():
+    session = SessionLocal()
+    try:
+        return mr.get_pair_history(session, limit=100)
     finally:
         session.close()
 
@@ -395,8 +423,23 @@ def update_config(cfg: type(mr.bot_config)):
         finally:
             s.close()
 
+    # Pair changes reset state and history
+    if (cfg.asset_a, cfg.asset_b) != (mr.bot_config.asset_a, mr.bot_config.asset_b):
+        if (cfg.asset_a, cfg.asset_b) not in mr.bot_config.available_pairs:
+            raise HTTPException(status_code=400, detail="Pair not available")
+        mr.set_pair(cfg.asset_a, cfg.asset_b)
+        mr.reset_history()
+        s = SessionLocal()
+        try:
+            s.query(State).delete()
+            s.query(PriceSnapshot).delete()
+            s.commit()
+        finally:
+            s.close()
+
     data = cfg.dict()
     data.pop("enabled", None)
+    data.pop("available_pairs", None)
 
     for field, value in data.items():
         setattr(mr.bot_config, field, value)

@@ -6,6 +6,35 @@ let ratioChart = null;
 let lastMeanRatio = null;
 let lastStdRatio = null;
 let currentQuote = 'USDT';
+let currentPair = { asset_a: 'HBAR', asset_b: 'DOGE' };
+
+function updatePairControls(pairs, selected) {
+  const select = document.getElementById('pair_select');
+  select.innerHTML = '';
+
+  pairs.forEach(([a, b]) => {
+    const opt = document.createElement('option');
+    opt.value = `${a}|${b}`;
+    opt.textContent = `${a}/${b}`;
+    if (selected && selected[0] === a && selected[1] === b) {
+      opt.selected = true;
+    }
+    select.appendChild(opt);
+  });
+
+  const manualDirection = document.getElementById('manual_direction');
+  manualDirection.innerHTML = '';
+  const dir1 = document.createElement('option');
+  dir1.value = `${selected[0]}->${selected[1]}`;
+  dir1.textContent = `${selected[0]} → ${selected[1]}`;
+  const dir2 = document.createElement('option');
+  dir2.value = `${selected[1]}->${selected[0]}`;
+  dir2.textContent = `${selected[1]} → ${selected[0]}`;
+  manualDirection.appendChild(dir1);
+  manualDirection.appendChild(dir2);
+
+  currentPair = { asset_a: selected[0], asset_b: selected[1] };
+}
 
 async function manualTrade(event) {
   event.preventDefault();
@@ -38,6 +67,42 @@ async function manualTrade(event) {
   }
 }
 
+async function fetchPairHealth() {
+  const container = document.getElementById('pairHealth');
+  try {
+    const r = await fetch('/pair_history');
+    if (!r.ok) throw new Error('Failed to load pair history');
+    const data = await r.json();
+
+    const badge = data.is_good_pair
+      ? '<span class="chip chip-primary">Healthy movement</span>'
+      : '<span class="chip chip-muted">Needs more movement</span>';
+
+    const rows = (data.history || []).slice(-10).map((h) => {
+      return `<tr>
+        <td>${new Date(h.ts).toLocaleTimeString()}</td>
+        <td>${h.price_a?.toFixed(4)}</td>
+        <td>${h.price_b?.toFixed(4)}</td>
+        <td>${h.ratio?.toFixed(6)}</td>
+        <td>${h.zscore?.toFixed(2)}</td>
+      </tr>`;
+    });
+
+    container.innerHTML = `
+      <div class="status-line">Pair: <b>${data.pair}</b> ${badge} | Std: ${data.std.toFixed(6)}</div>
+      <table class="simple-table">
+        <thead>
+          <tr><th>Time</th><th>Price A</th><th>Price B</th><th>Ratio</th><th>Z</th></tr>
+        </thead>
+        <tbody>${rows.join('')}</tbody>
+      </table>
+    `;
+  } catch (e) {
+    console.error(e);
+    container.innerText = 'Unable to load pair history';
+  }
+}
+
 async function syncState() {
   try {
     const r = await fetch('/sync_state_from_balances', { method: 'POST' });
@@ -63,6 +128,11 @@ async function fetchStatus() {
     lastMeanRatio = data.mean_ratio;
     lastStdRatio = data.std_ratio;
 
+    currentPair = { asset_a: data.asset_a, asset_b: data.asset_b };
+    if (botConfig && botConfig.available_pairs) {
+      updatePairControls(botConfig.available_pairs, [data.asset_a, data.asset_b]);
+    }
+
     currentQuote = data.use_testnet ? 'USDT' : 'USDC';
     applyQuoteLabels(currentQuote);
 
@@ -71,10 +141,13 @@ async function fetchStatus() {
       data.enabled ? 'RUNNING' : 'STOPPED'
     }</span>`;
 
+    const pairLabel = `${data.asset_a}/${data.asset_b}`;
+
     document.getElementById('status').innerHTML = `
       <div class="status-chip-row">
         ${envChip}
         ${botChip}
+        <span class="chip">Pair: ${pairLabel}</span>
       </div>
 
       <div class="metric-grid">
@@ -83,16 +156,16 @@ async function fetchStatus() {
           <div class="metric-value">${data.btc.toFixed(2)}</div>
         </div>
         <div class="metric-group">
-          <div class="metric-label">HBAR${currentQuote}</div>
-          <div class="metric-value">${data.hbar.toFixed(4)}</div>
+          <div class="metric-label">${data.asset_a}${currentQuote}</div>
+          <div class="metric-value">${data.price_a.toFixed(4)}</div>
         </div>
         <div class="metric-group">
-          <div class="metric-label">DOGE${currentQuote}</div>
-          <div class="metric-value">${data.doge.toFixed(4)}</div>
+          <div class="metric-label">${data.asset_b}${currentQuote}</div>
+          <div class="metric-value">${data.price_b.toFixed(4)}</div>
         </div>
 
         <div class="metric-group">
-          <div class="metric-label">Ratio (HBAR/DOGE)</div>
+          <div class="metric-label">Ratio (${data.asset_a}/${data.asset_b})</div>
           <div class="metric-value">${data.ratio.toFixed(6)}</div>
         </div>
         <div class="metric-group">
@@ -123,15 +196,15 @@ async function fetchStatus() {
         <b>PnL (unrealized):</b> ${data.unrealized_pnl_usd.toFixed(2)} ${currentQuote}
       </div>
       <div class="status-line">
-        <b>Balances:</b> ${currentQuote}: ${data.usdc_balance.toFixed(2)} |
-        HBAR: ${data.hbar_balance.toFixed(2)} |
-        DOGE: ${data.doge_balance.toFixed(2)}
+        <b>Balances:</b> ${currentQuote}: ${data.base_balance.toFixed(2)} |
+        ${data.asset_a}: ${data.asset_a_balance.toFixed(2)} |
+        ${data.asset_b}: ${data.asset_b_balance.toFixed(2)}
       </div>
     `;
 
     if (priceChart) {
-      priceChart.data.datasets[0].label = 'HBAR' + currentQuote;
-      priceChart.data.datasets[1].label = 'DOGE' + currentQuote;
+      priceChart.data.datasets[0].label = data.asset_a + currentQuote;
+      priceChart.data.datasets[1].label = data.asset_b + currentQuote;
       priceChart.update();
     }
   } catch (e) {
@@ -155,6 +228,12 @@ async function fetchConfig() {
   document.getElementById('buy_ratio_threshold').value = cfg.buy_ratio_threshold;
   document.getElementById('use_testnet').checked = cfg.use_testnet;
 
+  if (cfg.available_pairs) {
+    updatePairControls(cfg.available_pairs, [cfg.asset_a, cfg.asset_b]);
+  }
+
+  currentPair = { asset_a: cfg.asset_a, asset_b: cfg.asset_b };
+
   currentQuote = cfg.use_testnet ? 'USDT' : 'USDC';
   applyQuoteLabels(currentQuote);
 }
@@ -162,6 +241,8 @@ async function fetchConfig() {
 async function saveConfig(event) {
   event.preventDefault();
   const cfg = {
+    asset_a: document.getElementById('pair_select').value.split('|')[0],
+    asset_b: document.getElementById('pair_select').value.split('|')[1],
     poll_interval_sec: parseInt(document.getElementById('poll_interval_sec').value),
     window_size: parseInt(document.getElementById('window_size').value),
     z_entry: parseFloat(document.getElementById('z_entry').value),
@@ -288,8 +369,8 @@ async function fetchHistory() {
   if (data.length === 0) return;
 
   const labels = data.map((d) => new Date(d.ts).toLocaleTimeString());
-  const hbar = data.map((d) => d.hbar);
-  const doge = data.map((d) => d.doge);
+  const priceA = data.map((d) => d.price_a);
+  const priceB = data.map((d) => d.price_b);
   const ratio = data.map((d) => d.ratio);
 
   if (!priceChart) {
@@ -299,8 +380,20 @@ async function fetchHistory() {
       data: {
         labels: labels,
         datasets: [
-          { label: 'HBAR' + currentQuote, data: hbar, borderWidth: 1, fill: false, borderColor: '#4bc0c0' },
-          { label: 'DOGE' + currentQuote, data: doge, borderWidth: 1, fill: false, borderColor: '#90caf9' },
+          {
+            label: currentPair.asset_a + currentQuote,
+            data: priceA,
+            borderWidth: 1,
+            fill: false,
+            borderColor: '#4bc0c0',
+          },
+          {
+            label: currentPair.asset_b + currentQuote,
+            data: priceB,
+            borderWidth: 1,
+            fill: false,
+            borderColor: '#90caf9',
+          },
         ],
       },
       options: {
@@ -314,10 +407,10 @@ async function fetchHistory() {
     });
   } else {
     priceChart.data.labels = labels;
-    priceChart.data.datasets[0].data = hbar;
-    priceChart.data.datasets[1].data = doge;
-    priceChart.data.datasets[0].label = 'HBAR' + currentQuote;
-    priceChart.data.datasets[1].label = 'DOGE' + currentQuote;
+    priceChart.data.datasets[0].data = priceA;
+    priceChart.data.datasets[1].data = priceB;
+    priceChart.data.datasets[0].label = currentPair.asset_a + currentQuote;
+    priceChart.data.datasets[1].label = currentPair.asset_b + currentQuote;
     priceChart.update();
   }
 
@@ -461,6 +554,7 @@ export async function refreshMeanReversion() {
   await fetchConfig();
   await fetchTrades();
   await fetchHistory();
+  await fetchPairHealth();
   await fetchNextSignal().catch(() => {});
 }
 
