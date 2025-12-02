@@ -79,6 +79,18 @@ class BollTrade(Base):
     is_testnet = Column(Integer)
 
 
+class BollSnapshot(Base):
+    __tablename__ = "boll_snapshots"
+    id = Column(Integer, primary_key=True, index=True)
+    ts = Column(DateTime, index=True)
+    symbol = Column(String)
+    price = Column(Float)
+    ma = Column(Float)
+    upper = Column(Float)
+    lower = Column(Float)
+    std = Column(Float)
+
+
 class PairHealth(Base):
     __tablename__ = "pair_health"
     id = Column(Integer, primary_key=True, index=True)

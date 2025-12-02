@@ -12,6 +12,9 @@ export function initBollinger() {
   document.getElementById('startBollBtn').addEventListener('click', startBoll);
   document.getElementById('stopBollBtn').addEventListener('click', stopBoll);
   document.getElementById('bollQuoteFilter').addEventListener('change', renderSymbolSelect);
+  document
+    .getElementById('bollGenerateConfigBtn')
+    .addEventListener('click', generateBollConfigFromHistory);
 }
 
 export async function refreshBollinger() {
@@ -31,6 +34,34 @@ async function fetchSymbols() {
     renderSymbolPills();
   } catch (e) {
     console.error(e);
+  }
+}
+
+async function generateBollConfigFromHistory() {
+  const btn = document.getElementById('bollGenerateConfigBtn');
+  const original = btn.textContent;
+
+  try {
+    btn.disabled = true;
+    btn.textContent = 'Generating...';
+
+    const symbol = document.getElementById('boll_symbol').value;
+    const suffix = symbol ? `?symbol=${encodeURIComponent(symbol)}` : '';
+    const r = await fetch(`/boll_config_best${suffix}`);
+    if (!r.ok) {
+      const err = await r.json().catch(() => ({}));
+      throw new Error(err.detail || r.statusText || 'Unable to generate config');
+    }
+
+    const cfg = await r.json();
+    applyBollConfigToForm(cfg);
+    alert('Config suggested from Bollinger history. Review and save to apply.');
+  } catch (e) {
+    console.error(e);
+    alert('Unable to generate Bollinger config from history: ' + e.message);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = original;
   }
 }
 
@@ -88,27 +119,21 @@ function renderSymbolPills() {
 async function fetchBollConfig() {
   const r = await fetch('/boll_config');
   const cfg = await r.json();
-  bollConfig = cfg;
-  cachedQuote = cfg.use_testnet ? 'USDT' : 'USDC';
-  applyQuoteLabels(cachedQuote);
-
-  document.getElementById('boll_symbol').value = cfg.symbol;
-  document.getElementById('boll_trade_notional').value = cfg.trade_notional_usd;
-  document.getElementById('boll_window').value = cfg.window_size;
-  document.getElementById('boll_dev').value = cfg.k;
-  document.getElementById('boll_use_testnet').checked = cfg.use_testnet;
-  document.getElementById('boll_only_buy').checked = cfg.only_buy;
+  applyBollConfigToForm(cfg);
 }
 
 async function saveBollConfig(event) {
   event.preventDefault();
   const cfg = {
     symbol: document.getElementById('boll_symbol').value,
-    trade_notional_usd: parseFloat(document.getElementById('boll_trade_notional').value),
-    window_size: parseInt(document.getElementById('boll_window').value),
-    k: parseFloat(document.getElementById('boll_dev').value),
+    max_position_usd: parseFloat(document.getElementById('boll_trade_notional').value || '0'),
+    window_size: parseInt(document.getElementById('boll_window').value || '0'),
+    num_std: parseFloat(document.getElementById('boll_dev').value || '0'),
     use_testnet: document.getElementById('boll_use_testnet').checked,
-    only_buy: document.getElementById('boll_only_buy').checked,
+    use_all_balance: document.getElementById('boll_use_all_balance').checked,
+    stop_loss_pct: parseFloat(document.getElementById('boll_stop_loss').value || '0'),
+    take_profit_pct: parseFloat(document.getElementById('boll_take_profit').value || '0'),
+    cooldown_sec: parseInt(document.getElementById('boll_cooldown').value || '0'),
   };
 
   const r = await fetch('/boll_config', {
@@ -118,9 +143,7 @@ async function saveBollConfig(event) {
   });
 
   const newCfg = await r.json();
-  bollConfig = newCfg;
-  cachedQuote = bollConfig.use_testnet ? 'USDT' : 'USDC';
-  applyQuoteLabels(cachedQuote);
+  applyBollConfigToForm(newCfg);
   alert('Bollinger config saved.');
 }
 
@@ -196,6 +219,22 @@ async function fetchBollStatus() {
     console.error(e);
     document.getElementById('bollStatus').innerText = 'Error loading Bollinger status';
   }
+}
+
+function applyBollConfigToForm(cfg) {
+  bollConfig = cfg;
+  cachedQuote = cfg.use_testnet ? 'USDT' : 'USDC';
+  applyQuoteLabels(cachedQuote);
+
+  document.getElementById('boll_symbol').value = cfg.symbol || '';
+  document.getElementById('boll_trade_notional').value = cfg.max_position_usd ?? '';
+  document.getElementById('boll_window').value = cfg.window_size ?? '';
+  document.getElementById('boll_dev').value = cfg.num_std ?? '';
+  document.getElementById('boll_use_testnet').checked = cfg.use_testnet;
+  document.getElementById('boll_use_all_balance').checked = cfg.use_all_balance;
+  document.getElementById('boll_stop_loss').value = cfg.stop_loss_pct ?? '';
+  document.getElementById('boll_take_profit').value = cfg.take_profit_pct ?? '';
+  document.getElementById('boll_cooldown').value = cfg.cooldown_sec ?? '';
 }
 
 async function fetchBollBalances() {

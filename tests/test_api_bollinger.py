@@ -6,6 +6,7 @@ import pytest
 import config
 from engines import bollinger as boll_engine
 from routes import bollinger as boll_routes
+from database import SessionLocal, BollSnapshot
 
 
 class FakeBollClient:
@@ -244,3 +245,63 @@ def test_bollinger_manual_sell_success(client, monkeypatch):
     assert data["symbol"] == "HBARUSDC"
     assert data["qty_sold"] > 0
     assert data["quote_received_est"] > 0
+
+
+def test_boll_history_reads_persisted_snapshots(monkeypatch):
+    boll_engine.boll_config.symbol = "HBARUSDC"
+    sess = SessionLocal()
+    try:
+        sess.query(BollSnapshot).delete()
+        now = dt.datetime.utcnow()
+        for i in range(3):
+            sess.add(
+                BollSnapshot(
+                    ts=now - dt.timedelta(minutes=3 - i),
+                    symbol="HBARUSDC",
+                    price=1.0 + 0.1 * i,
+                    ma=1.0 + 0.05 * i,
+                    upper=2.0,
+                    lower=0.5,
+                    std=0.1 + 0.01 * i,
+                )
+            )
+        sess.commit()
+    finally:
+        sess.close()
+
+    rows = boll_routes.boll_history(symbol="HBARUSDC", limit=10)
+    assert len(rows) == 3
+    assert rows[0].price == pytest.approx(1.0)
+    assert rows[-1].price == pytest.approx(1.2)
+
+
+def test_boll_config_best_from_history(monkeypatch):
+    boll_engine.boll_config.symbol = "HBARUSDC"
+    sess = SessionLocal()
+    try:
+        sess.query(BollSnapshot).delete()
+        now = dt.datetime.utcnow()
+        # build a range of zscores by varying std slightly
+        for i in range(40):
+            price = 1.0 + (i % 5) * 0.05
+            ma = 1.0
+            std = 0.02 + (i % 3) * 0.01
+            sess.add(
+                BollSnapshot(
+                    ts=now - dt.timedelta(seconds=i),
+                    symbol="HBARUSDC",
+                    price=price,
+                    ma=ma,
+                    upper=ma + 3 * std,
+                    lower=ma - 3 * std,
+                    std=std,
+                )
+            )
+        sess.commit()
+    finally:
+        sess.close()
+
+    cfg = boll_routes.boll_config_best(symbol="HBARUSDC")
+    assert cfg.symbol == "HBARUSDC"
+    assert 1.5 <= cfg.num_std <= 4.0
+    assert cfg.window_size >= 20

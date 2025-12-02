@@ -1,12 +1,12 @@
 from datetime import datetime
-from typing import List
+from typing import List, Optional
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from binance.exceptions import BinanceAPIException  # kept for runtime, not used in tests
 
 import config
-from database import SessionLocal, Trade, BollState, BollTrade
+from database import SessionLocal, Trade, BollSnapshot, BollState, BollTrade
 from engines import bollinger as eng
 from engines.bollinger import (
     get_free_balance_boll,
@@ -246,35 +246,76 @@ def boll_balances():
 
 
 @router.get("/boll_history", response_model=List[BollHistoryPoint])
-def boll_history(limit: int = 300):
-    with eng.boll_lock:
-        n = min(len(eng.boll_price_history), limit)
-        prices = eng.boll_price_history[-n:]
-        tss = eng.boll_ts_history[-n:]
+def boll_history(symbol: Optional[str] = None, limit: int = 300):
+    target_symbol = symbol or eng.boll_config.symbol
+    if not target_symbol:
+        raise HTTPException(status_code=400, detail="Set a symbol to load history")
 
-    if not prices:
-        return []
-
-    points: List[BollHistoryPoint] = []
-    for i in range(len(prices)):
-        sub_prices = prices[max(0, i - eng.boll_config.window_size + 1) : i + 1]
-        if not sub_prices:
-            ma = prices[i]
-            std = 0.0
-        else:
-            ma, std = eng.compute_ma_std_window(sub_prices, len(sub_prices))
-        upper = ma + eng.boll_config.num_std * std
-        lower = ma - eng.boll_config.num_std * std
-        points.append(
-            BollHistoryPoint(
-                ts=tss[i].isoformat(),
-                price=prices[i],
-                ma=ma,
-                upper=upper,
-                lower=lower,
-            )
+    session = SessionLocal()
+    try:
+        rows = (
+            session.query(BollSnapshot)
+            .filter(BollSnapshot.symbol == target_symbol)
+            .order_by(BollSnapshot.ts.desc())
+            .limit(limit)
+            .all()
         )
-    return points
+        if rows:
+            rows = list(reversed(rows))
+            return [
+                BollHistoryPoint(
+                    ts=r.ts.isoformat(),
+                    price=r.price,
+                    ma=r.ma,
+                    upper=r.upper,
+                    lower=r.lower,
+                )
+                for r in rows
+            ]
+
+        # Fallback to in-memory buffers so fresh sessions still render charts
+        with eng.boll_lock:
+            n = min(len(eng.boll_price_history), limit)
+            prices = eng.boll_price_history[-n:]
+            tss = eng.boll_ts_history[-n:]
+
+        if not prices:
+            return []
+
+        points: List[BollHistoryPoint] = []
+        for i in range(len(prices)):
+            sub_prices = prices[max(0, i - eng.boll_config.window_size + 1) : i + 1]
+            if not sub_prices:
+                ma = prices[i]
+                std = 0.0
+            else:
+                ma, std = eng.compute_ma_std_window(sub_prices, len(sub_prices))
+            upper = ma + eng.boll_config.num_std * std
+            lower = ma - eng.boll_config.num_std * std
+            points.append(
+                BollHistoryPoint(
+                    ts=tss[i].isoformat(),
+                    price=prices[i],
+                    ma=ma,
+                    upper=upper,
+                    lower=lower,
+                )
+            )
+        return points
+    finally:
+        session.close()
+
+
+@router.get("/boll_config_best", response_model=BollConfigModel)
+def boll_config_best(symbol: Optional[str] = None):
+    session = SessionLocal()
+    try:
+        try:
+            return eng.generate_best_boll_config_from_history(session, symbol)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+    finally:
+        session.close()
 
 
 @router.get("/boll_trades")
