@@ -378,6 +378,33 @@
 
     <div class="card" data-collapsible>
       <div class="card-header">
+        <h2>Saved Coin History</h2>
+        <span class="toggle-icon">▼</span>
+      </div>
+      <div class="card-body">
+        <div class="help-text">
+          Latest saved Bollinger snapshots for the configured symbol. Switch symbols above to view a different coin.
+        </div>
+        <div class="table-scroll">
+          <table id="bollHistoryTable">
+            <thead>
+              <tr>
+                <th>Time</th>
+                <th>Price</th>
+                <th>MA</th>
+                <th>Upper</th>
+                <th>Lower</th>
+              </tr>
+            </thead>
+            <tbody id="bollHistoryBody"></tbody>
+          </table>
+        </div>
+        <p id="bollHistoryStatus" class="help-text"></p>
+      </div>
+    </div>
+
+    <div class="card" data-collapsible>
+      <div class="card-header">
         <h2>Bollinger Trades (latest 100)</h2>
         <span class="toggle-icon">▼</span>
       </div>

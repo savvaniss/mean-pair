@@ -265,15 +265,35 @@ async function fetchBollBalances() {
 
 async function fetchBollHistory() {
   try {
-    const symbol = document.getElementById('boll_symbol').value;
-    if (!symbol) return;
+    const symbol = document.getElementById('boll_symbol').value || bollConfig?.symbol;
+    const status = document.getElementById('bollHistoryStatus');
+    const tbody = document.getElementById('bollHistoryBody');
+    status.textContent = '';
+    tbody.innerHTML = '';
 
-    const r = await fetch(`/boll_history?symbol=${symbol}`);
+    if (!symbol) {
+      status.textContent = 'Select or save a symbol to view history.';
+      return;
+    }
+
+    const r = await fetch(`/boll_history?symbol=${encodeURIComponent(symbol)}`);
     if (!r.ok) {
       document.getElementById('bollBandInfo').textContent = 'Select a symbol to load history.';
+      status.textContent = 'No saved history available yet.';
       return;
     }
     const data = await r.json();
+
+    if (!data.length) {
+      status.textContent = `No saved history yet for ${symbol}. Start the bot to record snapshots.`;
+      document.getElementById('bollBandInfo').textContent = 'Waiting for saved Bollinger bands.';
+      if (bollChart) {
+        bollChart.data.labels = [];
+        bollChart.data.datasets.forEach((d) => (d.data = []));
+        bollChart.update();
+      }
+      return;
+    }
 
     const labels = data.map((d) => new Date(d.ts).toLocaleTimeString());
     const price = data.map((d) => d.price);
@@ -318,9 +338,27 @@ async function fetchBollHistory() {
       bollChart.data.datasets[3].data = lower;
       bollChart.update();
     }
+
+    data
+      .slice()
+      .reverse()
+      .forEach((row) => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td>${new Date(row.ts).toLocaleString()}</td>
+          <td>${row.price.toFixed(6)}</td>
+          <td>${row.ma.toFixed(6)}</td>
+          <td>${row.upper.toFixed(6)}</td>
+          <td>${row.lower.toFixed(6)}</td>
+        `;
+        tbody.appendChild(tr);
+      });
+    status.textContent = `Showing ${data.length} saved points for ${symbol}.`;
   } catch (e) {
     console.error(e);
     document.getElementById('bollBandInfo').textContent = 'Error loading Bollinger history.';
+    const status = document.getElementById('bollHistoryStatus');
+    if (status) status.textContent = 'Error loading history.';
   }
 }
 
