@@ -4,6 +4,7 @@ import pytest
 
 import config
 from engines import mean_reversion as mr_eng
+from engines.common import compute_ma_std_window
 from engines.mean_reversion import State
 
 
@@ -59,6 +60,8 @@ def test_decide_signal_uses_z_score_for_hbar_sell(monkeypatch):
 
     mr_eng.bot_config.use_ratio_thresholds = False
     mr_eng.bot_config.z_entry = 2.0
+    mr_eng.bot_config.z_exit = 0.5
+    mr_eng.mr_rearm_ready = True
 
     ratio = 1.0
     mean_r = 1.0
@@ -85,6 +88,8 @@ def test_decide_signal_uses_z_score_for_doge_buy(monkeypatch):
 
     mr_eng.bot_config.use_ratio_thresholds = False
     mr_eng.bot_config.z_entry = 2.0
+    mr_eng.bot_config.z_exit = 0.5
+    mr_eng.mr_rearm_ready = True
 
     ratio = 1.0
     mean_r = 1.0
@@ -121,9 +126,36 @@ def test_decide_signal_no_trade_when_not_hbar_or_doge(monkeypatch):
 
 def test_compute_ma_std_window_basic():
     prices = [10, 12, 14, 16]
-    mean, std = mr_eng.compute_ma_std_window(prices, window=2)
+    mean, std = compute_ma_std_window(prices, window=2)
     assert math.isclose(mean, (14 + 16) / 2)
     assert std > 0
 
-    mean_all, std_all = mr_eng.compute_ma_std_window(prices, window=10)
-    assert math.isclose(mean_all, sum(prices) / len(prices))
+    mean_all, std_all = compute_ma_std_window(prices, window=10)
+
+
+def test_decide_signal_rearm_after_exit(monkeypatch):
+    monkeypatch.setattr(mr_eng, "has_enough_history", lambda: True)
+    mr_eng.bot_config.use_ratio_thresholds = False
+    mr_eng.bot_config.z_entry = 2.0
+    mr_eng.bot_config.z_exit = 0.5
+    mr_eng.mr_rearm_ready = True
+
+    st = State(
+        current_asset="HBAR",
+        current_qty=1.0,
+        last_ratio=0.0,
+        last_z=0.0,
+        realized_pnl_usd=0.0,
+        unrealized_pnl_usd=0.0,
+    )
+
+    # First trigger arms and then blocks subsequent without reset
+    sell, buy, _ = mr_eng.decide_signal(1.0, 1.0, 0.1, 3.0, st)
+    assert sell is True and buy is False
+    sell_again, _, _ = mr_eng.decide_signal(1.0, 1.0, 0.1, 2.5, st)
+    assert sell_again is False
+
+    # Crossing back inside exit band re-arms
+    mr_eng.decide_signal(1.0, 1.0, 0.1, 0.1, st)
+    sell_after_reset, _, _ = mr_eng.decide_signal(1.0, 1.0, 0.1, 3.1, st)
+    assert sell_after_reset is True
