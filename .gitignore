@@ -4,3 +4,5 @@ mean_reversion.db
 npm_data
 npm_letsencryptnpm_data/
 *.sqlite
+__pycache__/
+*.pyc
