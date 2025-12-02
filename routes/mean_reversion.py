@@ -8,23 +8,16 @@ from pydantic import BaseModel
 import config
 from config import BASE_ASSET, mr_symbol, switch_env
 from database import SessionLocal, PriceSnapshot, Trade, State
-from engines.mean_reversion import (
-    bot_config,
-    ratio_history,
-    mr_lock,
-    get_prices,
-    get_free_balance_mr,
-    adjust_quantity,
-    compute_stats,
-    get_state,
-    decide_signal,
-    required_history_len,
-    has_enough_history,
-    place_market_order_mr,
-)
+
+# IMPORTANT: use ONLY module-level import so monkeypatch works
+import engines.mean_reversion as mr
 
 router = APIRouter()
 
+
+# ============================================================
+# Models
+# ============================================================
 
 class StatusResponse(BaseModel):
     btc: float
@@ -45,19 +38,22 @@ class StatusResponse(BaseModel):
     doge_balance: float
 
 
+# ============================================================
+# STATUS
+# ============================================================
+
 @router.get("/status", response_model=StatusResponse)
 def get_status():
     session = SessionLocal()
     try:
-        btc, hbar, doge = get_prices()
+        # USE MR MODULE IMPORT
+        btc, hbar, doge = mr.get_prices()
 
-        with mr_lock:
+        with mr.mr_lock:
             ratio = hbar / doge
-            if ratio_history:
-                mean_r = sum(ratio_history) / len(ratio_history)
-                var = sum((r - mean_r) ** 2 for r in ratio_history) / len(
-                    ratio_history
-                )
+            if mr.ratio_history:
+                mean_r = sum(mr.ratio_history) / len(mr.ratio_history)
+                var = sum((r - mean_r) ** 2 for r in mr.ratio_history) / len(mr.ratio_history)
                 std_r = var ** 0.5 if var > 0 else 0.0
                 z = (ratio - mean_r) / std_r if std_r > 0 else 0.0
             else:
@@ -65,13 +61,14 @@ def get_status():
                 std_r = 0.0
                 z = 0.0
 
-        st = get_state(session)
+        st = mr.get_state(session)
 
-        base_bal = get_free_balance_mr(BASE_ASSET)
-        hbar_bal = get_free_balance_mr("HBAR")
-        doge_bal = get_free_balance_mr("DOGE")
-        usdc_bal = get_free_balance_mr("USDC")
+        base_bal = mr.get_free_balance_mr(BASE_ASSET)
+        hbar_bal = mr.get_free_balance_mr("HBAR")
+        doge_bal = mr.get_free_balance_mr("DOGE")
+        usdc_bal = mr.get_free_balance_mr("USDC")
 
+        # Update current_qty based on balances
         if st.current_asset == "HBAR":
             st.current_qty = hbar_bal
         elif st.current_asset == "DOGE":
@@ -99,8 +96,8 @@ def get_status():
             current_qty=st.current_qty,
             realized_pnl_usd=0.0,
             unrealized_pnl_usd=unrealized_pnl,
-            enabled=bot_config.enabled,
-            use_testnet=bot_config.use_testnet,
+            enabled=mr.bot_config.enabled,
+            use_testnet=mr.bot_config.use_testnet,
             usdc_balance=usdc_bal,
             hbar_balance=hbar_bal,
             doge_balance=doge_bal,
@@ -109,10 +106,12 @@ def get_status():
         session.close()
 
 
+# ============================================================
+# SYNC STATE
+# ============================================================
+
 @router.post("/sync_state_from_balances")
 def sync_state_from_balances():
-    from engines.mean_reversion import init_state_from_balances  # avoid circular
-
     session = SessionLocal()
     try:
         st = session.query(State).first()
@@ -127,12 +126,20 @@ def sync_state_from_balances():
             )
             session.add(st)
 
-        init_state_from_balances(st)
+        mr.init_state_from_balances(st)
         session.commit()
-        return {"status": "ok", "current_asset": st.current_asset, "current_qty": st.current_qty}
+        return {
+            "status": "ok",
+            "current_asset": st.current_asset,
+            "current_qty": st.current_qty,
+        }
     finally:
         session.close()
 
+
+# ============================================================
+# MANUAL TRADE
+# ============================================================
 
 class ManualTradeRequest(BaseModel):
     direction: str
@@ -147,35 +154,34 @@ def manual_trade(req: ManualTradeRequest):
     session = SessionLocal()
     try:
         ts = datetime.utcnow()
-        btc, hbar, doge = get_prices()
+        btc, hbar, doge = mr.get_prices()
         ratio = hbar / doge
-        state = get_state(session)
+        state = mr.get_state(session)
 
         hbar_sym = mr_symbol("HBAR")
         doge_sym = mr_symbol("DOGE")
 
+        # -----------------------------------------------------------
+        # HBAR → DOGE
+        # -----------------------------------------------------------
         if req.direction == "HBAR->DOGE":
-            qty_hbar = min(req.notional_usd / hbar, get_free_balance_mr("HBAR"))
-            qty_hbar = adjust_quantity(hbar_sym, qty_hbar)
+            qty_hbar = min(req.notional_usd / hbar, mr.get_free_balance_mr("HBAR"))
+            qty_hbar = mr.adjust_quantity(hbar_sym, qty_hbar)
             if qty_hbar <= 0:
-                raise HTTPException(
-                    status_code=400, detail="Notional too small or no HBAR"
-                )
+                raise HTTPException(400, "Notional too small or no HBAR")
 
-            order_sell = place_market_order_mr(hbar_sym, "SELL", qty_hbar)
+            order_sell = mr.place_market_order_mr(hbar_sym, "SELL", qty_hbar)
             if not order_sell:
-                raise HTTPException(status_code=500, detail="HBAR sell failed")
+                raise HTTPException(500, "HBAR sell failed")
 
             quote_received = qty_hbar * hbar
-            qty_doge = adjust_quantity(doge_sym, quote_received / doge)
+            qty_doge = mr.adjust_quantity(doge_sym, quote_received / doge)
             if qty_doge <= 0:
-                raise HTTPException(
-                    status_code=400, detail="Converted DOGE qty too small"
-                )
+                raise HTTPException(400, "Converted DOGE qty too small")
 
-            order_buy = place_market_order_mr(doge_sym, "BUY", qty_doge)
+            order_buy = mr.place_market_order_mr(doge_sym, "BUY", qty_doge)
             if not order_buy:
-                raise HTTPException(status_code=500, detail="DOGE buy failed")
+                raise HTTPException(500, "DOGE buy failed")
 
             tr = Trade(
                 ts=ts,
@@ -187,34 +193,33 @@ def manual_trade(req: ManualTradeRequest):
                 price=ratio,
                 fee=0.0,
                 pnl_usd=0.0,
-                is_testnet=int(bot_config.use_testnet),
+                is_testnet=int(mr.bot_config.use_testnet),
             )
             session.add(tr)
             state.current_asset = "DOGE"
             state.current_qty = qty_doge
 
+        # -----------------------------------------------------------
+        # DOGE → HBAR
+        # -----------------------------------------------------------
         elif req.direction == "DOGE->HBAR":
-            qty_doge = min(req.notional_usd / doge, get_free_balance_mr("DOGE"))
-            qty_doge = adjust_quantity(doge_sym, qty_doge)
+            qty_doge = min(req.notional_usd / doge, mr.get_free_balance_mr("DOGE"))
+            qty_doge = mr.adjust_quantity(doge_sym, qty_doge)
             if qty_doge <= 0:
-                raise HTTPException(
-                    status_code=400, detail="Notional too small or no DOGE"
-                )
+                raise HTTPException(400, "Notional too small or no DOGE")
 
-            order_sell = place_market_order_mr(doge_sym, "SELL", qty_doge)
+            order_sell = mr.place_market_order_mr(doge_sym, "SELL", qty_doge)
             if not order_sell:
-                raise HTTPException(status_code=500, detail="DOGE sell failed")
+                raise HTTPException(500, "DOGE sell failed")
 
             quote_received = qty_doge * doge
-            qty_hbar = adjust_quantity(hbar_sym, quote_received / hbar)
+            qty_hbar = mr.adjust_quantity(hbar_sym, quote_received / hbar)
             if qty_hbar <= 0:
-                raise HTTPException(
-                    status_code=400, detail="Converted HBAR qty too small"
-                )
+                raise HTTPException(400, "Converted HBAR qty too small")
 
-            order_buy = place_market_order_mr(hbar_sym, "BUY", qty_hbar)
+            order_buy = mr.place_market_order_mr(hbar_sym, "BUY", qty_hbar)
             if not order_buy:
-                raise HTTPException(status_code=500, detail="HBAR buy failed")
+                raise HTTPException(500, "HBAR buy failed")
 
             tr = Trade(
                 ts=ts,
@@ -226,26 +231,33 @@ def manual_trade(req: ManualTradeRequest):
                 price=ratio,
                 fee=0.0,
                 pnl_usd=0.0,
-                is_testnet=int(bot_config.use_testnet),
+                is_testnet=int(mr.bot_config.use_testnet),
             )
             session.add(tr)
             state.current_asset = "HBAR"
             state.current_qty = qty_hbar
 
         else:
-            raise HTTPException(status_code=400, detail="Invalid direction")
+            raise HTTPException(400, "Invalid direction")
 
         session.commit()
         return {"status": "ok"}
+
     except HTTPException:
         session.rollback()
         raise
+
     except Exception as e:
         session.rollback()
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(500, str(e))
+
     finally:
         session.close()
 
+
+# ============================================================
+# HISTORY + TRADES
+# ============================================================
 
 @router.get("/history")
 def get_history(limit: int = 300):
@@ -277,9 +289,7 @@ def get_history(limit: int = 300):
 def list_trades(limit: int = 100):
     session = SessionLocal()
     try:
-        trades = (
-            session.query(Trade).order_by(Trade.ts.desc()).limit(limit).all()
-        )
+        trades = session.query(Trade).order_by(Trade.ts.desc()).limit(limit).all()
         return [
             {
                 "ts": t.ts.isoformat(),
@@ -298,6 +308,10 @@ def list_trades(limit: int = 100):
     finally:
         session.close()
 
+
+# ============================================================
+# NEXT SIGNAL
+# ============================================================
 
 class NextSignalResponse(BaseModel):
     direction: str
@@ -320,15 +334,13 @@ class NextSignalResponse(BaseModel):
 def next_signal():
     session = SessionLocal()
     try:
-        btc, hbar, doge = get_prices()
+        btc, hbar, doge = mr.get_prices()
 
-        with mr_lock:
+        with mr.mr_lock:
             ratio = hbar / doge
-            if ratio_history:
-                mean_r = sum(ratio_history) / len(ratio_history)
-                var = sum((r - mean_r) ** 2 for r in ratio_history) / len(
-                    ratio_history
-                )
+            if mr.ratio_history:
+                mean_r = sum(mr.ratio_history) / len(mr.ratio_history)
+                var = sum((r - mean_r) ** 2 for r in mr.ratio_history) / len(mr.ratio_history)
                 std_r = var ** 0.5 if var > 0 else 0.0
                 z = (ratio - mean_r) / std_r if std_r > 0 else 0.0
             else:
@@ -336,13 +348,11 @@ def next_signal():
                 std_r = 0.0
                 z = 0.0
 
-        state = get_state(session)
-        sell_signal, buy_signal, reason = decide_signal(
-            ratio, mean_r, std_r, z, state
-        )
+        state = mr.get_state(session)
+        sell_signal, buy_signal, reason = mr.decide_signal(ratio, mean_r, std_r, z, state)
 
-        upper_band = mean_r + bot_config.z_entry * std_r if std_r > 0 else mean_r
-        lower_band = mean_r - bot_config.z_entry * std_r if std_r > 0 else mean_r
+        upper_band = mean_r + mr.bot_config.z_entry * std_r if std_r > 0 else mean_r
+        lower_band = mean_r - mr.bot_config.z_entry * std_r if std_r > 0 else mean_r
 
         direction = "NONE"
         from_asset = ""
@@ -354,17 +364,17 @@ def next_signal():
         doge_sym = mr_symbol("DOGE")
 
         if sell_signal and state.current_asset == "HBAR":
-            if bot_config.use_all_balance:
-                qty_hbar = get_free_balance_mr("HBAR")
+            if mr.bot_config.use_all_balance:
+                qty_hbar = mr.get_free_balance_mr("HBAR")
             else:
-                notional = bot_config.trade_notional_usd
                 qty_hbar = min(
-                    notional / hbar, get_free_balance_mr("HBAR")
+                    mr.bot_config.trade_notional_usd / hbar,
+                    mr.get_free_balance_mr("HBAR")
                 )
-            qty_hbar = adjust_quantity(hbar_sym, qty_hbar)
+            qty_hbar = mr.adjust_quantity(hbar_sym, qty_hbar)
             if qty_hbar > 0:
                 quote_received = qty_hbar * hbar
-                qty_doge = adjust_quantity(doge_sym, quote_received / doge)
+                qty_doge = mr.adjust_quantity(doge_sym, quote_received / doge)
                 if qty_doge > 0:
                     direction = "HBAR->DOGE"
                     from_asset = "HBAR"
@@ -373,17 +383,17 @@ def next_signal():
                     qty_to = qty_doge
 
         elif buy_signal and state.current_asset == "DOGE":
-            if bot_config.use_all_balance:
-                qty_doge = get_free_balance_mr("DOGE")
+            if mr.bot_config.use_all_balance:
+                qty_doge = mr.get_free_balance_mr("DOGE")
             else:
-                notional = bot_config.trade_notional_usd
                 qty_doge = min(
-                    notional / doge, get_free_balance_mr("DOGE")
+                    mr.bot_config.trade_notional_usd / doge,
+                    mr.get_free_balance_mr("DOGE")
                 )
-            qty_doge = adjust_quantity(doge_sym, qty_doge)
+            qty_doge = mr.adjust_quantity(doge_sym, qty_doge)
             if qty_doge > 0:
                 quote_received = qty_doge * doge
-                qty_hbar = adjust_quantity(hbar_sym, quote_received / hbar)
+                qty_hbar = mr.adjust_quantity(hbar_sym, quote_received / hbar)
                 if qty_hbar > 0:
                     direction = "DOGE->HBAR"
                     from_asset = "DOGE"
@@ -400,12 +410,10 @@ def next_signal():
             std_ratio=std_r,
             upper_band=upper_band,
             lower_band=lower_band,
-            sell_threshold=bot_config.sell_ratio_threshold
-            if bot_config.use_ratio_thresholds
-            else 0.0,
-            buy_threshold=bot_config.buy_ratio_threshold
-            if bot_config.use_ratio_thresholds
-            else 0.0,
+            sell_threshold=mr.bot_config.sell_ratio_threshold
+            if mr.bot_config.use_ratio_thresholds else 0.0,
+            buy_threshold=mr.bot_config.buy_ratio_threshold
+            if mr.bot_config.use_ratio_thresholds else 0.0,
             from_asset=from_asset,
             to_asset=to_asset,
             qty_from=qty_from,
@@ -415,22 +423,24 @@ def next_signal():
         session.close()
 
 
-@router.get("/config", response_model=type(bot_config))
+# ============================================================
+# CONFIG ENDPOINTS
+# ============================================================
+
+@router.get("/config", response_model=type(mr.bot_config))
 def get_config():
-    return bot_config
+    return mr.bot_config
 
 
-@router.post("/config", response_model=type(bot_config))
-def update_config(cfg: type(bot_config)):
-    from engines import mean_reversion as mr_engine
+@router.post("/config", response_model=type(mr.bot_config))
+def update_config(cfg: type(mr.bot_config)):
+    current_enabled = mr.bot_config.enabled
 
-    current_enabled = bot_config.enabled
-
-    if cfg.use_testnet != bot_config.use_testnet:
+    if cfg.use_testnet != mr.bot_config.use_testnet:
         switch_env(cfg.use_testnet)
-        bot_config.use_testnet = cfg.use_testnet
+        mr.bot_config.use_testnet = cfg.use_testnet
 
-        ratio_history.clear()
+        mr.ratio_history.clear()
         s = SessionLocal()
         try:
             s.query(State).delete()
@@ -440,20 +450,21 @@ def update_config(cfg: type(bot_config)):
 
     data = cfg.dict()
     data.pop("enabled", None)
-    for field, value in data.items():
-        setattr(bot_config, field, value)
 
-    bot_config.enabled = current_enabled
-    return bot_config
+    for field, value in data.items():
+        setattr(mr.bot_config, field, value)
+
+    mr.bot_config.enabled = current_enabled
+    return mr.bot_config
 
 
 @router.post("/start")
 def start_bot():
-    bot_config.enabled = True
+    mr.bot_config.enabled = True
     return {"status": "started"}
 
 
 @router.post("/stop")
 def stop_bot():
-    bot_config.enabled = False
+    mr.bot_config.enabled = False
     return {"status": "stopped"}

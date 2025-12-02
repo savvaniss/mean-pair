@@ -51,8 +51,10 @@ def boll_has_enough_history() -> bool:
 
 
 def get_symbol_price_boll(symbol: str) -> float:
-    ticker = config.boll_client.get_symbol_ticker(symbol=symbol)
+    # Positional call so tests' lambda s: {...} works
+    ticker = config.boll_client.get_symbol_ticker(symbol)
     return float(ticker["price"])
+
 
 
 def get_free_balance_boll(asset: str) -> float:
