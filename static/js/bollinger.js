@@ -1,4 +1,4 @@
-import { applyQuoteLabels } from './ui.js';
+import { applyQuoteLabels, showToast } from './ui.js';
 
 let bollConfig = null;
 let bollChart = null;
@@ -55,10 +55,10 @@ async function generateBollConfigFromHistory() {
 
     const cfg = await r.json();
     applyBollConfigToForm(cfg);
-    alert('Config suggested from Bollinger history. Review and save to apply.');
+    showToast('Config suggested from Bollinger history. Review and save to apply.', 'success');
   } catch (e) {
     console.error(e);
-    alert('Unable to generate Bollinger config from history: ' + e.message);
+    showToast('Unable to generate Bollinger config from history: ' + e.message, 'danger');
   } finally {
     btn.disabled = false;
     btn.textContent = original;
@@ -144,7 +144,7 @@ async function saveBollConfig(event) {
 
   const newCfg = await r.json();
   applyBollConfigToForm(newCfg);
-  alert('Bollinger config saved.');
+  showToast('Bollinger config saved.', 'success');
 }
 
 async function fetchBollStatus() {
@@ -354,7 +354,7 @@ async function startBoll() {
     const r = await fetch('/boll_start', { method: 'POST' });
     if (!r.ok) {
       const err = await r.json();
-      alert('Cannot start Bollinger bot: ' + (err.detail || r.statusText));
+      showToast('Cannot start Bollinger bot: ' + (err.detail || r.statusText), 'danger');
     }
     await fetchBollStatus();
   } catch (e) {

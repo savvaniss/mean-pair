@@ -1,4 +1,4 @@
-import { applyQuoteLabels, openOverlay, closeOverlay } from './ui.js';
+import { applyQuoteLabels, openOverlay, closeOverlay, showToast } from './ui.js';
 
 let botConfig = null;
 let priceChart = null;
@@ -86,7 +86,7 @@ async function manualTrade(event) {
   const notional = parseFloat(document.getElementById('manual_notional').value);
 
   if (isNaN(notional) || notional <= 0) {
-    alert('Enter a valid notional amount > 0');
+    showToast('Enter a valid notional amount > 0', 'warning');
     return;
   }
 
@@ -99,15 +99,15 @@ async function manualTrade(event) {
 
     if (!r.ok) {
       const err = await r.json();
-      alert('Error: ' + (err.detail || r.statusText));
+      showToast('Error: ' + (err.detail || r.statusText), 'danger');
       return;
     }
 
-    alert('Manual trade executed.');
+    showToast('Manual trade executed.', 'success');
     await refreshMeanReversion();
   } catch (e) {
     console.error(e);
-    alert('Request failed. See console.');
+    showToast('Request failed. See console.', 'danger');
   }
 }
 
@@ -152,15 +152,15 @@ async function syncState() {
     const r = await fetch('/sync_state_from_balances', { method: 'POST' });
     if (!r.ok) {
       const err = await r.json();
-      alert('Sync failed: ' + (err.detail || r.statusText));
+      showToast('Sync failed: ' + (err.detail || r.statusText), 'danger');
       return;
     }
     const data = await r.json();
-    alert(`Synced to ${data.current_asset} @ ${data.current_qty.toFixed(4)}`);
+    showToast(`Synced to ${data.current_asset} @ ${data.current_qty.toFixed(4)}`, 'success');
     await refreshMeanReversion();
   } catch (e) {
     console.error(e);
-    alert('Sync request failed.');
+    showToast('Sync request failed.', 'danger');
   }
 }
 
@@ -298,7 +298,7 @@ async function saveConfig(event) {
   currentQuote = botConfig.use_testnet ? 'USDT' : 'USDC';
   applyQuoteLabels(currentQuote);
 
-  alert('Config saved. If you switched testnet/mainnet, verify your balances.');
+  showToast('Config saved. If you switched testnet/mainnet, verify your balances.', 'success');
 }
 
 async function generateConfigFromHistory() {
@@ -317,10 +317,10 @@ async function generateConfigFromHistory() {
 
     const cfg = await r.json();
     applyConfigToForm(cfg);
-    alert('Config updated from historical performance. Review and save if desired.');
+    showToast('Config updated from historical performance. Review and save if desired.', 'success');
   } catch (e) {
     console.error(e);
-    alert('Unable to generate config from history: ' + e.message);
+    showToast('Unable to generate config from history: ' + e.message, 'danger');
   } finally {
     btn.disabled = false;
     btn.textContent = originalLabel;
