@@ -8,7 +8,7 @@ from binance.exceptions import BinanceAPIException
 from pydantic import BaseModel
 
 import config
-from database import SessionLocal, BollState, BollTrade
+from database import SessionLocal, BollState, BollTrade, BollSnapshot
 from engines.common import compute_ma_std_window
 
 # Bollinger in-memory history
@@ -168,6 +168,17 @@ def boll_loop():
                     )
                     upper = ma + boll_config.num_std * std
                     lower = ma - boll_config.num_std * std
+
+                snap = BollSnapshot(
+                    ts=ts,
+                    symbol=symbol,
+                    price=price,
+                    ma=ma,
+                    upper=upper,
+                    lower=lower,
+                    std=std,
+                )
+                session.add(snap)
 
                 state = get_boll_state(session)
                 state.symbol = symbol
@@ -336,6 +347,55 @@ def boll_history(limit: int = 200):
         )
 
     return hist
+
+
+def generate_best_boll_config_from_history(
+    session, symbol: Optional[str] = None, lookback: int = 400
+) -> BollConfig:
+    """Suggest conservative Bollinger parameters derived from stored history."""
+
+    target_symbol = symbol or boll_config.symbol
+    if not target_symbol:
+        raise ValueError("Set a symbol first to generate config")
+
+    rows = (
+        session.query(BollSnapshot)
+        .filter(BollSnapshot.symbol == target_symbol)
+        .order_by(BollSnapshot.ts.desc())
+        .limit(lookback)
+        .all()
+    )
+
+    if len(rows) < 10:
+        raise ValueError("Not enough history to suggest config")
+
+    zscores = [
+        abs((r.price - r.ma) / r.std)
+        for r in rows
+        if r.std is not None and r.std > 0
+    ]
+
+    if not zscores:
+        raise ValueError("Historical bands have zero standard deviation")
+
+    zscores.sort()
+    idx = max(0, int(len(zscores) * 0.85) - 1)
+    num_std = max(1.5, min(4.0, zscores[idx]))
+
+    window_guess = min(max(20, len(rows) // 3), 500)
+
+    cfg = BollConfig(**boll_config.dict())
+    cfg.symbol = target_symbol
+    cfg.window_size = window_guess
+    cfg.num_std = round(num_std, 2)
+    cfg.max_position_usd = boll_config.max_position_usd
+    cfg.use_all_balance = boll_config.use_all_balance
+
+    # tighten stops based on observed band excursions
+    cfg.stop_loss_pct = round(min(0.5, num_std / 10), 3)
+    cfg.take_profit_pct = round(min(0.5, num_std / 8), 3)
+
+    return cfg
 
 def start_boll_thread():
     global boll_thread, boll_stop_flag

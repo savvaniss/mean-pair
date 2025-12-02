@@ -11,6 +11,30 @@ let lastRatio = null;
 let currentQuote = 'USDT';
 let currentPair = { asset_a: 'HBAR', asset_b: 'DOGE' };
 
+function applyConfigToForm(cfg) {
+  botConfig = cfg;
+
+  document.getElementById('poll_interval_sec').value = cfg.poll_interval_sec;
+  document.getElementById('window_size').value = cfg.window_size;
+  document.getElementById('z_entry').value = cfg.z_entry;
+  document.getElementById('z_exit').value = cfg.z_exit;
+  document.getElementById('trade_notional_usd').value = cfg.trade_notional_usd;
+  document.getElementById('use_all_balance').checked = cfg.use_all_balance;
+  document.getElementById('use_ratio_thresholds').checked = cfg.use_ratio_thresholds;
+  document.getElementById('sell_ratio_threshold').value = cfg.sell_ratio_threshold;
+  document.getElementById('buy_ratio_threshold').value = cfg.buy_ratio_threshold;
+  document.getElementById('use_testnet').checked = cfg.use_testnet;
+
+  if (cfg.available_pairs) {
+    updatePairControls(cfg.available_pairs, [cfg.asset_a, cfg.asset_b]);
+  }
+
+  currentPair = { asset_a: cfg.asset_a, asset_b: cfg.asset_b };
+
+  currentQuote = cfg.use_testnet ? 'USDT' : 'USDC';
+  applyQuoteLabels(currentQuote);
+}
+
 function getDirectionClass(current, last) {
   if (current === undefined || current === null || last === null) return 'price-flat';
   if (current > last) return 'price-up';
@@ -244,26 +268,7 @@ async function fetchStatus() {
 async function fetchConfig() {
   const r = await fetch('/config');
   const cfg = await r.json();
-  botConfig = cfg;
-  document.getElementById('poll_interval_sec').value = cfg.poll_interval_sec;
-  document.getElementById('window_size').value = cfg.window_size;
-  document.getElementById('z_entry').value = cfg.z_entry;
-  document.getElementById('z_exit').value = cfg.z_exit;
-  document.getElementById('trade_notional_usd').value = cfg.trade_notional_usd;
-  document.getElementById('use_all_balance').checked = cfg.use_all_balance;
-  document.getElementById('use_ratio_thresholds').checked = cfg.use_ratio_thresholds;
-  document.getElementById('sell_ratio_threshold').value = cfg.sell_ratio_threshold;
-  document.getElementById('buy_ratio_threshold').value = cfg.buy_ratio_threshold;
-  document.getElementById('use_testnet').checked = cfg.use_testnet;
-
-  if (cfg.available_pairs) {
-    updatePairControls(cfg.available_pairs, [cfg.asset_a, cfg.asset_b]);
-  }
-
-  currentPair = { asset_a: cfg.asset_a, asset_b: cfg.asset_b };
-
-  currentQuote = cfg.use_testnet ? 'USDT' : 'USDC';
-  applyQuoteLabels(currentQuote);
+  applyConfigToForm(cfg);
 }
 
 async function saveConfig(event) {
@@ -294,6 +299,32 @@ async function saveConfig(event) {
   applyQuoteLabels(currentQuote);
 
   alert('Config saved. If you switched testnet/mainnet, verify your balances.');
+}
+
+async function generateConfigFromHistory() {
+  const btn = document.getElementById('generateConfigBtn');
+  const originalLabel = btn.textContent;
+
+  try {
+    btn.disabled = true;
+    btn.textContent = 'Generating...';
+
+    const r = await fetch('/config_best');
+    if (!r.ok) {
+      const err = await r.json().catch(() => ({}));
+      throw new Error(err.detail || r.statusText || 'Unable to generate config');
+    }
+
+    const cfg = await r.json();
+    applyConfigToForm(cfg);
+    alert('Config updated from historical performance. Review and save if desired.');
+  } catch (e) {
+    console.error(e);
+    alert('Unable to generate config from history: ' + e.message);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = originalLabel;
+  }
 }
 
 async function startBot() {
@@ -592,6 +623,9 @@ export function initMeanReversion() {
   document.getElementById('syncStateBtn').addEventListener('click', syncState);
   document.getElementById('startBotBtn').addEventListener('click', startBot);
   document.getElementById('stopBotBtn').addEventListener('click', stopBot);
+  document
+    .getElementById('generateConfigBtn')
+    .addEventListener('click', generateConfigFromHistory);
   document.getElementById('nextTradeBtn').addEventListener('click', () => {
     openOverlay('nextModalOverlay');
     fetchNextSignal();

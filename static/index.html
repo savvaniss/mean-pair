@@ -133,7 +133,10 @@
               </div>
             </div>
 
-            <button type="submit" class="btn btn-primary">Save config</button>
+            <div class="button-row">
+              <button type="submit" class="btn btn-primary">Save config</button>
+              <button type="button" class="btn btn-ghost" id="generateConfigBtn">Generate from history</button>
+            </div>
           </form>
         </div>
       </div>
@@ -292,8 +295,8 @@
             <div class="form-row">
               <div>
                 <label for="boll_trade_notional" class="label-with-tip">
-                  Trade notional (<span class="quote-label">USDT</span>)
-                  <span class="tooltip-icon" title="Quote-currency amount per order when the Bollinger strategy trades.">?</span>
+                  Max position (<span class="quote-label">USDT</span>)
+                  <span class="tooltip-icon" title="Maximum quote-currency amount to allocate per Bollinger entry.">?</span>
                 </label>
                 <input id="boll_trade_notional" type="number" step="1" />
               </div>
@@ -319,14 +322,40 @@
                 </label>
               </div>
               <div class="form-checkbox">
-                <input type="checkbox" id="boll_only_buy" />
-                <label for="boll_only_buy" class="label-with-tip">
-                  Only buy on dips
-                  <span class="tooltip-icon" title="Restrict the strategy to lower-band buy entries without placing profit-taking sells.">?</span>
+                <input type="checkbox" id="boll_use_all_balance" />
+                <label for="boll_use_all_balance" class="label-with-tip">
+                  Use all quote balance
+                  <span class="tooltip-icon" title="Allow the bot to deploy the entire available quote balance when entering.">?</span>
                 </label>
               </div>
             </div>
-            <button type="submit" class="btn btn-primary">Save Bollinger config</button>
+            <div class="form-row">
+              <div>
+                <label for="boll_stop_loss" class="label-with-tip">
+                  Stop loss (fraction)
+                  <span class="tooltip-icon" title="Fractional stop below entry before flattening the position (e.g. 0.1 = 10%).">?</span>
+                </label>
+                <input id="boll_stop_loss" type="number" step="0.01" min="0" />
+              </div>
+              <div>
+                <label for="boll_take_profit" class="label-with-tip">
+                  Take profit (fraction)
+                  <span class="tooltip-icon" title="Fractional take-profit target above entry (e.g. 0.1 = 10%).">?</span>
+                </label>
+                <input id="boll_take_profit" type="number" step="0.01" min="0" />
+              </div>
+              <div>
+                <label for="boll_cooldown" class="label-with-tip">
+                  Cooldown (sec)
+                  <span class="tooltip-icon" title="Minimum delay between consecutive Bollinger trades.">?</span>
+                </label>
+                <input id="boll_cooldown" type="number" step="1" min="0" />
+              </div>
+            </div>
+            <div class="button-row">
+              <button type="button" class="btn" id="bollGenerateConfigBtn">Generate from history</button>
+              <button type="submit" class="btn btn-primary">Save Bollinger config</button>
+            </div>
           </form>
         <div class="help-text">Curated chips keep you away from scrolling through hundreds of pairs. Use the quote filter to narrow the list.</div>
       </div>
