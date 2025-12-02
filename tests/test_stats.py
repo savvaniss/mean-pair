@@ -10,10 +10,11 @@ from engines.mean_reversion import State
 
 def test_compute_stats_single_value():
     mr_eng.ratio_history.clear()
-    mean, std, z = mr_eng.compute_stats(1.23)
+    mean, std, z, is_outlier = mr_eng.compute_stats(1.23)
     assert math.isclose(mean, 1.23)
     assert std == 0.0
     assert z == 0.0
+    assert is_outlier is False
     assert len(mr_eng.ratio_history) == 1
 
 
@@ -24,10 +25,11 @@ def test_compute_stats_multiple_values():
     for v in values:
         last = mr_eng.compute_stats(v)
 
-    mean, std, z = last
+    mean, std, z, is_outlier = last
     assert math.isclose(mean, 3.0, rel_tol=1e-9)
     assert std > 0.0
     assert z > 0.0
+    assert is_outlier is False
     assert len(mr_eng.ratio_history) == len(values)
 
 
@@ -38,11 +40,12 @@ def test_compute_stats_insufficient_history_returns_last_ratio():
     for v in values:
         last = mr_eng.compute_stats(v)
 
-    mean, std, z = last
+    mean, std, z, is_outlier = last
 
     assert mean == values[-1]
     assert std == 0.0
     assert z == 0.0
+    assert is_outlier is False
 
 
 def test_decide_signal_uses_z_score_for_hbar_sell(monkeypatch):
@@ -131,6 +134,29 @@ def test_compute_ma_std_window_basic():
     assert std > 0
 
     mean_all, std_all = compute_ma_std_window(prices, window=10)
+
+
+def test_outlier_detection_clamps_large_jump(monkeypatch):
+    history = [0.94 + 0.001 * (i % 5) for i in range(50)]
+    mr_eng.ratio_history[:] = history
+
+    orig_sigma = mr_eng.bot_config.outlier_sigma
+    orig_jump = mr_eng.bot_config.max_ratio_jump
+    mr_eng.bot_config.outlier_sigma = 3.0
+    mr_eng.bot_config.max_ratio_jump = 0.05
+
+    jump_ratio = 1.02
+    filtered, flagged = mr_eng._filter_outlier(jump_ratio)
+    assert flagged is True
+    assert filtered < jump_ratio  # clamped
+
+    mr_eng.ratio_history[:] = history
+    _, _, _, is_outlier = mr_eng.compute_stats(jump_ratio)
+    assert is_outlier is True
+    assert mr_eng.ratio_history[-1] == pytest.approx(filtered)
+
+    mr_eng.bot_config.outlier_sigma = orig_sigma
+    mr_eng.bot_config.max_ratio_jump = orig_jump
 
 
 def test_decide_signal_rearm_after_exit(monkeypatch):

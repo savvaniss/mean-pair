@@ -52,28 +52,44 @@
           <form id="configForm">
             <div class="form-row">
               <div>
-                <label for="pair_select">Trading pair</label>
+                <label for="pair_select" class="label-with-tip">
+                  Trading pair
+                  <span class="tooltip-icon" title="Select the correlated asset pair used for mean reversion calculations and trades.">?</span>
+                </label>
                 <select id="pair_select"></select>
               </div>
               <div>
-                <label for="poll_interval_sec">Poll interval (sec)</label>
+                <label for="poll_interval_sec" class="label-with-tip">
+                  Poll interval (sec)
+                  <span class="tooltip-icon" title="Seconds between price polls, ratio updates, and trading checks.">?</span>
+                </label>
                 <input id="poll_interval_sec" type="number" min="5" step="1" />
               </div>
               <div>
-                <label for="window_size">Window size</label>
+                <label for="window_size" class="label-with-tip">
+                  Window size
+                  <span class="tooltip-icon" title="Number of recent samples used to compute the mean and standard deviation for the ratio.">?</span>
+                </label>
                 <input id="window_size" type="number" min="5" step="1" />
               </div>
               <div>
-                <label for="z_entry">z-entry</label>
+                <label for="z_entry" class="label-with-tip">
+                  z-entry
+                  <span class="tooltip-icon" title="Z-score threshold that must be crossed before opening a mean-reversion trade.">?</span>
+                </label>
                 <input id="z_entry" type="number" step="0.1" />
               </div>
               <div>
-                <label for="z_exit">z-exit</label>
+                <label for="z_exit" class="label-with-tip">
+                  z-exit
+                  <span class="tooltip-icon" title="Z-score threshold that signals when to close an open position back toward the mean.">?</span>
+                </label>
                 <input id="z_exit" type="number" step="0.1" />
               </div>
               <div>
-                <label for="trade_notional_usd">
+                <label for="trade_notional_usd" class="label-with-tip">
                   Trade notional (<span class="quote-label">USDT</span>)
+                  <span class="tooltip-icon" title="Target USD value for each leg of the trade when not using full balances.">?</span>
                 </label>
                 <input id="trade_notional_usd" type="number" step="1" />
               </div>
@@ -82,23 +98,38 @@
             <div class="form-row">
               <div class="form-checkbox">
                 <input type="checkbox" id="use_all_balance" />
-                <label for="use_all_balance">Use all available HBAR/DOGE</label>
+                <label for="use_all_balance" class="label-with-tip">
+                  Use all available HBAR/DOGE
+                  <span class="tooltip-icon" title="Trade using the entire available balances instead of the fixed notional size.">?</span>
+                </label>
               </div>
               <div class="form-checkbox">
                 <input type="checkbox" id="use_ratio_thresholds" />
-                <label for="use_ratio_thresholds">Use fixed ratio thresholds</label>
+                <label for="use_ratio_thresholds" class="label-with-tip">
+                  Use fixed ratio thresholds
+                  <span class="tooltip-icon" title="Apply static buy/sell ratio bands instead of z-score based entries and exits.">?</span>
+                </label>
               </div>
               <div>
-                <label for="sell_ratio_threshold">Sell ratio threshold</label>
+                <label for="sell_ratio_threshold" class="label-with-tip">
+                  Sell ratio threshold
+                  <span class="tooltip-icon" title="If the ratio rises above this level, the bot sells the first asset and buys the second.">?</span>
+                </label>
                 <input id="sell_ratio_threshold" type="number" step="0.0001" />
               </div>
               <div>
-                <label for="buy_ratio_threshold">Buy ratio threshold</label>
+                <label for="buy_ratio_threshold" class="label-with-tip">
+                  Buy ratio threshold
+                  <span class="tooltip-icon" title="If the ratio falls below this level, the bot buys the first asset and sells the second.">?</span>
+                </label>
                 <input id="buy_ratio_threshold" type="number" step="0.0001" />
               </div>
               <div class="form-checkbox">
                 <input type="checkbox" id="use_testnet" />
-                <label for="use_testnet">Use Binance testnet</label>
+                <label for="use_testnet" class="label-with-tip">
+                  Use Binance testnet
+                  <span class="tooltip-icon" title="Route all mean-reversion trades to the Binance testnet instead of live trading.">?</span>
+                </label>
               </div>
             </div>
 
@@ -124,15 +155,19 @@
           <form id="manualTradeForm">
             <div class="form-row">
               <div>
-                <label for="manual_direction">Direction</label>
+                <label for="manual_direction" class="label-with-tip">
+                  Direction
+                  <span class="tooltip-icon" title="Choose which way to swap the pair immediately, overriding automated signals.">?</span>
+                </label>
                 <select id="manual_direction">
                   <option value="HBAR->DOGE">HBAR → DOGE</option>
                   <option value="DOGE->HBAR">DOGE → HBAR</option>
                 </select>
               </div>
               <div>
-                <label for="manual_notional">
+                <label for="manual_notional" class="label-with-tip">
                   Notional (<span class="quote-label">USDT</span>)
+                  <span class="tooltip-icon" title="Quote-currency amount to send through the manual swap.">?</span>
                 </label>
                 <input id="manual_notional" type="number" value="20" step="1" />
               </div>
@@ -222,53 +257,77 @@
       </div>
     </div>
 
-    <div class="card" data-collapsible>
-      <div class="card-header">
-        <h2>Bollinger Config</h2>
-        <span class="toggle-icon">▼</span>
-      </div>
-      <div class="card-body">
-        <div class="symbol-picker">
-          <div>
-            <label for="boll_symbol">Symbol</label>
-            <div class="symbol-select-row">
-              <select id="boll_symbol"></select>
-              <select id="bollQuoteFilter">
-                <option value="all">All quotes</option>
-                <option value="USDT">USDT</option>
-                <option value="USDC">USDC</option>
-                <option value="BTC">BTC</option>
-                <option value="BNB">BNB</option>
-              </select>
-            </div>
-          </div>
-          <div class="pill-row" id="bollSymbolPills"></div>
+      <div class="card" data-collapsible>
+        <div class="card-header">
+          <h2>Bollinger Config</h2>
+          <span class="toggle-icon">▼</span>
         </div>
-        <form id="bollConfigForm">
-          <div class="form-row">
+        <div class="card-body">
+          <div class="symbol-picker">
             <div>
-              <label for="boll_trade_notional">Trade notional (<span class="quote-label">USDT</span>)</label>
-              <input id="boll_trade_notional" type="number" step="1" />
+              <label for="boll_symbol" class="label-with-tip">
+                Symbol
+                <span class="tooltip-icon" title="Trading symbol for the Bollinger bot. Choose a pair with healthy liquidity.">?</span>
+              </label>
+              <div class="symbol-select-row">
+                <select id="boll_symbol"></select>
+                <div>
+                  <label for="bollQuoteFilter" class="label-with-tip">
+                    Quote filter
+                    <span class="tooltip-icon" title="Limit the available symbols by quote asset to quickly narrow the dropdown list.">?</span>
+                  </label>
+                  <select id="bollQuoteFilter">
+                    <option value="all">All quotes</option>
+                    <option value="USDT">USDT</option>
+                    <option value="USDC">USDC</option>
+                    <option value="BTC">BTC</option>
+                    <option value="BNB">BNB</option>
+                  </select>
+                </div>
+              </div>
             </div>
-            <div>
-              <label for="boll_window">Window size</label>
-              <input id="boll_window" type="number" min="5" step="1" />
-            </div>
-            <div>
-              <label for="boll_dev">Std Dev (k)</label>
-              <input id="boll_dev" type="number" step="0.1" />
-            </div>
-            <div class="form-checkbox">
-              <input type="checkbox" id="boll_use_testnet" />
-              <label for="boll_use_testnet">Use Binance testnet</label>
-            </div>
-            <div class="form-checkbox">
-              <input type="checkbox" id="boll_only_buy" />
-              <label for="boll_only_buy">Only buy on dips</label>
-            </div>
+            <div class="pill-row" id="bollSymbolPills"></div>
           </div>
-          <button type="submit" class="btn btn-primary">Save Bollinger config</button>
-        </form>
+          <form id="bollConfigForm">
+            <div class="form-row">
+              <div>
+                <label for="boll_trade_notional" class="label-with-tip">
+                  Trade notional (<span class="quote-label">USDT</span>)
+                  <span class="tooltip-icon" title="Quote-currency amount per order when the Bollinger strategy trades.">?</span>
+                </label>
+                <input id="boll_trade_notional" type="number" step="1" />
+              </div>
+              <div>
+                <label for="boll_window" class="label-with-tip">
+                  Window size
+                  <span class="tooltip-icon" title="Number of candles used to compute the moving average and bands.">?</span>
+                </label>
+                <input id="boll_window" type="number" min="5" step="1" />
+              </div>
+              <div>
+                <label for="boll_dev" class="label-with-tip">
+                  Std Dev (k)
+                  <span class="tooltip-icon" title="Multiplier applied to the standard deviation when constructing upper and lower bands.">?</span>
+                </label>
+                <input id="boll_dev" type="number" step="0.1" />
+              </div>
+              <div class="form-checkbox">
+                <input type="checkbox" id="boll_use_testnet" />
+                <label for="boll_use_testnet" class="label-with-tip">
+                  Use Binance testnet
+                  <span class="tooltip-icon" title="Execute Bollinger trades against the Binance testnet environment.">?</span>
+                </label>
+              </div>
+              <div class="form-checkbox">
+                <input type="checkbox" id="boll_only_buy" />
+                <label for="boll_only_buy" class="label-with-tip">
+                  Only buy on dips
+                  <span class="tooltip-icon" title="Restrict the strategy to lower-band buy entries without placing profit-taking sells.">?</span>
+                </label>
+              </div>
+            </div>
+            <button type="submit" class="btn btn-primary">Save Bollinger config</button>
+          </form>
         <div class="help-text">Curated chips keep you away from scrolling through hundreds of pairs. Use the quote filter to narrow the list.</div>
       </div>
     </div>
@@ -322,14 +381,20 @@
         <div class="card-body">
           <div class="form-row">
             <div>
-              <label for="tradingEnv">Environment</label>
+              <label for="tradingEnv" class="label-with-tip">
+                Environment
+                <span class="tooltip-icon" title="Choose whether manual desk actions use mainnet or testnet endpoints.">?</span>
+              </label>
               <select id="tradingEnv">
                 <option value="testnet">Testnet</option>
                 <option value="mainnet">Mainnet</option>
               </select>
             </div>
             <div>
-              <label for="tradingAccount">Account keys</label>
+              <label for="tradingAccount" class="label-with-tip">
+                Account keys
+                <span class="tooltip-icon" title="Pick which configured API key set to use for account queries and orders.">?</span>
+              </label>
               <select id="tradingAccount">
                 <option value="mr">Mean Reversion keys</option>
                 <option value="boll">Bollinger keys</option>
@@ -349,19 +414,28 @@
           <form id="tradingOrderForm">
             <div class="form-row">
               <div>
-                <label for="tradingSymbol">Symbol</label>
+                <label for="tradingSymbol" class="label-with-tip">
+                  Symbol
+                  <span class="tooltip-icon" title="Market symbol to trade from the selected account and environment.">?</span>
+                </label>
                 <input id="tradingSymbol" list="tradingSymbolList" placeholder="e.g. BTCUSDT" />
                 <datalist id="tradingSymbolList"></datalist>
               </div>
               <div>
-                <label for="tradingSide">Side</label>
+                <label for="tradingSide" class="label-with-tip">
+                  Side
+                  <span class="tooltip-icon" title="Choose BUY to acquire the base asset or SELL to offload it.">?</span>
+                </label>
                 <select id="tradingSide">
                   <option value="BUY">Buy</option>
                   <option value="SELL">Sell</option>
                 </select>
               </div>
               <div>
-                <label for="tradingQty">Qty (base)</label>
+                <label for="tradingQty" class="label-with-tip">
+                  Qty (base)
+                  <span class="tooltip-icon" title="Base-asset quantity to send with the manual order.">?</span>
+                </label>
                 <input id="tradingQty" type="number" min="0" step="0.0001" />
               </div>
             </div>

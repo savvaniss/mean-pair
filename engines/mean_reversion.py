@@ -9,17 +9,21 @@ from pydantic import BaseModel
 
 import config
 from config import BASE_ASSET, mr_symbol, get_mr_quote
-from database import SessionLocal, State, PriceSnapshot, Trade
+from database import SessionLocal, State, PriceSnapshot, Trade, PairHealth
 from engines.common import compute_ma_std_window
 
 # Rolling window (in memory)
 ratio_history: List[float] = []
+last_ratio_was_outlier: bool = False
 
 # Available pair universe (ordered)
 AVAILABLE_PAIRS: List[Tuple[str, str]] = [
     ("HBAR", "DOGE"),
     ("ETH", "BTC"),
     ("ADA", "XRP"),
+    ("DOGE", "SHIB"),
+    ("SOL", "MATIC"),
+    ("LINK", "AVAX"),
 ]
 
 # Lock & thread
@@ -45,6 +49,8 @@ class BotConfig(BaseModel):
     use_ratio_thresholds: bool = False
     sell_ratio_threshold: float = 0.0
     buy_ratio_threshold: float = 0.0
+    outlier_sigma: float = 5.0
+    max_ratio_jump: float = 0.08
     asset_a: str = "HBAR"
     asset_b: str = "DOGE"
     available_pairs: List[Tuple[str, str]] = AVAILABLE_PAIRS
@@ -190,24 +196,59 @@ def load_ratio_history(session):
     ][::-1]
 
 
-def compute_stats(ratio: float):
+def _filter_outlier(ratio: float) -> Tuple[float, bool]:
+    """
+    Detect abrupt ratio jumps and clamp them to reduce their impact on stats.
+
+    An outlier is flagged when the move is both far from the rolling mean
+    (several standard deviations) *and* represents a large relative jump from
+    the previous ratio. When flagged, we limit the move to the chosen sigma
+    band to avoid polluting z-score calculations.
+    """
+    if len(ratio_history) < required_history_len():
+        return ratio, False
+
+    prev = ratio_history[-1]
+    rel_jump = abs(ratio - prev) / max(prev, 1e-9)
+    mean_r, std_r = compute_ma_std_window(
+        ratio_history, min(len(ratio_history), bot_config.window_size)
+    )
+
+    if std_r == 0:
+        return ratio, False
+
+    exceeds_sigma = abs(ratio - mean_r) > bot_config.outlier_sigma * std_r
+    exceeds_jump = rel_jump > bot_config.max_ratio_jump
+    if exceeds_sigma and exceeds_jump:
+        direction = 1 if ratio > mean_r else -1
+        capped_ratio = mean_r + direction * bot_config.outlier_sigma * std_r
+        return capped_ratio, True
+
+    return ratio, False
+
+
+def compute_stats(ratio: float) -> Tuple[float, float, float, bool]:
     """
     Update ratio history and compute mean/std/z.
-    For len(history) < 5, returns (last_ratio, 0, 0) to avoid unstable stats.
+    For len(history) < 5, returns (last_ratio, 0, 0, False) to avoid unstable stats.
+    Applies outlier detection to reduce the impact of sudden jumps.
     """
-    global ratio_history
-    ratio_history.append(ratio)
+    global ratio_history, last_ratio_was_outlier
+    ratio_filtered, is_outlier = _filter_outlier(ratio)
+    last_ratio_was_outlier = is_outlier
+
+    ratio_history.append(ratio_filtered)
     if len(ratio_history) > bot_config.window_size:
         ratio_history = ratio_history[-bot_config.window_size :]
 
     if len(ratio_history) < 5:
-        return ratio, 0.0, 0.0
+        return ratio_filtered, 0.0, 0.0, is_outlier
 
     mean_r = sum(ratio_history) / len(ratio_history)
     var = sum((r - mean_r) ** 2 for r in ratio_history) / len(ratio_history)
     std = var ** 0.5 if var > 0 else 0.0
-    z = (ratio - mean_r) / std if std > 0 else 0.0
-    return mean_r, std, z
+    z = (ratio_filtered - mean_r) / std if std > 0 else 0.0
+    return mean_r, std, z, is_outlier
 
 
 def init_state_from_balances(st: State):
@@ -367,6 +408,17 @@ def get_pair_history(session, limit: int = 50):
         .all()
     )
     health, std = evaluate_pair_health(snaps)
+    health_row = PairHealth(
+        ts=datetime.utcnow(),
+        asset_a=asset_a,
+        asset_b=asset_b,
+        std=std,
+        is_good=int(health),
+        sample_count=len(snaps),
+    )
+    session.add(health_row)
+    session.commit()
+    session.refresh(health_row)
     history = [
         {
             "ts": s.ts.isoformat() if s.ts else None,
@@ -377,7 +429,76 @@ def get_pair_history(session, limit: int = 50):
         }
         for s in snaps
     ][::-1]
-    return {"pair": f"{asset_a}/{asset_b}", "std": std, "is_good_pair": health, "history": history}
+    health_history = [
+        {
+            "ts": h.ts.isoformat() if h.ts else None,
+            "std": h.std,
+            "is_good": bool(h.is_good),
+            "samples": h.sample_count,
+        }
+        for h in (
+            session.query(PairHealth)
+            .filter(PairHealth.asset_a == asset_a, PairHealth.asset_b == asset_b)
+            .order_by(PairHealth.ts.desc())
+            .limit(20)
+            .all()
+        )
+    ][::-1]
+
+    return {
+        "pair": f"{asset_a}/{asset_b}",
+        "std": std,
+        "is_good_pair": health,
+        "history": history,
+        "health_history": health_history,
+    }
+
+
+def generate_best_config_from_history(session, lookback: int = 300) -> BotConfig:
+    """
+    Propose config parameters derived from historical ratios for the active pair.
+
+    This uses the recent ratio distribution to pick conservative z-entry/exit
+    values, while also suggesting ratio thresholds that are two standard
+    deviations away from the rolling mean.
+    """
+    asset_a, asset_b = current_pair()
+    snaps = (
+        session.query(PriceSnapshot)
+        .filter(PriceSnapshot.asset_a == asset_a, PriceSnapshot.asset_b == asset_b)
+        .order_by(PriceSnapshot.ts.desc())
+        .limit(lookback)
+        .all()
+    )
+
+    ratios = [s.ratio for s in snaps if s.ratio is not None]
+    if not ratios:
+        raise ValueError("Not enough history to suggest config")
+
+    mean_r, std_r = compute_ma_std_window(ratios, min(len(ratios), bot_config.window_size))
+    window_guess = min(max(20, len(ratios) // 2), 500)
+
+    if std_r > 0:
+        zscores = sorted(abs((r - mean_r) / std_r) for r in ratios)
+        idx = max(0, int(len(zscores) * 0.85) - 1)
+        z_entry = max(1.0, min(4.0, zscores[idx]))
+    else:
+        z_entry = bot_config.z_entry
+
+    z_exit = max(0.2, round(z_entry / 3, 2))
+    ratio_span = 2.0
+    sell_threshold = mean_r + std_r * ratio_span if std_r > 0 else 0.0
+    buy_threshold = mean_r - std_r * ratio_span if std_r > 0 else 0.0
+
+    cfg = BotConfig(**bot_config.dict())
+    cfg.window_size = window_guess
+    cfg.z_entry = round(z_entry, 2)
+    cfg.z_exit = round(z_exit, 2)
+    cfg.sell_ratio_threshold = round(sell_threshold, 6)
+    cfg.buy_ratio_threshold = round(buy_threshold, 6)
+    cfg.use_ratio_thresholds = std_r > 0
+
+    return cfg
 
 
 # ========== Shared trade helpers (used by bot & manual) ==========
@@ -495,7 +616,7 @@ def bot_loop():
                 ratio = price_a / price_b
 
                 with mr_lock:
-                    mean_r, std_r, z = compute_stats(ratio)
+                    mean_r, std_r, z, is_outlier = compute_stats(ratio)
 
                     snap = PriceSnapshot(
                         ts=ts,
@@ -512,7 +633,7 @@ def bot_loop():
                     state.last_ratio = ratio
                     state.last_z = z
 
-                    if bot_config.enabled:
+                    if bot_config.enabled and not is_outlier:
                         sell_signal, buy_signal, _ = decide_signal(
                             ratio, mean_r, std_r, z, state
                         )

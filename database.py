@@ -79,4 +79,15 @@ class BollTrade(Base):
     is_testnet = Column(Integer)
 
 
+class PairHealth(Base):
+    __tablename__ = "pair_health"
+    id = Column(Integer, primary_key=True, index=True)
+    ts = Column(DateTime, index=True)
+    asset_a = Column(String)
+    asset_b = Column(String)
+    std = Column(Float)
+    is_good = Column(Integer)  # 1 healthy movement, 0 too flat/noisy
+    sample_count = Column(Integer)
+
+
 Base.metadata.create_all(bind=engine)
