@@ -25,11 +25,22 @@ app.include_router(boll_routes.router)
 
 
 # =========================
-# Background bot threads
+# Background bot threads (managed via lifespan)
 # =========================
-if not config.BOT_DISABLE_THREADS:
-    mr_engine.start_bot_thread()
-    boll_engine.start_boll_thread()
+
+
+@app.on_event("startup")
+def start_threads():
+    if not config.BOT_DISABLE_THREADS:
+        mr_engine.start_bot_thread()
+        boll_engine.start_boll_thread()
+
+
+@app.on_event("shutdown")
+def stop_threads():
+    if not config.BOT_DISABLE_THREADS:
+        mr_engine.stop_bot_thread()
+        boll_engine.stop_boll_thread()
 
 
 # =========================

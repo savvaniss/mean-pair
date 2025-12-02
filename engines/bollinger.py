@@ -9,6 +9,7 @@ from pydantic import BaseModel
 
 import config
 from database import SessionLocal, BollState, BollTrade
+from engines.common import compute_ma_std_window
 
 # Bollinger in-memory history
 boll_ts_history: List[datetime] = []
@@ -88,6 +89,14 @@ def adjust_quantity_boll(symbol: str, qty: float) -> float:
     return adj
 
 
+def _min_notional(symbol: str) -> float:
+    info = config.boll_client.get_symbol_info(symbol)
+    min_notional_filter = next(
+        (f for f in info["filters"] if f["filterType"] == "MIN_NOTIONAL"), None
+    )
+    return float(min_notional_filter.get("minNotional", 0.0)) if min_notional_filter else 0.0
+
+
 def parse_symbol_assets(symbol: str) -> Tuple[str, str]:
     info = config.boll_client.get_symbol_info(symbol)
     return info["baseAsset"], info["quoteAsset"]
@@ -107,18 +116,6 @@ def place_market_order_boll(symbol: str, side: str, quantity: float):
 
 
 # ========== Bands / history ==========
-
-
-def compute_ma_std_window(prices: List[float], window: int):
-    if not prices:
-        return 0.0, 0.0
-    w = prices[-window:] if len(prices) > window else prices
-    mean_p = sum(w) / len(w)
-    var = sum((p - mean_p) ** 2 for p in w) / len(w)
-    std = var ** 0.5 if var > 0 else 0.0
-    return mean_p, std
-
-
 def get_boll_state(session) -> BollState:
     st = session.query(BollState).first()
     if not st:
@@ -214,23 +211,26 @@ def boll_loop():
                 if action == "BUY":
                     quote_bal = get_free_balance_boll(quote_asset)
                     if quote_bal > 0:
-                        notional = min(quote_bal, boll_config.max_position_usd)
-                        if notional > 0:
-                            qty = notional / price
+                        spendable = min(quote_bal * 0.98, boll_config.max_position_usd)
+                        min_notional = _min_notional(symbol)
+                        if spendable >= min_notional:
+                            qty = spendable / price
                             qty = adjust_quantity_boll(symbol, qty)
-                            if qty > 0:
+                            if qty > 0 and qty * price >= min_notional:
                                 order = place_market_order_boll(symbol, "BUY", qty)
                                 if order:
-                                    notional_filled = qty * price
+                                    filled_quote = float(order.get("cummulativeQuoteQty", qty * price))
+                                    filled_qty = float(order.get("executedQty", qty))
+                                    notional_filled = filled_quote if filled_quote > 0 else qty * price
                                     state.position = "LONG"
-                                    state.qty_asset = qty
+                                    state.qty_asset = filled_qty
                                     state.entry_price = price
                                     state.unrealized_pnl_usd = 0.0
                                     tr = BollTrade(
                                         ts=ts,
                                         symbol=symbol,
                                         side="BUY",
-                                        qty=qty,
+                                        qty=filled_qty,
                                         price=price,
                                         notional=notional_filled,
                                         pnl_usd=0.0,
@@ -261,30 +261,39 @@ def boll_loop():
                         state.entry_price = 0.0
                         state.unrealized_pnl_usd = 0.0
                     else:
-                        order = place_market_order_boll(symbol, "SELL", qty)
-                        if order:
-                            filled_qty = qty
-                            notional_filled = filled_qty * price
-                            pnl = (price - state.entry_price) * filled_qty
-                            state.realized_pnl_usd += pnl
-                            state.qty_asset -= filled_qty
-                            if state.qty_asset < 1e-12:
-                                state.qty_asset = 0.0
-                                state.position = "FLAT"
-                                state.entry_price = 0.0
-                            state.unrealized_pnl_usd = 0.0
-                            tr = BollTrade(
-                                ts=ts,
-                                symbol=symbol,
-                                side="SELL",
-                                qty=filled_qty,
-                                price=price,
-                                notional=notional_filled,
-                                pnl_usd=pnl,
-                                is_testnet=int(config.USE_TESTNET),
+                        min_notional = _min_notional(symbol)
+                        if qty * price < min_notional:
+                            print(
+                                f"Bollinger: qty {qty} below MIN_NOTIONAL for {symbol}, flattening state"
                             )
-                            session.add(tr)
-                            boll_last_trade_ts = now_ts
+                            state.qty_asset = 0.0
+                            state.position = "FLAT"
+                            state.entry_price = 0.0
+                        else:
+                            order = place_market_order_boll(symbol, "SELL", qty)
+                            if order:
+                                filled_qty = float(order.get("executedQty", qty))
+                                notional_filled = float(order.get("cummulativeQuoteQty", qty * price))
+                                pnl = (price - state.entry_price) * filled_qty
+                                state.realized_pnl_usd += pnl
+                                state.qty_asset = max(0.0, state.qty_asset - filled_qty)
+                                if state.qty_asset < 1e-12:
+                                    state.qty_asset = 0.0
+                                    state.position = "FLAT"
+                                    state.entry_price = 0.0
+                                state.unrealized_pnl_usd = 0.0
+                                tr = BollTrade(
+                                    ts=ts,
+                                    symbol=symbol,
+                                    side="SELL",
+                                    qty=filled_qty,
+                                    price=price,
+                                    notional=notional_filled,
+                                    pnl_usd=pnl,
+                                    is_testnet=int(config.USE_TESTNET),
+                                )
+                                session.add(tr)
+                                boll_last_trade_ts = now_ts
 
                 session.commit()
 
@@ -337,6 +346,9 @@ def start_boll_thread():
 
 
 def stop_boll_thread():
-    global boll_stop_flag
+    global boll_stop_flag, boll_thread
     boll_stop_flag = True
+    if boll_thread:
+        boll_thread.join(timeout=5)
+        boll_thread = None
 

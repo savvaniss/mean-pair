@@ -10,6 +10,7 @@ from pydantic import BaseModel
 import config
 from config import BASE_ASSET, mr_symbol, get_mr_quote
 from database import SessionLocal, State, PriceSnapshot, Trade
+from engines.common import compute_ma_std_window
 
 # Rolling window (in memory)
 ratio_history: List[float] = []
@@ -18,8 +19,11 @@ ratio_history: List[float] = []
 mr_lock = threading.Lock()
 bot_thread: Optional[threading.Thread] = None
 bot_stop_flag = False
+mr_rearm_ready = True
+mr_last_signal_sign = 0
 
 MIN_HISTORY_FRACTION = 0.5  # at least 50% of window_size and >=5 points
+TRADE_FEE_RATE = 0.001  # 0.1% maker/taker approximation
 
 
 class BotConfig(BaseModel):
@@ -115,6 +119,18 @@ def adjust_quantity(symbol: str, qty: float) -> float:
     return adj
 
 
+def _min_notional(symbol: str) -> float:
+    client = get_mr_client()
+    if client is None:
+        raise RuntimeError("mr_client is None – configure it, or mock _min_notional in tests")
+
+    info = client.get_symbol_info(symbol)
+    min_notional_filter = next(
+        (f for f in info["filters"] if f["filterType"] == "MIN_NOTIONAL"), None
+    )
+    return float(min_notional_filter.get("minNotional", 0.0)) if min_notional_filter else 0.0
+
+
 def place_market_order_mr(symbol: str, side: str, quantity: float):
     client = get_mr_client()
     if client is None:
@@ -133,6 +149,17 @@ def place_market_order_mr(symbol: str, side: str, quantity: float):
 
 
 # ========== Core stats / state logic ==========
+
+
+def load_ratio_history(session):
+    """Warm up the in-memory ratio history from recent DB snapshots."""
+    global ratio_history
+    ratio_history = [
+        snap.ratio
+        for snap in session.query(PriceSnapshot)
+        .order_by(PriceSnapshot.id.desc())
+        .limit(bot_config.window_size)
+    ][::-1]
 
 
 def compute_stats(ratio: float):
@@ -235,6 +262,7 @@ def decide_signal(
     if not has_enough_history():
         return False, False, "not_enough_history"
 
+    global mr_rearm_ready, mr_last_signal_sign
     if bot_config.use_ratio_thresholds:
         reason = "ratio_thresholds"
         if bot_config.sell_ratio_threshold > 0 and ratio >= bot_config.sell_ratio_threshold:
@@ -244,10 +272,17 @@ def decide_signal(
     else:
         reason = "z_score"
         if std_r > 0:
-            if z > bot_config.z_entry:
+            if abs(z) < bot_config.z_exit:
+                mr_rearm_ready = True
+                mr_last_signal_sign = 0
+            if z > bot_config.z_entry and (mr_rearm_ready or mr_last_signal_sign < 0):
                 sell_signal = True
-            elif z < -bot_config.z_entry:
+                mr_rearm_ready = False
+                mr_last_signal_sign = 1
+            elif z < -bot_config.z_entry and (mr_rearm_ready or mr_last_signal_sign > 0):
                 buy_signal = True
+                mr_rearm_ready = False
+                mr_last_signal_sign = -1
         else:
             reason = "std_zero"
 
@@ -383,6 +418,7 @@ def execute_mr_trade(
 def bot_loop():
     global bot_stop_flag
     session = SessionLocal()
+    load_ratio_history(session)
     try:
         while not bot_stop_flag:
             try:
@@ -421,6 +457,10 @@ def bot_loop():
                             )
                             if res:
                                 from_asset, to_asset, qty_from, qty_to, trade_ratio = res
+                                start_value = qty_from * (hbar if from_asset == "HBAR" else doge)
+                                end_value = qty_to * (doge if to_asset == "DOGE" else hbar)
+                                fee_quote = (start_value + end_value) * TRADE_FEE_RATE
+                                pnl_usd = end_value - start_value - fee_quote
                                 tr = Trade(
                                     ts=ts,
                                     side="HBAR->DOGE",
@@ -429,13 +469,14 @@ def bot_loop():
                                     qty_from=qty_from,
                                     qty_to=qty_to,
                                     price=trade_ratio,
-                                    fee=0.0,
-                                    pnl_usd=0.0,
+                                    fee=fee_quote,
+                                    pnl_usd=pnl_usd,
                                     is_testnet=int(bot_config.use_testnet),
                                 )
                                 session.add(tr)
                                 state.current_asset = to_asset
                                 state.current_qty = qty_to
+                                state.realized_pnl_usd += pnl_usd
 
                         # HBAR cheap → DOGE -> HBAR
                         elif buy_signal and state.current_asset == "DOGE":
@@ -446,6 +487,10 @@ def bot_loop():
                             )
                             if res:
                                 from_asset, to_asset, qty_from, qty_to, trade_ratio = res
+                                start_value = qty_from * (doge if from_asset == "DOGE" else hbar)
+                                end_value = qty_to * (hbar if to_asset == "HBAR" else doge)
+                                fee_quote = (start_value + end_value) * TRADE_FEE_RATE
+                                pnl_usd = end_value - start_value - fee_quote
                                 tr = Trade(
                                     ts=ts,
                                     side="DOGE->HBAR",
@@ -454,13 +499,14 @@ def bot_loop():
                                     qty_from=qty_from,
                                     qty_to=qty_to,
                                     price=trade_ratio,
-                                    fee=0.0,
-                                    pnl_usd=0.0,
+                                    fee=fee_quote,
+                                    pnl_usd=pnl_usd,
                                     is_testnet=int(bot_config.use_testnet),
                                 )
                                 session.add(tr)
                                 state.current_asset = to_asset
                                 state.current_qty = qty_to
+                                state.realized_pnl_usd += pnl_usd
 
                     session.commit()
 
@@ -483,5 +529,8 @@ def start_bot_thread():
 
 
 def stop_bot_thread():
-    global bot_stop_flag
+    global bot_stop_flag, bot_thread
     bot_stop_flag = True
+    if bot_thread:
+        bot_thread.join(timeout=5)
+        bot_thread = None
