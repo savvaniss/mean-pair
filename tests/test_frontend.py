@@ -63,3 +63,32 @@ def test_trading_tab_and_form_present():
     assert form.find("input", id="tradingSymbol") is not None
     assert form.find("select", id="tradingSide") is not None
     assert form.find("input", id="tradingQty") is not None
+
+
+def test_toast_container_is_available():
+    dom = _load_dom()
+
+    container = dom.find("div", id="toastContainer")
+    assert container is not None
+    assert "toast-container" in container.get("class", [])
+    # should be the first element in body to avoid overlaying content
+    assert container.parent.name == "body"
+
+
+def test_bollinger_history_card_structure():
+    dom = _load_dom()
+
+    card = dom.find("h2", string=lambda s: s and "Saved Coin History" in s)
+    assert card is not None
+
+    table = dom.find("table", id="bollHistoryTable")
+    assert table is not None
+
+    headers = [th.get_text(strip=True) for th in table.select("thead th")]
+    assert headers == ["Time", "Price", "MA", "Upper", "Lower"]
+
+    tbody = table.find("tbody", id="bollHistoryBody")
+    assert tbody is not None
+
+    status = dom.find("p", id="bollHistoryStatus")
+    assert status is not None

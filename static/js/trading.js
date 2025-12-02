@@ -1,4 +1,4 @@
-import { applyQuoteLabels } from './ui.js';
+import { applyQuoteLabels, showToast } from './ui.js';
 
 let cachedSymbols = [];
 
@@ -102,11 +102,11 @@ async function submitOrder(event) {
   const qty = parseFloat(document.getElementById('tradingQty').value);
 
   if (!symbol) {
-    alert('Enter a symbol like BTCUSDT.');
+    showToast('Enter a symbol like BTCUSDT.', 'warning');
     return false;
   }
   if (isNaN(qty) || qty <= 0) {
-    alert('Quantity must be > 0');
+    showToast('Quantity must be > 0', 'warning');
     return false;
   }
 
@@ -126,19 +126,19 @@ async function submitOrder(event) {
     });
     const data = await r.json();
     if (!r.ok) {
-      alert('Trade failed: ' + (data.detail || r.statusText));
+      showToast('Trade failed: ' + (data.detail || r.statusText), 'danger');
       return false;
     }
 
-    alert(
-      `${data.side} ${data.qty_executed.toFixed(6)} ` +
-        `${data.symbol} @ ${data.price_used.toFixed(6)} (${data.quote_asset})`
+    showToast(
+      `${data.side} ${data.qty_executed.toFixed(6)} ${data.symbol} @ ${data.price_used.toFixed(6)} (${data.quote_asset})`,
+      'success'
     );
 
     await loadBalances();
   } catch (e) {
     console.error(e);
-    alert('Request failed.');
+    showToast('Request failed.', 'danger');
   }
 
   return false;
