@@ -2,6 +2,7 @@
 import datetime as dt
 
 import pytest
+from fastapi import HTTPException
 
 import config
 from engines import bollinger as boll_engine
@@ -273,6 +274,28 @@ def test_boll_history_reads_persisted_snapshots(monkeypatch):
     assert len(rows) == 3
     assert rows[0].price == pytest.approx(1.0)
     assert rows[-1].price == pytest.approx(1.2)
+
+
+def test_boll_history_defaults_to_saved_symbol_and_errors_when_missing(monkeypatch):
+    # no symbol configured -> HTTPException
+    boll_engine.boll_config.symbol = ""
+    with pytest.raises(HTTPException):
+        boll_routes.boll_history()
+
+    # when symbol set, it should default to that symbol without passing param
+    boll_engine.boll_config.symbol = "HBARUSDC"
+    boll_engine.boll_config.window_size = 2
+    boll_engine.boll_config.num_std = 2.0
+
+    boll_engine.boll_price_history.clear()
+    boll_engine.boll_ts_history.clear()
+    now = dt.datetime.utcnow()
+    boll_engine.boll_price_history.extend([1.0, 1.2])
+    boll_engine.boll_ts_history.extend([now - dt.timedelta(seconds=1), now])
+
+    rows = boll_routes.boll_history(limit=5)
+    assert len(rows) == 2
+    assert all(point.ts for point in rows)
 
 
 def test_boll_config_best_from_history(monkeypatch):
