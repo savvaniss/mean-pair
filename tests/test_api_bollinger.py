@@ -124,8 +124,12 @@ def test_boll_status_with_symbol(client, monkeypatch):
 
     # /boll_status uses a helper for price (imported into routes)
     monkeypatch.setattr(
-        boll_routes, "get_symbol_price_boll", lambda symbol: 1.5, raising=False
+    config.boll_client,
+    "get_symbol_ticker",
+    lambda s: {"symbol": s, "price": "1.5"},
+    raising=False,
     )
+
 
     # NOTE: quote balance is now taken from FakeBollClient.get_account()
     # which returns 50.0 USDC, so we assert 50.0 to match real logic.

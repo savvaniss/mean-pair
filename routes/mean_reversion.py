@@ -1,459 +1,423 @@
-# routes/mean_reversion.py
+# engines/mean_reversion.py
+import threading
+import time
 from datetime import datetime
-from typing import List
+from typing import List, Optional, Tuple
 
-from fastapi import APIRouter, HTTPException
+from binance.exceptions import BinanceAPIException
 from pydantic import BaseModel
 
 import config
-from config import BASE_ASSET, mr_symbol, switch_env
-from database import SessionLocal, PriceSnapshot, Trade, State
-from engines.mean_reversion import (
-    bot_config,
-    ratio_history,
-    mr_lock,
-    get_prices,
-    get_free_balance_mr,
-    adjust_quantity,
-    compute_stats,
-    get_state,
-    decide_signal,
-    required_history_len,
-    has_enough_history,
-    place_market_order_mr,
-)
+from config import BASE_ASSET, mr_symbol, get_mr_quote
+from database import SessionLocal, State, PriceSnapshot, Trade
 
-router = APIRouter()
+# Rolling window (in memory)
+ratio_history: List[float] = []
+
+# Lock & thread
+mr_lock = threading.Lock()
+bot_thread: Optional[threading.Thread] = None
+bot_stop_flag = False
+
+MIN_HISTORY_FRACTION = 0.5  # at least 50% of window_size and >=5 points
 
 
-class StatusResponse(BaseModel):
-    btc: float
-    hbar: float
-    doge: float
-    ratio: float
-    zscore: float
-    mean_ratio: float
-    std_ratio: float
-    current_asset: str
-    current_qty: float
-    realized_pnl_usd: float
-    unrealized_pnl_usd: float
-    enabled: bool
-    use_testnet: bool
-    usdc_balance: float
-    hbar_balance: float
-    doge_balance: float
+class BotConfig(BaseModel):
+    enabled: bool = False
+    poll_interval_sec: int = 20
+    window_size: int = 100
+    z_entry: float = 3
+    z_exit: float = 0.4
+    trade_notional_usd: float = 50.0
+    use_all_balance: bool = True
+    use_testnet: bool = False
+    use_ratio_thresholds: bool = False
+    sell_ratio_threshold: float = 0.0
+    buy_ratio_threshold: float = 0.0
 
 
-@router.get("/status", response_model=StatusResponse)
-def get_status():
-    session = SessionLocal()
+bot_config = BotConfig()
+bot_config.use_testnet = config.USE_TESTNET
+bot_config.enabled = config.AUTO_START
+
+
+def required_history_len() -> int:
+    return max(5, int(bot_config.window_size * MIN_HISTORY_FRACTION))
+
+
+def has_enough_history() -> bool:
+    return len(ratio_history) >= required_history_len()
+
+
+# ========= Binance client access =========
+
+
+def get_mr_client():
+    """
+    Small indirection so tests / config can control the actual client instance.
+    In normal runtime this returns config.mr_client.
+    """
+    return config.mr_client
+
+
+# ========== Binance helpers ==========
+
+
+def get_prices() -> Tuple[float, float, float]:
+    """
+    Mean reversion bot prices – uses MR client and the configured quote asset.
+    (e.g. BTCUSDT/HBARUSDT/DOGEUSDT on testnet, BTCUSDC/HBARUSDC/DOGEUSDC on mainnet)
+    """
+    client = get_mr_client()
+    if client is None:
+        raise RuntimeError("mr_client is None – configure it, or mock get_prices in tests")
+
+    quote = get_mr_quote()
+    tickers = client.get_all_tickers()
+    price_map = {t["symbol"]: float(t["price"]) for t in tickers}
+    btc = price_map.get(f"BTC{quote}")
+    hbar = price_map.get(f"HBAR{quote}")
+    doge = price_map.get(f"DOGE{quote}")
+    if btc is None or hbar is None or doge is None:
+        raise RuntimeError(
+            f"Missing one of BTC{quote} / HBAR{quote} / DOGE{quote} from Binance"
+        )
+    return btc, hbar, doge
+
+
+def get_free_balance_mr(asset: str) -> float:
+    client = get_mr_client()
+    if client is None:
+        raise RuntimeError("mr_client is None – configure it, or mock get_free_balance_mr in tests")
+
+    acc = client.get_account()
+    for b in acc["balances"]:
+        if b["asset"] == asset:
+            return float(b["free"])
+    return 0.0
+
+
+def adjust_quantity(symbol: str, qty: float) -> float:
+    """Clamp qty to Binance LOT_SIZE filter (minQty/stepSize)."""
+    client = get_mr_client()
+    if client is None:
+        raise RuntimeError("mr_client is None – configure it, or mock adjust_quantity in tests")
+
+    info = client.get_symbol_info(symbol)
+    lot_filter = next(f for f in info["filters"] if f["filterType"] == "LOT_SIZE")
+    step_size = float(lot_filter["stepSize"])
+    min_qty = float(lot_filter["minQty"])
+
+    steps = int(qty / step_size)
+    adj = steps * step_size
+    if adj < min_qty:
+        return 0.0
+    return adj
+
+
+def place_market_order_mr(symbol: str, side: str, quantity: float):
+    client = get_mr_client()
+    if client is None:
+        raise RuntimeError("mr_client is None – configure it, or mock place_market_order_mr in tests")
+
     try:
-        btc, hbar, doge = get_prices()
+        return client.create_order(
+            symbol=symbol,
+            side=side,
+            type="MARKET",
+            quantity=quantity,
+        )
+    except BinanceAPIException as e:
+        print(f"[MR] Binance error: {e}")
+        return None
 
-        with mr_lock:
-            ratio = hbar / doge
-            if ratio_history:
-                mean_r = sum(ratio_history) / len(ratio_history)
-                var = sum((r - mean_r) ** 2 for r in ratio_history) / len(
-                    ratio_history
-                )
-                std_r = var ** 0.5 if var > 0 else 0.0
-                z = (ratio - mean_r) / std_r if std_r > 0 else 0.0
-            else:
-                mean_r = ratio
-                std_r = 0.0
-                z = 0.0
 
-        st = get_state(session)
+# ========== Core stats / state logic ==========
 
-        base_bal = get_free_balance_mr(BASE_ASSET)
-        hbar_bal = get_free_balance_mr("HBAR")
-        doge_bal = get_free_balance_mr("DOGE")
-        usdc_bal = get_free_balance_mr("USDC")
 
-        if st.current_asset == "HBAR":
+def compute_stats(ratio: float):
+    """
+    Update ratio history and compute mean/std/z.
+    For len(history) < 5, returns (last_ratio, 0, 0) to avoid unstable stats.
+    """
+    global ratio_history
+    ratio_history.append(ratio)
+    if len(ratio_history) > bot_config.window_size:
+        ratio_history = ratio_history[-bot_config.window_size :]
+
+    if len(ratio_history) < 5:
+        return ratio, 0.0, 0.0
+
+    mean_r = sum(ratio_history) / len(ratio_history)
+    var = sum((r - mean_r) ** 2 for r in ratio_history) / len(ratio_history)
+    std = var ** 0.5 if var > 0 else 0.0
+    z = (ratio - mean_r) / std if std > 0 else 0.0
+    return mean_r, std, z
+
+
+def init_state_from_balances(st: State):
+    """
+    Detect what we currently hold (HBAR / DOGE / base asset)
+    and set current_asset + current_qty + starting portfolio value.
+
+    We ALWAYS choose the asset with the largest USD value.
+    """
+    hbar_bal = get_free_balance_mr("HBAR")
+    doge_bal = get_free_balance_mr("DOGE")
+    base_bal = get_free_balance_mr(BASE_ASSET)
+
+    try:
+        _, hbar_price, doge_price = get_prices()
+        hbar_val = hbar_bal * hbar_price
+        doge_val = doge_bal * doge_price
+        base_val = base_bal  # BASE_ASSET ~ 1 USD (USDT/USDC)
+    except Exception:
+        hbar_val = hbar_bal
+        doge_val = doge_bal
+        base_val = base_bal
+
+    asset_values = {"HBAR": hbar_val, "DOGE": doge_val, BASE_ASSET: base_val}
+    best_asset = max(asset_values, key=asset_values.get)
+    best_value = asset_values[best_asset]
+
+    if best_value <= 1e-6:
+        st.current_asset = BASE_ASSET
+        st.current_qty = base_bal
+    else:
+        if best_asset == "HBAR":
+            st.current_asset = "HBAR"
             st.current_qty = hbar_bal
-        elif st.current_asset == "DOGE":
+        elif best_asset == "DOGE":
+            st.current_asset = "DOGE"
             st.current_qty = doge_bal
         else:
             st.current_asset = BASE_ASSET
             st.current_qty = base_bal
 
-        current_value = base_bal + hbar_bal * hbar + doge_bal * doge
-        starting_value = st.realized_pnl_usd or 0.0
-        unrealized_pnl = current_value - starting_value
+    st.realized_pnl_usd = base_val + hbar_val + doge_val
+    st.unrealized_pnl_usd = 0.0
 
-        st.unrealized_pnl_usd = unrealized_pnl
-        session.commit()
 
-        return StatusResponse(
-            btc=btc,
-            hbar=hbar,
-            doge=doge,
-            ratio=ratio,
-            zscore=z,
-            mean_ratio=mean_r,
-            std_ratio=std_r,
-            current_asset=st.current_asset,
-            current_qty=st.current_qty,
+def get_state(session) -> State:
+    st = session.query(State).first()
+    if not st:
+        st = State(
+            current_asset=BASE_ASSET,
+            current_qty=0.0,
+            last_ratio=0.0,
+            last_z=0.0,
             realized_pnl_usd=0.0,
-            unrealized_pnl_usd=unrealized_pnl,
-            enabled=bot_config.enabled,
-            use_testnet=bot_config.use_testnet,
-            usdc_balance=usdc_bal,
-            hbar_balance=hbar_bal,
-            doge_balance=doge_bal,
+            unrealized_pnl_usd=0.0,
         )
-    finally:
-        session.close()
-
-
-@router.post("/sync_state_from_balances")
-def sync_state_from_balances():
-    from engines.mean_reversion import init_state_from_balances  # avoid circular
-
-    session = SessionLocal()
-    try:
-        st = session.query(State).first()
-        if not st:
-            st = State(
-                current_asset=BASE_ASSET,
-                current_qty=0.0,
-                last_ratio=0.0,
-                last_z=0.0,
-                realized_pnl_usd=0.0,
-                unrealized_pnl_usd=0.0,
-            )
-            session.add(st)
-
         init_state_from_balances(st)
+        session.add(st)
         session.commit()
-        return {"status": "ok", "current_asset": st.current_asset, "current_qty": st.current_qty}
-    finally:
-        session.close()
+        session.refresh(st)
+    return st
 
 
-class ManualTradeRequest(BaseModel):
-    direction: str
-    notional_usd: float
+def decide_signal(
+    ratio: float, mean_r: float, std_r: float, z: float, state: State
+) -> Tuple[bool, bool, str]:
+    """
+    Return (sell_signal, buy_signal, reason).
 
+    Logic is the same as your original monolithic app:
+    - First require enough history.
+    - If ratio thresholds enabled → use those.
+    - Else fall back to z-score (z_entry).
+    - Only act when current_asset is HBAR or DOGE.
+    """
+    sell_signal = False
+    buy_signal = False
+    reason = "none"
 
-@router.post("/manual_trade")
-def manual_trade(req: ManualTradeRequest):
-    if req.notional_usd <= 0:
-        raise HTTPException(status_code=400, detail="notional_usd must be > 0")
+    if not has_enough_history():
+        return False, False, "not_enough_history"
 
-    session = SessionLocal()
-    try:
-        ts = datetime.utcnow()
-        btc, hbar, doge = get_prices()
-        ratio = hbar / doge
-        state = get_state(session)
-
-        hbar_sym = mr_symbol("HBAR")
-        doge_sym = mr_symbol("DOGE")
-
-        if req.direction == "HBAR->DOGE":
-            qty_hbar = min(req.notional_usd / hbar, get_free_balance_mr("HBAR"))
-            qty_hbar = adjust_quantity(hbar_sym, qty_hbar)
-            if qty_hbar <= 0:
-                raise HTTPException(
-                    status_code=400, detail="Notional too small or no HBAR"
-                )
-
-            order_sell = place_market_order_mr(hbar_sym, "SELL", qty_hbar)
-            if not order_sell:
-                raise HTTPException(status_code=500, detail="HBAR sell failed")
-
-            quote_received = qty_hbar * hbar
-            qty_doge = adjust_quantity(doge_sym, quote_received / doge)
-            if qty_doge <= 0:
-                raise HTTPException(
-                    status_code=400, detail="Converted DOGE qty too small"
-                )
-
-            order_buy = place_market_order_mr(doge_sym, "BUY", qty_doge)
-            if not order_buy:
-                raise HTTPException(status_code=500, detail="DOGE buy failed")
-
-            tr = Trade(
-                ts=ts,
-                side="HBAR->DOGE (manual)",
-                from_asset="HBAR",
-                to_asset="DOGE",
-                qty_from=qty_hbar,
-                qty_to=qty_doge,
-                price=ratio,
-                fee=0.0,
-                pnl_usd=0.0,
-                is_testnet=int(bot_config.use_testnet),
-            )
-            session.add(tr)
-            state.current_asset = "DOGE"
-            state.current_qty = qty_doge
-
-        elif req.direction == "DOGE->HBAR":
-            qty_doge = min(req.notional_usd / doge, get_free_balance_mr("DOGE"))
-            qty_doge = adjust_quantity(doge_sym, qty_doge)
-            if qty_doge <= 0:
-                raise HTTPException(
-                    status_code=400, detail="Notional too small or no DOGE"
-                )
-
-            order_sell = place_market_order_mr(doge_sym, "SELL", qty_doge)
-            if not order_sell:
-                raise HTTPException(status_code=500, detail="DOGE sell failed")
-
-            quote_received = qty_doge * doge
-            qty_hbar = adjust_quantity(hbar_sym, quote_received / hbar)
-            if qty_hbar <= 0:
-                raise HTTPException(
-                    status_code=400, detail="Converted HBAR qty too small"
-                )
-
-            order_buy = place_market_order_mr(hbar_sym, "BUY", qty_hbar)
-            if not order_buy:
-                raise HTTPException(status_code=500, detail="HBAR buy failed")
-
-            tr = Trade(
-                ts=ts,
-                side="DOGE->HBAR (manual)",
-                from_asset="DOGE",
-                to_asset="HBAR",
-                qty_from=qty_doge,
-                qty_to=qty_hbar,
-                price=ratio,
-                fee=0.0,
-                pnl_usd=0.0,
-                is_testnet=int(bot_config.use_testnet),
-            )
-            session.add(tr)
-            state.current_asset = "HBAR"
-            state.current_qty = qty_hbar
-
+    if bot_config.use_ratio_thresholds:
+        reason = "ratio_thresholds"
+        if bot_config.sell_ratio_threshold > 0 and ratio >= bot_config.sell_ratio_threshold:
+            sell_signal = True
+        if bot_config.buy_ratio_threshold > 0 and ratio <= bot_config.buy_ratio_threshold:
+            buy_signal = True
+    else:
+        reason = "z_score"
+        if std_r > 0:
+            if z > bot_config.z_entry:
+                sell_signal = True
+            elif z < -bot_config.z_entry:
+                buy_signal = True
         else:
-            raise HTTPException(status_code=400, detail="Invalid direction")
+            reason = "std_zero"
 
-        session.commit()
-        return {"status": "ok"}
-    except HTTPException:
-        session.rollback()
-        raise
-    except Exception as e:
-        session.rollback()
-        raise HTTPException(status_code=500, detail=str(e))
-    finally:
-        session.close()
+    # We only trade when we are actually in HBAR or DOGE
+    if state.current_asset not in ("HBAR", "DOGE"):
+        sell_signal = False
+        buy_signal = False
+
+    return sell_signal, buy_signal, reason
 
 
-@router.get("/history")
-def get_history(limit: int = 300):
+# ========== Generic MA/STD helper (also used in tests) ==========
+
+
+def compute_ma_std_window(prices: List[float], window: int) -> Tuple[float, float]:
+    """
+    Compute mean/std over the last `window` prices.
+    If window >= len(prices), uses all prices.
+    Behavior is aligned with the original helper used by both bots.
+    """
+    if not prices:
+        return 0.0, 0.0
+
+    if window <= 0 or window > len(prices):
+        window = len(prices)
+
+    subset = prices[-window:]
+    mean = sum(subset) / len(subset)
+    var = sum((p - mean) ** 2 for p in subset) / len(subset)
+    std = var ** 0.5 if var > 0 else 0.0
+    return mean, std
+
+
+# ========== Bot loop ==========
+
+
+def bot_loop():
+    global bot_stop_flag
     session = SessionLocal()
     try:
-        rows = (
-            session.query(PriceSnapshot)
-            .order_by(PriceSnapshot.ts.desc())
-            .limit(limit)
-            .all()
-        )
-        rows = list(reversed(rows))
-        return [
-            {
-                "ts": r.ts.isoformat(),
-                "btc": r.btc,
-                "hbar": r.hbar,
-                "doge": r.doge,
-                "ratio": r.ratio,
-                "zscore": r.zscore,
-            }
-            for r in rows
-        ]
+        while not bot_stop_flag:
+            try:
+                ts = datetime.utcnow()
+                btc, hbar, doge = get_prices()
+                ratio = hbar / doge
+
+                with mr_lock:
+                    mean_r, std_r, z = compute_stats(ratio)
+
+                    snap = PriceSnapshot(
+                        ts=ts,
+                        btc=btc,
+                        hbar=hbar,
+                        doge=doge,
+                        ratio=ratio,
+                        zscore=z,
+                    )
+                    session.add(snap)
+
+                    state = get_state(session)
+                    state.last_ratio = ratio
+                    state.last_z = z
+
+                    if bot_config.enabled:
+                        sell_signal, buy_signal, _ = decide_signal(
+                            ratio, mean_r, std_r, z, state
+                        )
+                        hbar_sym = mr_symbol("HBAR")
+                        doge_sym = mr_symbol("DOGE")
+
+                        # HBAR expensive → HBAR -> DOGE
+                        if sell_signal and state.current_asset == "HBAR":
+                            if bot_config.use_all_balance:
+                                qty_hbar = get_free_balance_mr("HBAR")
+                            else:
+                                notional = bot_config.trade_notional_usd
+                                qty_hbar = min(
+                                    notional / hbar, get_free_balance_mr("HBAR")
+                                )
+                            qty_hbar = adjust_quantity(hbar_sym, qty_hbar)
+
+                            if qty_hbar > 0:
+                                order_sell = place_market_order_mr(
+                                    hbar_sym, "SELL", qty_hbar
+                                )
+                                if order_sell:
+                                    quote_received = qty_hbar * hbar
+                                    qty_doge = quote_received / doge
+                                    qty_doge = adjust_quantity(doge_sym, qty_doge)
+                                    if qty_doge > 0:
+                                        order_buy = place_market_order_mr(
+                                            doge_sym, "BUY", qty_doge
+                                        )
+                                        if order_buy:
+                                            tr = Trade(
+                                                ts=ts,
+                                                side="HBAR->DOGE",
+                                                from_asset="HBAR",
+                                                to_asset="DOGE",
+                                                qty_from=qty_hbar,
+                                                qty_to=qty_doge,
+                                                price=ratio,
+                                                fee=0.0,
+                                                pnl_usd=0.0,
+                                                is_testnet=int(bot_config.use_testnet),
+                                            )
+                                            session.add(tr)
+                                            state.current_asset = "DOGE"
+                                            state.current_qty = qty_doge
+
+                        # HBAR cheap → DOGE -> HBAR
+                        elif buy_signal and state.current_asset == "DOGE":
+                            if bot_config.use_all_balance:
+                                qty_doge = get_free_balance_mr("DOGE")
+                            else:
+                                notional = bot_config.trade_notional_usd
+                                qty_doge = min(
+                                    notional / doge, get_free_balance_mr("DOGE")
+                                )
+                            qty_doge = adjust_quantity(doge_sym, qty_doge)
+
+                            if qty_doge > 0:
+                                order_sell = place_market_order_mr(
+                                    doge_sym, "SELL", qty_doge
+                                )
+                                if order_sell:
+                                    quote_received = qty_doge * doge
+                                    qty_hbar = quote_received / hbar
+                                    qty_hbar = adjust_quantity(hbar_sym, qty_hbar)
+                                    if qty_hbar > 0:
+                                        order_buy = place_market_order_mr(
+                                            hbar_sym, "BUY", qty_hbar
+                                        )
+                                        if order_buy:
+                                            tr = Trade(
+                                                ts=ts,
+                                                side="DOGE->HBAR",
+                                                from_asset="DOGE",
+                                                to_asset="HBAR",
+                                                qty_from=qty_doge,
+                                                qty_to=qty_hbar,
+                                                price=ratio,
+                                                fee=0.0,
+                                                pnl_usd=0.0,
+                                                is_testnet=int(bot_config.use_testnet),
+                                            )
+                                            session.add(tr)
+                                            state.current_asset = "HBAR"
+                                            state.current_qty = qty_hbar
+
+                    session.commit()
+
+            except Exception as e:
+                print(f"Error in MR bot loop: {e}")
+                session.rollback()
+
+            time.sleep(bot_config.poll_interval_sec)
     finally:
         session.close()
 
 
-@router.get("/trades")
-def list_trades(limit: int = 100):
-    session = SessionLocal()
-    try:
-        trades = (
-            session.query(Trade).order_by(Trade.ts.desc()).limit(limit).all()
-        )
-        return [
-            {
-                "ts": t.ts.isoformat(),
-                "side": t.side,
-                "from_asset": t.from_asset,
-                "to_asset": t.to_asset,
-                "qty_from": t.qty_from,
-                "qty_to": t.qty_to,
-                "price": t.price,
-                "fee": t.fee,
-                "pnl_usd": t.pnl_usd,
-                "is_testnet": bool(t.is_testnet),
-            }
-            for t in trades
-        ]
-    finally:
-        session.close()
+def start_bot_thread():
+    global bot_thread, bot_stop_flag
+    if bot_thread and bot_thread.is_alive():
+        return
+    bot_stop_flag = False
+    bot_thread = threading.Thread(target=bot_loop, daemon=True)
+    bot_thread.start()
 
 
-class NextSignalResponse(BaseModel):
-    direction: str
-    reason: str
-    ratio: float
-    zscore: float
-    mean_ratio: float
-    std_ratio: float
-    upper_band: float
-    lower_band: float
-    sell_threshold: float
-    buy_threshold: float
-    from_asset: str
-    to_asset: str
-    qty_from: float
-    qty_to: float
-
-
-@router.get("/next_signal", response_model=NextSignalResponse)
-def next_signal():
-    session = SessionLocal()
-    try:
-        btc, hbar, doge = get_prices()
-
-        with mr_lock:
-            ratio = hbar / doge
-            if ratio_history:
-                mean_r = sum(ratio_history) / len(ratio_history)
-                var = sum((r - mean_r) ** 2 for r in ratio_history) / len(
-                    ratio_history
-                )
-                std_r = var ** 0.5 if var > 0 else 0.0
-                z = (ratio - mean_r) / std_r if std_r > 0 else 0.0
-            else:
-                mean_r = ratio
-                std_r = 0.0
-                z = 0.0
-
-        state = get_state(session)
-        sell_signal, buy_signal, reason = decide_signal(
-            ratio, mean_r, std_r, z, state
-        )
-
-        upper_band = mean_r + bot_config.z_entry * std_r if std_r > 0 else mean_r
-        lower_band = mean_r - bot_config.z_entry * std_r if std_r > 0 else mean_r
-
-        direction = "NONE"
-        from_asset = ""
-        to_asset = ""
-        qty_from = 0.0
-        qty_to = 0.0
-
-        hbar_sym = mr_symbol("HBAR")
-        doge_sym = mr_symbol("DOGE")
-
-        if sell_signal and state.current_asset == "HBAR":
-            if bot_config.use_all_balance:
-                qty_hbar = get_free_balance_mr("HBAR")
-            else:
-                notional = bot_config.trade_notional_usd
-                qty_hbar = min(
-                    notional / hbar, get_free_balance_mr("HBAR")
-                )
-            qty_hbar = adjust_quantity(hbar_sym, qty_hbar)
-            if qty_hbar > 0:
-                quote_received = qty_hbar * hbar
-                qty_doge = adjust_quantity(doge_sym, quote_received / doge)
-                if qty_doge > 0:
-                    direction = "HBAR->DOGE"
-                    from_asset = "HBAR"
-                    to_asset = "DOGE"
-                    qty_from = qty_hbar
-                    qty_to = qty_doge
-
-        elif buy_signal and state.current_asset == "DOGE":
-            if bot_config.use_all_balance:
-                qty_doge = get_free_balance_mr("DOGE")
-            else:
-                notional = bot_config.trade_notional_usd
-                qty_doge = min(
-                    notional / doge, get_free_balance_mr("DOGE")
-                )
-            qty_doge = adjust_quantity(doge_sym, qty_doge)
-            if qty_doge > 0:
-                quote_received = qty_doge * doge
-                qty_hbar = adjust_quantity(hbar_sym, quote_received / hbar)
-                if qty_hbar > 0:
-                    direction = "DOGE->HBAR"
-                    from_asset = "DOGE"
-                    to_asset = "HBAR"
-                    qty_from = qty_doge
-                    qty_to = qty_hbar
-
-        return NextSignalResponse(
-            direction=direction,
-            reason=reason,
-            ratio=ratio,
-            zscore=z,
-            mean_ratio=mean_r,
-            std_ratio=std_r,
-            upper_band=upper_band,
-            lower_band=lower_band,
-            sell_threshold=bot_config.sell_ratio_threshold
-            if bot_config.use_ratio_thresholds
-            else 0.0,
-            buy_threshold=bot_config.buy_ratio_threshold
-            if bot_config.use_ratio_thresholds
-            else 0.0,
-            from_asset=from_asset,
-            to_asset=to_asset,
-            qty_from=qty_from,
-            qty_to=qty_to,
-        )
-    finally:
-        session.close()
-
-
-@router.get("/config", response_model=type(bot_config))
-def get_config():
-    return bot_config
-
-
-@router.post("/config", response_model=type(bot_config))
-def update_config(cfg: type(bot_config)):
-    from engines import mean_reversion as mr_engine
-
-    current_enabled = bot_config.enabled
-
-    if cfg.use_testnet != bot_config.use_testnet:
-        switch_env(cfg.use_testnet)
-        bot_config.use_testnet = cfg.use_testnet
-
-        ratio_history.clear()
-        s = SessionLocal()
-        try:
-            s.query(State).delete()
-            s.commit()
-        finally:
-            s.close()
-
-    data = cfg.dict()
-    data.pop("enabled", None)
-    for field, value in data.items():
-        setattr(bot_config, field, value)
-
-    bot_config.enabled = current_enabled
-    return bot_config
-
-
-@router.post("/start")
-def start_bot():
-    bot_config.enabled = True
-    return {"status": "started"}
-
-
-@router.post("/stop")
-def stop_bot():
-    bot_config.enabled = False
-    return {"status": "stopped"}
+def stop_bot_thread():
+    global bot_stop_flag
+    bot_stop_flag = True
