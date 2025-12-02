@@ -2,7 +2,10 @@
 import datetime as dt
 
 import pytest
-import app
+
+import config
+from engines import bollinger as boll_engine
+from routes import bollinger as boll_routes
 
 
 class FakeBollClient:
@@ -54,16 +57,17 @@ class FakeBollClient:
 
 def test_boll_config_symbol_validation_and_reset(client, monkeypatch):
     fake_client = FakeBollClient()
-    monkeypatch.setattr(app, "boll_client", fake_client)
+    # routes/bollinger uses config.boll_client
+    monkeypatch.setattr(config, "boll_client", fake_client, raising=False)
 
     # start with some history & state
-    app.boll_price_history.clear()
-    app.boll_ts_history.clear()
-    app.boll_price_history.extend([1.0, 1.1, 1.2])
-    app.boll_ts_history.extend(
+    boll_engine.boll_price_history.clear()
+    boll_engine.boll_ts_history.clear()
+    boll_engine.boll_price_history.extend([1.0, 1.1, 1.2])
+    boll_engine.boll_ts_history.extend(
         [dt.datetime.utcnow() - dt.timedelta(seconds=i) for i in range(3)]
     )
-    app.current_boll_symbol = "OLD"
+    boll_engine.current_boll_symbol = "OLD"
 
     payload = {
         "enabled": False,
@@ -83,13 +87,13 @@ def test_boll_config_symbol_validation_and_reset(client, monkeypatch):
     data = r.json()
     assert data["symbol"] == "HBARUSDC"
     # history should have been reset because symbol changed
-    assert app.boll_price_history == []
-    assert app.boll_ts_history == []
-    assert app.current_boll_symbol == "HBARUSDC"
+    assert boll_engine.boll_price_history == []
+    assert boll_engine.boll_ts_history == []
+    assert boll_engine.current_boll_symbol == "HBARUSDC"
 
 
 def test_boll_status_no_symbol_returns_empty(client, monkeypatch):
-    app.boll_config.symbol = ""
+    boll_engine.boll_config.symbol = ""
     r = client.get("/boll_status")
     assert r.status_code == 200
     data = r.json()
@@ -100,48 +104,61 @@ def test_boll_status_no_symbol_returns_empty(client, monkeypatch):
 
 def test_boll_status_with_symbol(client, monkeypatch):
     fake_client = FakeBollClient()
-    monkeypatch.setattr(app, "boll_client", fake_client)
+    # routes use config.boll_client
+    monkeypatch.setattr(config, "boll_client", fake_client, raising=False)
 
-    app.boll_config.symbol = "HBARUSDC"
-    app.boll_config.window_size = 5
-    app.boll_config.num_std = 2.0
+    boll_engine.boll_config.symbol = "HBARUSDC"
+    boll_engine.boll_config.window_size = 5
+    boll_engine.boll_config.num_std = 2.0
 
     # price history for MA/std
-    app.boll_price_history.clear()
-    app.boll_ts_history.clear()
+    boll_engine.boll_price_history.clear()
+    boll_engine.boll_ts_history.clear()
     prices = [1.0, 1.1, 1.2, 1.3, 1.4]
     now = dt.datetime.utcnow()
     for i, p in enumerate(prices):
-        app.boll_price_history.append(p)
-        app.boll_ts_history.append(now - dt.timedelta(seconds=(len(prices) - i)))
+        boll_engine.boll_price_history.append(p)
+        boll_engine.boll_ts_history.append(
+            now - dt.timedelta(seconds=(len(prices) - i))
+        )
 
-    # no open position in DB yet, but function should still work
-    monkeypatch.setattr(app, "get_symbol_price_boll", lambda symbol: 1.5)
-    monkeypatch.setattr(app, "get_free_balance_boll", lambda asset: 42.0)
+    # /boll_status uses a helper for price (imported into routes)
+    monkeypatch.setattr(
+    config.boll_client,
+    "get_symbol_ticker",
+    lambda s: {"symbol": s, "price": "1.5"},
+    raising=False,
+    )
 
+
+    # NOTE: quote balance is now taken from FakeBollClient.get_account()
+    # which returns 50.0 USDC, so we assert 50.0 to match real logic.
     r = client.get("/boll_status")
     assert r.status_code == 200
     data = r.json()
     assert data["symbol"] == "HBARUSDC"
     assert data["quote_asset"] == "USDC"
-    assert data["quote_balance"] == pytest.approx(42.0)
+    assert data["quote_balance"] == pytest.approx(50.0)
     assert data["price"] == pytest.approx(1.5)
 
 
 def test_boll_history_computes_bands(monkeypatch):
-    app.boll_config.symbol = "HBARUSDC"
-    app.boll_config.window_size = 3
-    app.boll_config.num_std = 2.0
+    boll_engine.boll_config.symbol = "HBARUSDC"
+    boll_engine.boll_config.window_size = 3
+    boll_engine.boll_config.num_std = 2.0
 
-    app.boll_price_history.clear()
-    app.boll_ts_history.clear()
+    boll_engine.boll_price_history.clear()
+    boll_engine.boll_ts_history.clear()
     now = dt.datetime.utcnow()
     prices = [1.0, 1.1, 1.2]
     for i, p in enumerate(prices):
-        app.boll_price_history.append(p)
-        app.boll_ts_history.append(now - dt.timedelta(seconds=(len(prices) - i)))
+        boll_engine.boll_price_history.append(p)
+        boll_engine.boll_ts_history.append(
+            now - dt.timedelta(seconds=(len(prices) - i))
+        )
 
-    r = app.boll_history(limit=10)
+    # boll_history lives in routes.bollinger (not engines.bollinger)
+    r = boll_routes.boll_history(limit=10)
     assert len(r) == 3
     last = r[-1]
     assert last.price == pytest.approx(1.2)
@@ -151,7 +168,8 @@ def test_boll_history_computes_bands(monkeypatch):
 
 def test_symbols_grouped_uses_exchange_info(client, monkeypatch):
     fake_client = FakeBollClient()
-    monkeypatch.setattr(app, "boll_client", fake_client)
+    # /symbols_grouped uses config.boll_client.get_exchange_info()
+    monkeypatch.setattr(config, "boll_client", fake_client, raising=False)
 
     r = client.get("/symbols_grouped")
     assert r.status_code == 200
@@ -163,19 +181,21 @@ def test_symbols_grouped_uses_exchange_info(client, monkeypatch):
 
 def test_bollinger_manual_sell_success(client, monkeypatch):
     fake_client = FakeBollClient()
-    monkeypatch.setattr(app, "boll_client", fake_client)
+    # config client for symbol info / balance if needed
+    monkeypatch.setattr(config, "boll_client", fake_client, raising=False)
 
-    # enough HBAR to sell
-    monkeypatch.setattr(app, "get_free_balance_boll", lambda asset: 5.0)
-
-    # reuse adjust_quantity but make sure it uses our fake client
-    monkeypatch.setattr(app, "boll_client", fake_client)
+    # enough HBAR to sell – manual sell endpoint uses helpers imported in routes
+    monkeypatch.setattr(
+        boll_routes, "get_free_balance_boll", lambda asset: 5.0, raising=False
+    )
 
     # stub out actual order placement (no real Binance)
     def fake_place(symbol, side, quantity):
         return {"orderId": 123, "symbol": symbol, "side": side, "origQty": quantity}
 
-    monkeypatch.setattr(app, "place_market_order_boll", fake_place)
+    monkeypatch.setattr(
+        boll_routes, "place_market_order_boll", fake_place, raising=False
+    )
 
     payload = {"symbol": "HBARUSDC", "qty_base": 1.5}
     r = client.post("/bollinger_manual_sell", json=payload)
