@@ -4,3 +4,8 @@ mean_reversion.db
 npm_data
 npm_letsencryptnpm_data/
 *.sqlite
+# Python bytecode artifacts
+__pycache__/
+*.pyc
+# Ensure stray compiled files like __pycache__/app.cpython-312.pyc never reappear
+__pycache__/app.cpython-312.pyc

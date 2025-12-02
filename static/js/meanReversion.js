@@ -1,0 +1,486 @@
+import { applyQuoteLabels, openOverlay, closeOverlay } from './ui.js';
+
+let botConfig = null;
+let priceChart = null;
+let ratioChart = null;
+let lastMeanRatio = null;
+let lastStdRatio = null;
+let currentQuote = 'USDT';
+
+async function manualTrade(event) {
+  event.preventDefault();
+  const direction = document.getElementById('manual_direction').value;
+  const notional = parseFloat(document.getElementById('manual_notional').value);
+
+  if (isNaN(notional) || notional <= 0) {
+    alert('Enter a valid notional amount > 0');
+    return;
+  }
+
+  try {
+    const r = await fetch('/manual_trade', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ direction: direction, notional_usd: notional }),
+    });
+
+    if (!r.ok) {
+      const err = await r.json();
+      alert('Error: ' + (err.detail || r.statusText));
+      return;
+    }
+
+    alert('Manual trade executed.');
+    await refreshMeanReversion();
+  } catch (e) {
+    console.error(e);
+    alert('Request failed. See console.');
+  }
+}
+
+async function syncState() {
+  try {
+    const r = await fetch('/sync_state_from_balances', { method: 'POST' });
+    if (!r.ok) {
+      const err = await r.json();
+      alert('Sync failed: ' + (err.detail || r.statusText));
+      return;
+    }
+    const data = await r.json();
+    alert(`Synced to ${data.current_asset} @ ${data.current_qty.toFixed(4)}`);
+    await refreshMeanReversion();
+  } catch (e) {
+    console.error(e);
+    alert('Sync request failed.');
+  }
+}
+
+async function fetchStatus() {
+  try {
+    const r = await fetch('/status');
+    const data = await r.json();
+
+    lastMeanRatio = data.mean_ratio;
+    lastStdRatio = data.std_ratio;
+
+    currentQuote = data.use_testnet ? 'USDT' : 'USDC';
+    applyQuoteLabels(currentQuote);
+
+    const envChip = `<span class="chip chip-primary">${data.use_testnet ? 'TESTNET' : 'MAINNET'}</span>`;
+    const botChip = `<span class="chip ${data.enabled ? 'chip-primary' : 'chip-muted'}">MR Bot: ${
+      data.enabled ? 'RUNNING' : 'STOPPED'
+    }</span>`;
+
+    document.getElementById('status').innerHTML = `
+      <div class="status-chip-row">
+        ${envChip}
+        ${botChip}
+      </div>
+
+      <div class="metric-grid">
+        <div class="metric-group">
+          <div class="metric-label">BTC${currentQuote}</div>
+          <div class="metric-value">${data.btc.toFixed(2)}</div>
+        </div>
+        <div class="metric-group">
+          <div class="metric-label">HBAR${currentQuote}</div>
+          <div class="metric-value">${data.hbar.toFixed(4)}</div>
+        </div>
+        <div class="metric-group">
+          <div class="metric-label">DOGE${currentQuote}</div>
+          <div class="metric-value">${data.doge.toFixed(4)}</div>
+        </div>
+
+        <div class="metric-group">
+          <div class="metric-label">Ratio (HBAR/DOGE)</div>
+          <div class="metric-value">${data.ratio.toFixed(6)}</div>
+        </div>
+        <div class="metric-group">
+          <div class="metric-label">Mean ratio</div>
+          <div class="metric-value">${data.mean_ratio.toFixed(6)}</div>
+        </div>
+        <div class="metric-group">
+          <div class="metric-label">Std dev</div>
+          <div class="metric-value">${data.std_ratio.toFixed(6)}</div>
+        </div>
+
+        <div class="metric-group">
+          <div class="metric-label">z-score</div>
+          <div class="metric-value">${data.zscore.toFixed(2)}</div>
+        </div>
+        <div class="metric-group">
+          <div class="metric-label">Current asset</div>
+          <div class="metric-value">${data.current_asset}</div>
+        </div>
+        <div class="metric-group">
+          <div class="metric-label">Current qty</div>
+          <div class="metric-value">${data.current_qty.toFixed(4)}</div>
+        </div>
+      </div>
+
+      <div class="status-line">
+        <b>PnL (realized):</b> ${data.realized_pnl_usd.toFixed(2)} ${currentQuote} |
+        <b>PnL (unrealized):</b> ${data.unrealized_pnl_usd.toFixed(2)} ${currentQuote}
+      </div>
+      <div class="status-line">
+        <b>Balances:</b> ${currentQuote}: ${data.usdc_balance.toFixed(2)} |
+        HBAR: ${data.hbar_balance.toFixed(2)} |
+        DOGE: ${data.doge_balance.toFixed(2)}
+      </div>
+    `;
+
+    if (priceChart) {
+      priceChart.data.datasets[0].label = 'HBAR' + currentQuote;
+      priceChart.data.datasets[1].label = 'DOGE' + currentQuote;
+      priceChart.update();
+    }
+  } catch (e) {
+    console.error(e);
+    document.getElementById('status').innerText = 'Error loading status';
+  }
+}
+
+async function fetchConfig() {
+  const r = await fetch('/config');
+  const cfg = await r.json();
+  botConfig = cfg;
+  document.getElementById('poll_interval_sec').value = cfg.poll_interval_sec;
+  document.getElementById('window_size').value = cfg.window_size;
+  document.getElementById('z_entry').value = cfg.z_entry;
+  document.getElementById('z_exit').value = cfg.z_exit;
+  document.getElementById('trade_notional_usd').value = cfg.trade_notional_usd;
+  document.getElementById('use_all_balance').checked = cfg.use_all_balance;
+  document.getElementById('use_ratio_thresholds').checked = cfg.use_ratio_thresholds;
+  document.getElementById('sell_ratio_threshold').value = cfg.sell_ratio_threshold;
+  document.getElementById('buy_ratio_threshold').value = cfg.buy_ratio_threshold;
+  document.getElementById('use_testnet').checked = cfg.use_testnet;
+
+  currentQuote = cfg.use_testnet ? 'USDT' : 'USDC';
+  applyQuoteLabels(currentQuote);
+}
+
+async function saveConfig(event) {
+  event.preventDefault();
+  const cfg = {
+    poll_interval_sec: parseInt(document.getElementById('poll_interval_sec').value),
+    window_size: parseInt(document.getElementById('window_size').value),
+    z_entry: parseFloat(document.getElementById('z_entry').value),
+    z_exit: parseFloat(document.getElementById('z_exit').value),
+    trade_notional_usd: parseFloat(document.getElementById('trade_notional_usd').value),
+    use_all_balance: document.getElementById('use_all_balance').checked,
+    use_ratio_thresholds: document.getElementById('use_ratio_thresholds').checked,
+    sell_ratio_threshold: parseFloat(document.getElementById('sell_ratio_threshold').value || '0'),
+    buy_ratio_threshold: parseFloat(document.getElementById('buy_ratio_threshold').value || '0'),
+    use_testnet: document.getElementById('use_testnet').checked,
+  };
+  const r = await fetch('/config', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(cfg),
+  });
+  const newCfg = await r.json();
+  botConfig = newCfg;
+
+  currentQuote = botConfig.use_testnet ? 'USDT' : 'USDC';
+  applyQuoteLabels(currentQuote);
+
+  alert('Config saved. If you switched testnet/mainnet, verify your balances.');
+}
+
+async function startBot() {
+  await fetch('/start', { method: 'POST' });
+  fetchStatus();
+  fetchNextSignal();
+}
+
+async function stopBot() {
+  await fetch('/stop', { method: 'POST' });
+  fetchStatus();
+  fetchNextSignal();
+}
+
+async function fetchTrades() {
+  const r = await fetch('/trades?limit=100');
+  const data = await r.json();
+  const tbody = document.getElementById('tradesBody');
+  tbody.innerHTML = '';
+  data.forEach((t) => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${t.ts}</td>
+      <td>${t.side}</td>
+      <td>${t.from_asset}</td>
+      <td>${t.to_asset}</td>
+      <td>${t.qty_from.toFixed(4)}</td>
+      <td>${t.qty_to.toFixed(4)}</td>
+      <td>${t.price.toFixed(4)}</td>
+      <td>${t.pnl_usd.toFixed(2)}</td>
+      <td>${t.is_testnet ? 'Testnet' : 'Mainnet'}</td>
+    `;
+    tbody.appendChild(tr);
+  });
+}
+
+async function fetchNextSignal() {
+  try {
+    const r = await fetch('/next_signal');
+    if (!r.ok) {
+      const err = await r.json();
+      document.getElementById('nextSignalModalBody').innerText =
+        'Error: ' + (err.detail || r.statusText);
+      return;
+    }
+    const s = await r.json();
+
+    let msg = `
+      <div class="status-line"><b>Decision engine:</b> ${
+        s.reason === 'z_score' ? 'z-score bands' : s.reason === 'ratio_thresholds' ? 'ratio thresholds' : s.reason
+      }</div>
+      <div class="metric-grid">
+        <div class="metric-group">
+          <div class="metric-label">Ratio now</div>
+          <div class="metric-value">${s.ratio.toFixed(6)}</div>
+        </div>
+        <div class="metric-group">
+          <div class="metric-label">Mean</div>
+          <div class="metric-value">${s.mean_ratio.toFixed(6)}</div>
+        </div>
+        <div class="metric-group">
+          <div class="metric-label">Std dev</div>
+          <div class="metric-value">${s.std_ratio.toFixed(6)}</div>
+        </div>
+      </div>
+      <div class="status-line">
+        Z upper (sell HBAR): <b>${s.upper_band.toFixed(6)}</b> |
+        Z lower (buy HBAR): <b>${s.lower_band.toFixed(6)}</b>
+      </div>
+    `;
+
+    if (s.sell_threshold > 0 || s.buy_threshold > 0) {
+      msg += `<div class="status-line">
+                Thresholds → Sell: <b>${s.sell_threshold.toFixed(6)}</b> |
+                Buy: <b>${s.buy_threshold.toFixed(6)}</b>
+              </div>`;
+    }
+
+    if (s.direction === 'NONE') {
+      msg += `<div class="status-line"><b>Next trade:</b> No trade would be executed right now.</div>`;
+    } else {
+      msg += `
+        <div class="status-line"><b>Next trade:</b> ${s.direction}</div>
+        <div class="status-line">
+          From <b>${s.from_asset}</b> ≈ ${s.qty_from.toFixed(6)}
+          → To <b>${s.to_asset}</b> ≈ ${s.qty_to.toFixed(6)}
+        </div>
+      `;
+    }
+
+    document.getElementById('nextSignalModalBody').innerHTML = msg;
+  } catch (e) {
+    console.error(e);
+    document.getElementById('nextSignalModalBody').innerText = 'Error calculating next signal.';
+  }
+}
+
+async function fetchHistory() {
+  const r = await fetch('/history?limit=300');
+  const data = await r.json();
+  if (data.length === 0) return;
+
+  const labels = data.map((d) => new Date(d.ts).toLocaleTimeString());
+  const hbar = data.map((d) => d.hbar);
+  const doge = data.map((d) => d.doge);
+  const ratio = data.map((d) => d.ratio);
+
+  if (!priceChart) {
+    const ctx1 = document.getElementById('priceChart').getContext('2d');
+    priceChart = new Chart(ctx1, {
+      type: 'line',
+      data: {
+        labels: labels,
+        datasets: [
+          { label: 'HBAR' + currentQuote, data: hbar, borderWidth: 1, fill: false, borderColor: '#4bc0c0' },
+          { label: 'DOGE' + currentQuote, data: doge, borderWidth: 1, fill: false, borderColor: '#90caf9' },
+        ],
+      },
+      options: {
+        interaction: { mode: 'index', intersect: false },
+        plugins: { legend: { labels: { color: '#eee' } } },
+        scales: {
+          x: { ticks: { color: '#ccc' }, grid: { color: '#333' } },
+          y: { ticks: { color: '#ccc' }, grid: { color: '#333' } },
+        },
+      },
+    });
+  } else {
+    priceChart.data.labels = labels;
+    priceChart.data.datasets[0].data = hbar;
+    priceChart.data.datasets[1].data = doge;
+    priceChart.data.datasets[0].label = 'HBAR' + currentQuote;
+    priceChart.data.datasets[1].label = 'DOGE' + currentQuote;
+    priceChart.update();
+  }
+
+  let upperEntry = null,
+    lowerEntry = null,
+    upperExit = null,
+    lowerExit = null;
+
+  if (botConfig && lastMeanRatio !== null) {
+    const std = lastStdRatio || 0;
+
+    if (std > 0) {
+      upperEntry = lastMeanRatio + botConfig.z_entry * std;
+      lowerEntry = lastMeanRatio - botConfig.z_entry * std;
+
+      if (botConfig.z_exit && botConfig.z_exit > 0) {
+        upperExit = lastMeanRatio + botConfig.z_exit * std;
+        lowerExit = lastMeanRatio - botConfig.z_exit * std;
+      }
+    }
+  }
+
+  const upperEntryArr = ratio.map(() => upperEntry);
+  const lowerEntryArr = ratio.map(() => lowerEntry);
+
+  const upperExitArr = ratio.map(() => (upperExit !== null ? upperExit : null));
+  const lowerExitArr = ratio.map(() => (lowerExit !== null ? lowerExit : null));
+
+  let info = '';
+  if (upperEntry !== null && lowerEntry !== null) {
+    info += `Z-entry bands → Upper: ${upperEntry.toFixed(6)} | Lower: ${lowerEntry.toFixed(6)}. `;
+  }
+  if (upperExit !== null && lowerExit !== null) {
+    info += `Z-exit bands → Upper: ${upperExit.toFixed(6)} | Lower: ${lowerExit.toFixed(6)}. `;
+  }
+
+  let sellArr = ratio.map(() => null);
+  let buyArr = ratio.map(() => null);
+  if (botConfig && botConfig.use_ratio_thresholds) {
+    if (botConfig.sell_ratio_threshold > 0) {
+      sellArr = ratio.map(() => botConfig.sell_ratio_threshold);
+      info += `Sell threshold: ${botConfig.sell_ratio_threshold.toFixed(6)}. `;
+    }
+    if (botConfig.buy_ratio_threshold > 0) {
+      buyArr = ratio.map(() => botConfig.buy_ratio_threshold);
+      info += `Buy threshold: ${botConfig.buy_ratio_threshold.toFixed(6)}.`;
+    }
+  }
+
+  document.getElementById('bandInfo').textContent =
+    info || 'Bands/thresholds not available yet (need some history or config).';
+
+  if (!ratioChart) {
+    const ctx2 = document.getElementById('ratioChart').getContext('2d');
+    ratioChart = new Chart(ctx2, {
+      type: 'line',
+      data: {
+        labels: labels,
+        datasets: [
+          {
+            label: 'Ratio HBAR/DOGE',
+            data: ratio,
+            borderWidth: 2,
+            fill: false,
+            borderColor: '#4bc0c0',
+          },
+          {
+            label: 'Upper z-band (sell HBAR)',
+            data: upperEntryArr,
+            borderWidth: 1,
+            borderColor: '#90caf9',
+            borderDash: [6, 4],
+            fill: false,
+          },
+          {
+            label: 'Lower z-band (buy HBAR)',
+            data: lowerEntryArr,
+            borderWidth: 1,
+            borderColor: '#26c6da',
+            borderDash: [6, 4],
+            fill: false,
+          },
+          {
+            label: 'Upper z-exit (take profit HBAR→DOGE)',
+            data: upperExitArr,
+            borderWidth: 1,
+            borderColor: '#ffb300',
+            borderDash: [4, 3],
+            fill: false,
+          },
+          {
+            label: 'Lower z-exit (take profit DOGE→HBAR)',
+            data: lowerExitArr,
+            borderWidth: 1,
+            borderColor: '#ffb300',
+            borderDash: [4, 3],
+            fill: false,
+          },
+          {
+            label: 'Sell ratio threshold',
+            data: sellArr,
+            borderWidth: 1,
+            borderColor: '#66bb6a',
+            borderDash: [2, 2],
+            fill: false,
+          },
+          {
+            label: 'Buy ratio threshold',
+            data: buyArr,
+            borderWidth: 1,
+            borderColor: '#ef5350',
+            borderDash: [2, 2],
+            fill: false,
+          },
+        ],
+      },
+      options: {
+        interaction: { mode: 'index', intersect: false },
+        plugins: { legend: { labels: { color: '#eee' } } },
+        scales: {
+          x: { ticks: { color: '#ccc' }, grid: { color: '#333' } },
+          y: { ticks: { color: '#ccc' }, grid: { color: '#333' } },
+        },
+      },
+    });
+  } else {
+    ratioChart.data.labels = labels;
+    ratioChart.data.datasets[0].data = ratio;
+    ratioChart.data.datasets[1].data = upperEntryArr;
+    ratioChart.data.datasets[2].data = lowerEntryArr;
+    ratioChart.data.datasets[3].data = upperExitArr;
+    ratioChart.data.datasets[4].data = lowerExitArr;
+    ratioChart.data.datasets[5].data = sellArr;
+    ratioChart.data.datasets[6].data = buyArr;
+    ratioChart.update();
+  }
+}
+
+export async function refreshMeanReversion() {
+  await fetchStatus();
+  await fetchConfig();
+  await fetchTrades();
+  await fetchHistory();
+  await fetchNextSignal().catch(() => {});
+}
+
+export function initMeanReversion() {
+  document.getElementById('configForm').addEventListener('submit', saveConfig);
+  document.getElementById('manualTradeForm').addEventListener('submit', manualTrade);
+  document.getElementById('syncStateBtn').addEventListener('click', syncState);
+  document.getElementById('startBotBtn').addEventListener('click', startBot);
+  document.getElementById('stopBotBtn').addEventListener('click', stopBot);
+  document.getElementById('nextTradeBtn').addEventListener('click', () => {
+    openOverlay('nextModalOverlay');
+    fetchNextSignal();
+  });
+  document.getElementById('nextModalClose').addEventListener('click', () => closeOverlay('nextModalOverlay'));
+  document
+    .getElementById('nextModalCloseFooter')
+    .addEventListener('click', () => closeOverlay('nextModalOverlay'));
+  document.getElementById('nextModalRecalc').addEventListener('click', fetchNextSignal);
+}
+
+export function getCurrentQuote() {
+  return currentQuote;
+}
