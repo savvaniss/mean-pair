@@ -49,6 +49,17 @@ def has_enough_history() -> bool:
     return len(ratio_history) >= required_history_len()
 
 
+# ========= Binance client access =========
+
+
+def get_mr_client():
+    """
+    Small indirection so tests / config can control the actual client instance.
+    In normal runtime this returns config.mr_client.
+    """
+    return config.mr_client
+
+
 # ========== Binance helpers ==========
 
 
@@ -57,8 +68,12 @@ def get_prices() -> Tuple[float, float, float]:
     Mean reversion bot prices – uses MR client and the configured quote asset.
     (e.g. BTCUSDT/HBARUSDT/DOGEUSDT on testnet, BTCUSDC/HBARUSDC/DOGEUSDC on mainnet)
     """
+    client = get_mr_client()
+    if client is None:
+        raise RuntimeError("mr_client is None – configure it, or mock get_prices in tests")
+
     quote = get_mr_quote()
-    tickers = config.mr_client.get_all_tickers()
+    tickers = client.get_all_tickers()
     price_map = {t["symbol"]: float(t["price"]) for t in tickers}
     btc = price_map.get(f"BTC{quote}")
     hbar = price_map.get(f"HBAR{quote}")
@@ -71,7 +86,11 @@ def get_prices() -> Tuple[float, float, float]:
 
 
 def get_free_balance_mr(asset: str) -> float:
-    acc = config.mr_client.get_account()
+    client = get_mr_client()
+    if client is None:
+        raise RuntimeError("mr_client is None – configure it, or mock get_free_balance_mr in tests")
+
+    acc = client.get_account()
     for b in acc["balances"]:
         if b["asset"] == asset:
             return float(b["free"])
@@ -80,7 +99,11 @@ def get_free_balance_mr(asset: str) -> float:
 
 def adjust_quantity(symbol: str, qty: float) -> float:
     """Clamp qty to Binance LOT_SIZE filter (minQty/stepSize)."""
-    info = config.mr_client.get_symbol_info(symbol)
+    client = get_mr_client()
+    if client is None:
+        raise RuntimeError("mr_client is None – configure it, or mock adjust_quantity in tests")
+
+    info = client.get_symbol_info(symbol)
     lot_filter = next(f for f in info["filters"] if f["filterType"] == "LOT_SIZE")
     step_size = float(lot_filter["stepSize"])
     min_qty = float(lot_filter["minQty"])
@@ -93,8 +116,12 @@ def adjust_quantity(symbol: str, qty: float) -> float:
 
 
 def place_market_order_mr(symbol: str, side: str, quantity: float):
+    client = get_mr_client()
+    if client is None:
+        raise RuntimeError("mr_client is None – configure it, or mock place_market_order_mr in tests")
+
     try:
-        return config.mr_client.create_order(
+        return client.create_order(
             symbol=symbol,
             side=side,
             type="MARKET",
@@ -192,7 +219,15 @@ def get_state(session) -> State:
 def decide_signal(
     ratio: float, mean_r: float, std_r: float, z: float, state: State
 ) -> Tuple[bool, bool, str]:
-    """Return (sell_signal, buy_signal, reason)."""
+    """
+    Return (sell_signal, buy_signal, reason).
+
+    Logic is the same as your original monolithic app:
+    - First require enough history.
+    - If ratio thresholds enabled → use those.
+    - Else fall back to z-score (z_entry).
+    - Only act when current_asset is HBAR or DOGE.
+    """
     sell_signal = False
     buy_signal = False
     reason = "none"
@@ -216,11 +251,34 @@ def decide_signal(
         else:
             reason = "std_zero"
 
+    # We only trade when we are actually in HBAR or DOGE
     if state.current_asset not in ("HBAR", "DOGE"):
         sell_signal = False
         buy_signal = False
 
     return sell_signal, buy_signal, reason
+
+
+# ========== Generic MA/STD helper (also used in tests) ==========
+
+
+def compute_ma_std_window(prices: List[float], window: int) -> Tuple[float, float]:
+    """
+    Compute mean/std over the last `window` prices.
+    If window >= len(prices), uses all prices.
+    Behavior is aligned with the original helper used by both bots.
+    """
+    if not prices:
+        return 0.0, 0.0
+
+    if window <= 0 or window > len(prices):
+        window = len(prices)
+
+    subset = prices[-window:]
+    mean = sum(subset) / len(subset)
+    var = sum((p - mean) ** 2 for p in subset) / len(subset)
+    std = var ** 0.5 if var > 0 else 0.0
+    return mean, std
 
 
 # ========== Bot loop ==========
