@@ -35,6 +35,7 @@ class BollConfig(BaseModel):
     stop_loss_pct: float = 0.15
     take_profit_pct: float = 0.15
     cooldown_sec: int = 80
+    use_testnet: bool = config.USE_TESTNET
 
 
 boll_config = BollConfig()

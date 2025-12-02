@@ -80,6 +80,7 @@ def test_boll_config_symbol_validation_and_reset(client, monkeypatch):
         "stop_loss_pct": 0.2,
         "take_profit_pct": 0.2,
         "cooldown_sec": 60,
+        "use_testnet": True,
     }
 
     r = client.post("/boll_config", json=payload)
@@ -100,6 +101,7 @@ def test_boll_status_no_symbol_returns_empty(client, monkeypatch):
     assert data["symbol"] == ""
     assert data["position"] == "FLAT"
     assert data["price"] == 0.0
+    assert data["use_testnet"] == boll_engine.boll_config.use_testnet
 
 
 def test_boll_status_with_symbol(client, monkeypatch):
@@ -140,6 +142,43 @@ def test_boll_status_with_symbol(client, monkeypatch):
     assert data["quote_asset"] == "USDC"
     assert data["quote_balance"] == pytest.approx(50.0)
     assert data["price"] == pytest.approx(1.5)
+    assert data["use_testnet"] == boll_engine.boll_config.use_testnet
+
+
+def test_boll_config_switches_env(client, monkeypatch):
+    fake_client = FakeBollClient()
+    monkeypatch.setattr(config, "boll_client", fake_client, raising=False)
+
+    called = {}
+
+    def fake_switch(flag):
+        called["val"] = flag
+        config.USE_TESTNET = flag
+
+    monkeypatch.setattr(config, "switch_env", fake_switch, raising=False)
+
+    boll_engine.boll_config.use_testnet = True
+
+    payload = {
+        "enabled": False,
+        "symbol": "HBARUSDC",
+        "poll_interval_sec": 20,
+        "window_size": 10,
+        "num_std": 2.0,
+        "max_position_usd": 50.0,
+        "use_all_balance": True,
+        "stop_loss_pct": 0.2,
+        "take_profit_pct": 0.2,
+        "cooldown_sec": 60,
+        "use_testnet": False,
+    }
+
+    r = client.post("/boll_config", json=payload)
+    assert r.status_code == 200
+
+    assert called["val"] is False
+    assert r.json()["use_testnet"] is False
+    assert boll_engine.boll_config.use_testnet is False
 
 
 def test_boll_history_computes_bands(monkeypatch):
