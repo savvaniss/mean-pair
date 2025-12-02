@@ -281,6 +281,102 @@ def compute_ma_std_window(prices: List[float], window: int) -> Tuple[float, floa
     return mean, std
 
 
+# ========== Shared trade helpers (used by bot & manual) ==========
+
+
+def _compute_quote_from_order(order, qty_base: float, price_base: float) -> float:
+    """
+    Derive how much quote asset we *actually* received from a MARKET SELL.
+
+    Prefer cummulativeQuoteQty from Binance order response (real filled amount),
+    and fall back to qty * price if not available (e.g. in some mocks).
+    """
+    try:
+        cq = order.get("cummulativeQuoteQty")
+        if cq is not None:
+            val = float(cq)
+            if val > 0:
+                return val
+    except Exception:
+        pass
+    return qty_base * price_base
+
+
+def execute_mr_trade(
+    direction: str,
+    notional_usd: float,
+    use_all_balance: bool,
+):
+    """
+    Execute a single HBAR <-> DOGE rotation.
+
+    direction: "HBAR->DOGE" or "DOGE->HBAR"
+    notional_usd: how much USD(notional) to trade when use_all_balance=False
+    use_all_balance: if True, ignore notional and use the full balance
+                     of the *from* asset.
+
+    Returns:
+      (from_asset, to_asset, qty_from, qty_to, ratio)
+    or None if the trade could not be executed (qty too small, Binance error, etc).
+    """
+    if direction not in ("HBAR->DOGE", "DOGE->HBAR"):
+        raise ValueError(f"Unsupported MR direction: {direction}")
+
+    # Current prices (HBAR & DOGE vs MR quote: USDT on testnet / USDC on mainnet)
+    _, hbar_price, doge_price = get_prices()
+
+    if direction == "HBAR->DOGE":
+        from_asset = "HBAR"
+        to_asset = "DOGE"
+        price_from = hbar_price
+        price_to = doge_price
+    else:
+        from_asset = "DOGE"
+        to_asset = "HBAR"
+        price_from = doge_price
+        price_to = hbar_price
+
+    sym_from = mr_symbol(from_asset)
+    sym_to = mr_symbol(to_asset)
+
+    # Decide how much of from_asset to sell
+    bal_from = get_free_balance_mr(from_asset)
+    if use_all_balance:
+        qty_from_raw = bal_from
+    else:
+        qty_from_raw = min(notional_usd / price_from, bal_from)
+
+    qty_from = adjust_quantity(sym_from, qty_from_raw)
+    if qty_from <= 0:
+        print(f"[MR] execute_mr_trade: qty_from too small ({qty_from_raw}) for {from_asset}")
+        return None
+
+    # 1) SELL from_asset → quote
+    order_sell = place_market_order_mr(sym_from, "SELL", qty_from)
+    if not order_sell:
+        print("[MR] execute_mr_trade: sell order failed")
+        return None
+
+    # Use actual filled quote, not naive qty*price
+    quote_received = _compute_quote_from_order(order_sell, qty_from, price_from)
+
+    # 2) BUY to_asset using the quote we actually got
+    qty_to_raw = quote_received / price_to
+    qty_to = adjust_quantity(sym_to, qty_to_raw)
+    if qty_to <= 0:
+        print(f"[MR] execute_mr_trade: qty_to too small ({qty_to_raw}) for {to_asset}")
+        return None
+
+    order_buy = place_market_order_mr(sym_to, "BUY", qty_to)
+    if not order_buy:
+        print("[MR] execute_mr_trade: buy order failed")
+        return None
+
+    # Strategy uses HBAR/DOGE ratio as its "price"
+    ratio = hbar_price / doge_price
+    return from_asset, to_asset, qty_from, qty_to, ratio
+
+
 # ========== Bot loop ==========
 
 
@@ -315,88 +411,56 @@ def bot_loop():
                         sell_signal, buy_signal, _ = decide_signal(
                             ratio, mean_r, std_r, z, state
                         )
-                        hbar_sym = mr_symbol("HBAR")
-                        doge_sym = mr_symbol("DOGE")
 
                         # HBAR expensive → HBAR -> DOGE
                         if sell_signal and state.current_asset == "HBAR":
-                            if bot_config.use_all_balance:
-                                qty_hbar = get_free_balance_mr("HBAR")
-                            else:
-                                notional = bot_config.trade_notional_usd
-                                qty_hbar = min(
-                                    notional / hbar, get_free_balance_mr("HBAR")
+                            res = execute_mr_trade(
+                                "HBAR->DOGE",
+                                bot_config.trade_notional_usd,
+                                bot_config.use_all_balance,
+                            )
+                            if res:
+                                from_asset, to_asset, qty_from, qty_to, trade_ratio = res
+                                tr = Trade(
+                                    ts=ts,
+                                    side="HBAR->DOGE",
+                                    from_asset=from_asset,
+                                    to_asset=to_asset,
+                                    qty_from=qty_from,
+                                    qty_to=qty_to,
+                                    price=trade_ratio,
+                                    fee=0.0,
+                                    pnl_usd=0.0,
+                                    is_testnet=int(bot_config.use_testnet),
                                 )
-                            qty_hbar = adjust_quantity(hbar_sym, qty_hbar)
-
-                            if qty_hbar > 0:
-                                order_sell = place_market_order_mr(
-                                    hbar_sym, "SELL", qty_hbar
-                                )
-                                if order_sell:
-                                    quote_received = qty_hbar * hbar
-                                    qty_doge = quote_received / doge
-                                    qty_doge = adjust_quantity(doge_sym, qty_doge)
-                                    if qty_doge > 0:
-                                        order_buy = place_market_order_mr(
-                                            doge_sym, "BUY", qty_doge
-                                        )
-                                        if order_buy:
-                                            tr = Trade(
-                                                ts=ts,
-                                                side="HBAR->DOGE",
-                                                from_asset="HBAR",
-                                                to_asset="DOGE",
-                                                qty_from=qty_hbar,
-                                                qty_to=qty_doge,
-                                                price=ratio,
-                                                fee=0.0,
-                                                pnl_usd=0.0,
-                                                is_testnet=int(bot_config.use_testnet),
-                                            )
-                                            session.add(tr)
-                                            state.current_asset = "DOGE"
-                                            state.current_qty = qty_doge
+                                session.add(tr)
+                                state.current_asset = to_asset
+                                state.current_qty = qty_to
 
                         # HBAR cheap → DOGE -> HBAR
                         elif buy_signal and state.current_asset == "DOGE":
-                            if bot_config.use_all_balance:
-                                qty_doge = get_free_balance_mr("DOGE")
-                            else:
-                                notional = bot_config.trade_notional_usd
-                                qty_doge = min(
-                                    notional / doge, get_free_balance_mr("DOGE")
+                            res = execute_mr_trade(
+                                "DOGE->HBAR",
+                                bot_config.trade_notional_usd,
+                                bot_config.use_all_balance,
+                            )
+                            if res:
+                                from_asset, to_asset, qty_from, qty_to, trade_ratio = res
+                                tr = Trade(
+                                    ts=ts,
+                                    side="DOGE->HBAR",
+                                    from_asset=from_asset,
+                                    to_asset=to_asset,
+                                    qty_from=qty_from,
+                                    qty_to=qty_to,
+                                    price=trade_ratio,
+                                    fee=0.0,
+                                    pnl_usd=0.0,
+                                    is_testnet=int(bot_config.use_testnet),
                                 )
-                            qty_doge = adjust_quantity(doge_sym, qty_doge)
-
-                            if qty_doge > 0:
-                                order_sell = place_market_order_mr(
-                                    doge_sym, "SELL", qty_doge
-                                )
-                                if order_sell:
-                                    quote_received = qty_doge * doge
-                                    qty_hbar = quote_received / hbar
-                                    qty_hbar = adjust_quantity(hbar_sym, qty_hbar)
-                                    if qty_hbar > 0:
-                                        order_buy = place_market_order_mr(
-                                            hbar_sym, "BUY", qty_hbar
-                                        )
-                                        if order_buy:
-                                            tr = Trade(
-                                                ts=ts,
-                                                side="DOGE->HBAR",
-                                                from_asset="DOGE",
-                                                to_asset="HBAR",
-                                                qty_from=qty_doge,
-                                                qty_to=qty_hbar,
-                                                price=ratio,
-                                                fee=0.0,
-                                                pnl_usd=0.0,
-                                                is_testnet=int(bot_config.use_testnet),
-                                            )
-                                            session.add(tr)
-                                            state.current_asset = "HBAR"
-                                            state.current_qty = qty_hbar
+                                session.add(tr)
+                                state.current_asset = to_asset
+                                state.current_qty = qty_to
 
                     session.commit()
 
