@@ -9,7 +9,7 @@
   --text-main: #e8edf7;
   --text-subtle: #b9c2d9;
   --text-muted: #94a1c3;
-  --danger: #ef5350;
+  --danger: #f2a8a0;
   --success: #7bd38b;
 }
 
@@ -87,8 +87,8 @@ body {
 }
 
 .btn-danger {
-  background: var(--danger);
-  color: #111;
+  background: linear-gradient(120deg, #f6c1b5, var(--danger));
+  color: #0d131e;
 }
 
 .btn.small {
@@ -312,12 +312,25 @@ select {
   font-size: 0.9rem;
   border-radius: 8px;
   border: 1px solid var(--border);
-  background: #0d1423;
+  background: #0f182b;
   color: var(--text-main);
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.35);
 }
 
 input[type="checkbox"] {
   transform: scale(0.95);
+  accent-color: var(--primary-soft);
+}
+
+input::placeholder {
+  color: var(--text-muted);
+}
+
+input:focus,
+select:focus {
+  outline: none;
+  border-color: var(--primary-soft);
+  box-shadow: 0 0 0 2px rgba(74, 163, 244, 0.2);
 }
 
 .form-checkbox {
