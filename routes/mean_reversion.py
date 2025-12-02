@@ -424,18 +424,11 @@ def update_config(cfg: type(mr.bot_config)):
             s.close()
 
     # Pair changes reset state and history
-    if (cfg.asset_a, cfg.asset_b) != (mr.bot_config.asset_a, mr.bot_config.asset_b):
+    pair_changed = (cfg.asset_a, cfg.asset_b) != (mr.bot_config.asset_a, mr.bot_config.asset_b)
+    if pair_changed:
         if (cfg.asset_a, cfg.asset_b) not in mr.bot_config.available_pairs:
             raise HTTPException(status_code=400, detail="Pair not available")
         mr.set_pair(cfg.asset_a, cfg.asset_b)
-        mr.reset_history()
-        s = SessionLocal()
-        try:
-            s.query(State).delete()
-            s.query(PriceSnapshot).delete()
-            s.commit()
-        finally:
-            s.close()
 
     data = cfg.dict()
     data.pop("enabled", None)
@@ -445,7 +438,29 @@ def update_config(cfg: type(mr.bot_config)):
         setattr(mr.bot_config, field, value)
 
     mr.bot_config.enabled = current_enabled
+
+    if pair_changed:
+        s = SessionLocal()
+        try:
+            s.query(State).delete()
+            mr.reset_history()
+            mr.load_ratio_history(s)
+            s.commit()
+        finally:
+            s.close()
     return mr.bot_config
+
+
+@router.get("/config_best", response_model=type(mr.bot_config))
+def generate_best_config():
+    session = SessionLocal()
+    try:
+        try:
+            return mr.generate_best_config_from_history(session)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+    finally:
+        session.close()
 
 
 @router.post("/start")

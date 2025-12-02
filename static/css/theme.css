@@ -286,6 +286,35 @@ label {
   margin-bottom: 2px;
 }
 
+label.label-with-tip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: fit-content;
+}
+
+.tooltip-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  background: var(--surface-light);
+  color: var(--text-subtle);
+  font-size: 0.7rem;
+  font-weight: 700;
+  cursor: help;
+  line-height: 1;
+}
+
+.tooltip-icon:hover {
+  background: var(--primary-soft);
+  color: #0b1720;
+  border-color: var(--primary-soft);
+}
+
 .form-row {
   display: grid;
   grid-template-columns: 1fr 1fr;

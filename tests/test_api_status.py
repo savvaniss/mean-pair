@@ -4,7 +4,7 @@ from datetime import datetime, timedelta
 
 from engines import mean_reversion as mr
 from routes import mean_reversion as mr_routes
-from database import SessionLocal, PriceSnapshot
+from database import SessionLocal, PriceSnapshot, PairHealth
 import config
 
 
@@ -60,6 +60,7 @@ def test_pair_history_endpoint(client):
     session = SessionLocal()
     try:
         session.query(PriceSnapshot).delete()
+        session.query(PairHealth).delete()
         now = datetime.utcnow()
         for i in range(5):
             session.add(
@@ -83,3 +84,4 @@ def test_pair_history_endpoint(client):
     assert payload["pair"] == "HBAR/DOGE"
     assert len(payload["history"]) == 5
     assert "is_good_pair" in payload
+    assert len(payload["health_history"]) == 1
