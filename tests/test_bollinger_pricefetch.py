@@ -1,25 +1,42 @@
+# tests/test_bollinger_pricefetch.py
+import pytest
+
 import config
-from engines.bollinger import get_symbol_price_boll
+from engines import bollinger as eng
+
 
 def test_bollinger_price_fetch_accepts_positional_lambda(monkeypatch):
     """
-    Ensure we support test lambdas that define positional-only get_symbol_ticker().
-    This reproduces the exact situation that caused a 500 in /boll_status.
+    Ensure get_symbol_price_boll works when the underlying client
+    defines get_symbol_ticker(symbol) with a positional parameter
+    (this is how the real Binance client behaves).
     """
-    # Fake ticker response
-    def fake_get_ticker(symbol):
-        return {"symbol": symbol, "price": "0.12345"}
 
-    monkeypatch.setattr(config.boll_client, "get_symbol_ticker", fake_get_ticker)
+    class FakeClientPositional:
+        def get_symbol_ticker(self, symbol):
+            # Simulate Binance response
+            return {"symbol": symbol, "price": "0.12345"}
 
-    price = get_symbol_price_boll("BTCUSDT")
-    assert price == 0.12345
+    # Replace the whole boll_client with our fake one
+    monkeypatch.setattr(config, "boll_client", FakeClientPositional(), raising=False)
+
+    price = eng.get_symbol_price_boll("HBARUSDC")
+    assert price == pytest.approx(0.12345)
+
 
 def test_bollinger_price_fetch_keyword(monkeypatch):
-    def fake_keyword(*, symbol):
-        return {"symbol": symbol, "price": "2.50"}
+    """
+    Ensure get_symbol_price_boll also works when get_symbol_ticker
+    is defined with a keyword-only parameter: get_symbol_ticker(*, symbol).
+    This mimics the lambda we used in tests that previously caused the
+    'takes 1 positional argument but 2 were given' TypeError.
+    """
 
-    monkeypatch.setattr(config.boll_client, "get_symbol_ticker", fake_keyword)
+    class FakeClientKeyword:
+        def get_symbol_ticker(self, *, symbol):
+            return {"symbol": symbol, "price": "2.50"}
 
-    price = get_symbol_price_boll("BTCUSDT")
-    assert price == 2.50
+    monkeypatch.setattr(config, "boll_client", FakeClientKeyword(), raising=False)
+
+    price = eng.get_symbol_price_boll("BTCUSDC")
+    assert price == pytest.approx(2.50)
