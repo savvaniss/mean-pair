@@ -451,7 +451,7 @@ def update_config(cfg: type(mr.bot_config)):
     return mr.bot_config
 
 
-@router.get("/config_best", response_model=type(mr.bot_config))
+@router.get("/config_best", response_model=mr.BestConfigResult)
 def generate_best_config():
     session = SessionLocal()
     try:

@@ -1,4 +1,5 @@
 # engines/mean_reversion.py
+import math
 import threading
 import time
 from datetime import datetime
@@ -9,7 +10,7 @@ from pydantic import BaseModel
 
 import config
 from config import BASE_ASSET, mr_symbol, get_mr_quote
-from database import SessionLocal, State, PriceSnapshot, Trade, PairHealth
+from database import SessionLocal, State, PriceSnapshot, Trade, PairHealth, MRTradeStat
 from engines.common import compute_ma_std_window
 
 # Rolling window (in memory)
@@ -59,6 +60,13 @@ class BotConfig(BaseModel):
 bot_config = BotConfig()
 bot_config.use_testnet = config.USE_TESTNET
 bot_config.enabled = config.AUTO_START
+
+
+class BestConfigResult(BotConfig):
+    profitable_bucket: Optional[str] = None
+    bucket_avg_pnl: Optional[float] = None
+    bucket_sharpe: Optional[float] = None
+    bucket_trades: Optional[int] = None
 
 
 def current_pair() -> Tuple[str, str]:
@@ -249,6 +257,22 @@ def compute_stats(ratio: float) -> Tuple[float, float, float, bool]:
     std = var ** 0.5 if var > 0 else 0.0
     z = (ratio_filtered - mean_r) / std if std > 0 else 0.0
     return mean_r, std, z, is_outlier
+
+
+def z_entry_bucket(z: float, bucket_width: float = 0.5) -> str:
+    """Map a z-score into a human-friendly bucket label (absolute magnitude)."""
+    magnitude = abs(z)
+    lower = bucket_width * math.floor(magnitude / bucket_width)
+    upper = lower + bucket_width
+    return f"{lower:.1f}-{upper:.1f}"
+
+
+def bucket_midpoint(label: str) -> Optional[float]:
+    try:
+        parts = label.split("-")
+        return (float(parts[0]) + float(parts[1])) / 2
+    except Exception:
+        return None
 
 
 def init_state_from_balances(st: State):
@@ -454,7 +478,7 @@ def get_pair_history(session, limit: int = 50):
     }
 
 
-def generate_best_config_from_history(session, lookback: int = 300) -> BotConfig:
+def generate_best_config_from_history(session, lookback: int = 300) -> BestConfigResult:
     """
     Propose config parameters derived from historical ratios for the active pair.
 
@@ -498,7 +522,52 @@ def generate_best_config_from_history(session, lookback: int = 300) -> BotConfig
     cfg.buy_ratio_threshold = round(buy_threshold, 6)
     cfg.use_ratio_thresholds = std_r > 0
 
-    return cfg
+    profitable_bucket: Optional[str] = None
+    bucket_avg_pnl: Optional[float] = None
+    bucket_sharpe: Optional[float] = None
+    bucket_trades: Optional[int] = None
+
+    completed_stats = (
+        session.query(MRTradeStat)
+        .filter(MRTradeStat.exit_ts.isnot(None))
+        .all()
+    )
+
+    bucket_pnls: Dict[str, List[float]] = {}
+    for stat in completed_stats:
+        bucket = stat.z_entry_bucket or z_entry_bucket(stat.entry_z or 0.0)
+        bucket_pnls.setdefault(bucket, []).append(stat.pnl_usd or 0.0)
+
+    best_bucket = None
+    best_sharpe = float("-inf")
+    for bucket, pnls in bucket_pnls.items():
+        if not pnls:
+            continue
+        avg = sum(pnls) / len(pnls)
+        variance = sum((p - avg) ** 2 for p in pnls) / len(pnls)
+        std = variance ** 0.5
+        sharpe = avg / std if std > 0 else (float("inf") if avg > 0 else 0.0)
+        if avg > 0 and sharpe > best_sharpe:
+            best_bucket = bucket
+            best_sharpe = sharpe
+            bucket_avg_pnl = avg
+            bucket_trades = len(pnls)
+
+    if best_bucket:
+        midpoint = bucket_midpoint(best_bucket)
+        if midpoint is not None:
+            cfg.z_entry = round(min(cfg.z_entry, max(1.0, midpoint)), 2)
+            cfg.z_exit = max(0.2, round(cfg.z_entry / 3, 2))
+            profitable_bucket = best_bucket
+            bucket_sharpe = best_sharpe if math.isfinite(best_sharpe) else None
+
+    return BestConfigResult(
+        **cfg.dict(),
+        profitable_bucket=profitable_bucket,
+        bucket_avg_pnl=bucket_avg_pnl,
+        bucket_sharpe=bucket_sharpe,
+        bucket_trades=bucket_trades,
+    )
 
 
 # ========== Shared trade helpers (used by bot & manual) ==========
@@ -601,6 +670,50 @@ def execute_mr_trade(
     return from_asset, to_asset, qty_from, qty_to, ratio
 
 
+def record_trade_stat(
+    session,
+    ts: datetime,
+    z: float,
+    ratio: float,
+    pnl_usd: float,
+):
+    """
+    Persist entry/exit level information for completed trades.
+
+    The first trade observed opens a stat row; the next closes it, capturing
+    holding time, exit z-score, and realized PnL. This keeps a rolling view of
+    how different entry z-score buckets are performing.
+    """
+
+    open_stat = (
+        session.query(MRTradeStat)
+        .filter(MRTradeStat.exit_ts.is_(None))
+        .order_by(MRTradeStat.entry_ts.desc())
+        .first()
+    )
+
+    if open_stat is None:
+        session.add(
+            MRTradeStat(
+                entry_ts=ts,
+                entry_z=z,
+                entry_ratio=ratio,
+            )
+        )
+        return
+
+    holding_secs = None
+    if open_stat.entry_ts:
+        holding_secs = (ts - open_stat.entry_ts).total_seconds()
+
+    open_stat.exit_ts = ts
+    open_stat.exit_z = z
+    open_stat.exit_ratio = ratio
+    open_stat.holding_secs = holding_secs
+    open_stat.pnl_usd = pnl_usd
+    open_stat.z_entry_bucket = z_entry_bucket(open_stat.entry_z or 0.0)
+
+
 # ========== Bot loop ==========
 
 
@@ -668,6 +781,7 @@ def bot_loop():
                                     is_testnet=int(bot_config.use_testnet),
                                 )
                                 session.add(tr)
+                                record_trade_stat(session, ts, z, trade_ratio, pnl_usd)
                                 state.current_asset = to_asset
                                 state.current_qty = qty_to
                                 state.realized_pnl_usd += pnl_usd
@@ -699,6 +813,7 @@ def bot_loop():
                                     is_testnet=int(bot_config.use_testnet),
                                 )
                                 session.add(tr)
+                                record_trade_stat(session, ts, z, trade_ratio, pnl_usd)
                                 state.current_asset = to_asset
                                 state.current_qty = qty_to
                                 state.realized_pnl_usd += pnl_usd
