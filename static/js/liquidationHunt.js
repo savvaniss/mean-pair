@@ -135,8 +135,8 @@ function syncConfigForm(cfg) {
   document.getElementById('liqCfgTestnet').checked = cfg.use_testnet;
 }
 
-async function fetchStatus(endpoint = '/liquidation/status') {
-  const res = await fetch(endpoint);
+async function fetchStatus(endpoint = '/liquidation/status', options = undefined) {
+  const res = await fetch(endpoint, options);
   if (!res.ok) throw new Error('Failed to load status');
   return res.json();
 }
@@ -158,13 +158,14 @@ async function refreshStatus() {
 
 async function manualRescan() {
   try {
-    const res = await fetchStatus('/liquidation/scan');
+    const res = await fetchStatus('/liquidation/scan', { method: 'POST' });
     renderSignal(res);
     renderHeatmap(res.heatmap);
     renderTable(res.recent_candles || []);
     renderLastExecution(res.last_execution);
     syncConfigForm(res.config);
   } catch (err) {
+    console.error(err);
     showToast('Manual rescan failed', 'danger');
   }
 }
@@ -182,12 +183,18 @@ async function triggerExecute() {
 }
 
 async function toggleEnabled(enabled) {
-  await fetch('/liquidation/config', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ enabled }),
-  });
-  showToast(enabled ? 'Scanner started' : 'Scanner stopped', 'info');
+  try {
+    await fetch('/liquidation/config', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ enabled }),
+    });
+    showToast(enabled ? 'Scanner started' : 'Scanner stopped', 'info');
+    await refreshStatus();
+  } catch (err) {
+    console.error(err);
+    showToast('Unable to update scanner status', 'danger');
+  }
 }
 
 function wireButtons() {
@@ -221,13 +228,19 @@ function wireConfigForm() {
       use_testnet: document.getElementById('liqCfgTestnet').checked,
       enabled: true,
     };
-    await fetch('/liquidation/config', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    });
-    showToast('Liquidation config saved', 'success');
-    await manualRescan();
+    try {
+      const res = await fetch('/liquidation/config', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) throw new Error('Save failed');
+      showToast('Liquidation config saved', 'success');
+      await manualRescan();
+    } catch (err) {
+      console.error(err);
+      showToast('Unable to save liquidation config', 'danger');
+    }
   });
 }
 

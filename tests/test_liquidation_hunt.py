@@ -1,6 +1,7 @@
 from datetime import datetime, timedelta
 
 from engines import liquidation_hunt as lh
+from routes import liquidation as liquidation_routes
 
 
 def _candle(ts_offset: int, o: float, h: float, l: float, c: float):
@@ -111,6 +112,37 @@ def test_manual_execute_places_order_and_records(monkeypatch):
         lh.liq_client = orig_client
         lh.liq_config = orig_cfg
         lh.latest_signal = None
+
+
+def test_route_config_round_trip(monkeypatch):
+    orig_cfg = lh.liq_config
+    try:
+        updated = liquidation_routes.liquidation_config({
+            "symbol": "SOLUSDT",
+            "poll_interval_sec": 12,
+            "auto_trade": True,
+        })
+        assert updated.symbol == "SOLUSDT"
+        status = liquidation_routes.liquidation_status()
+        assert status["config"]["symbol"] == "SOLUSDT"
+        assert status["config"]["poll_interval_sec"] == 12
+        assert status["config"]["auto_trade"] is True
+    finally:
+        lh.liq_config = orig_cfg
+
+
+def test_route_manual_scan_handles_no_client(monkeypatch):
+    orig_client = lh.liq_client
+    orig_cfg = lh.liq_config
+    try:
+        lh.liq_client = None
+        lh.liq_config = lh.liq_config.copy(update={"symbol": "BTCUSDT", "lookback_candles": 30})
+        res = liquidation_routes.liquidation_scan()
+        assert res["config"]["symbol"] == "BTCUSDT"
+        assert "heatmap" in res
+    finally:
+        lh.liq_client = orig_client
+        lh.liq_config = orig_cfg
 
 
 def test_auto_trade_skips_duplicates(monkeypatch):

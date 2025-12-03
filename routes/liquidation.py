@@ -27,6 +27,7 @@ def liquidation_config(cfg: dict):
     return updated
 
 
+@router.get("/liquidation/scan")
 @router.post("/liquidation/scan")
 def liquidation_scan():
     # Immediate manual scan for the UI/tests without waiting for the thread interval
