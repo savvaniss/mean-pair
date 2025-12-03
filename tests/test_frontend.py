@@ -3,6 +3,8 @@ from pathlib import Path
 import pytest
 
 pytest.importorskip("bs4")
+from pathlib import Path
+
 from bs4 import BeautifulSoup
 
 
@@ -35,6 +37,7 @@ def test_assets_and_tabs_present():
     tabs = [btn.get_text(strip=True) for btn in dom.select(".tab-bar button")]
     assert any("Mean Reversion" in text for text in tabs)
     assert any("Bollinger" in text for text in tabs)
+    assert any("Trend" in text for text in tabs)
 
 
 def test_mean_and_bollinger_forms_exist():
@@ -43,6 +46,7 @@ def test_mean_and_bollinger_forms_exist():
     assert dom.find("form", id="configForm") is not None
     assert dom.find("form", id="manualTradeForm") is not None
     assert dom.find("form", id="bollConfigForm") is not None
+    assert dom.find("form", id="trendConfigForm") is not None
 
 
 def test_trading_tab_and_form_present():

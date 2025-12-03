@@ -21,11 +21,12 @@
     </div>
   </div>
 
-  <div class="tab-bar">
-    <button class="tab active" data-tab="mean">Mean Reversion (Pairs)</button>
-    <button class="tab" data-tab="boll">Single-Coin Bollinger</button>
-    <button class="tab" data-tab="trading">Trading Desk</button>
-  </div>
+    <div class="tab-bar">
+      <button class="tab active" data-tab="mean">Mean Reversion (Pairs)</button>
+      <button class="tab" data-tab="boll">Single-Coin Bollinger</button>
+      <button class="tab" data-tab="trend">Trend Following (EMA)</button>
+      <button class="tab" data-tab="trading">Trading Desk</button>
+    </div>
 
   <div id="tab-mean" class="tab-content active">
     <div class="control-buttons" style="margin-bottom:10px;">
@@ -490,9 +491,106 @@
         </table>
       </div>
     </div>
-  </div>
+    </div>
 
-  <div id="tab-trading" class="tab-content">
+    <div id="tab-trend" class="tab-content">
+      <div class="row">
+        <div class="card" data-collapsible>
+          <div class="card-header">
+            <h2>Trend Status</h2>
+            <span class="toggle-icon">▼</span>
+          </div>
+          <div class="card-body" id="trendStatus">Loading...</div>
+        </div>
+
+        <div class="card" data-collapsible>
+          <div class="card-header">
+            <h2>Trend Config</h2>
+            <span class="toggle-icon">▼</span>
+          </div>
+          <div class="card-body">
+            <form id="trendConfigForm">
+              <div class="form-row">
+                <div>
+                  <label for="trend_symbol">Symbol</label>
+                  <input id="trend_symbol" name="symbol" type="text" placeholder="BTCUSDT" />
+                </div>
+                <div>
+                  <label for="trend_poll_interval">Poll interval (sec)</label>
+                  <input id="trend_poll_interval" name="poll_interval_sec" type="number" min="5" step="1" />
+                </div>
+                <div>
+                  <label for="trend_fast_window">Fast EMA window</label>
+                  <input id="trend_fast_window" name="fast_window" type="number" min="2" step="1" />
+                </div>
+                <div>
+                  <label for="trend_slow_window">Slow EMA window</label>
+                  <input id="trend_slow_window" name="slow_window" type="number" min="3" step="1" />
+                </div>
+              </div>
+
+              <div class="form-row">
+                <div>
+                  <label for="trend_atr_window">ATR window</label>
+                  <input id="trend_atr_window" name="atr_window" type="number" min="1" step="1" />
+                </div>
+                <div>
+                  <label for="trend_atr_stop">ATR stop multiplier</label>
+                  <input id="trend_atr_stop" name="atr_stop_mult" type="number" step="0.1" />
+                </div>
+                <div>
+                  <label for="trend_max_position">Max position (USD)</label>
+                  <input id="trend_max_position" name="max_position_usd" type="number" step="1" />
+                </div>
+                <div>
+                  <label for="trend_cooldown">Cooldown (sec)</label>
+                  <input id="trend_cooldown" name="cooldown_sec" type="number" min="0" step="1" />
+                </div>
+              </div>
+
+              <div class="form-row">
+                <div class="form-checkbox">
+                  <input type="checkbox" id="trend_use_all" name="use_all_balance" />
+                  <label for="trend_use_all">Use all quote balance</label>
+                </div>
+                <div class="form-checkbox">
+                  <input type="checkbox" id="trend_use_testnet" name="use_testnet" />
+                  <label for="trend_use_testnet">Use Binance testnet</label>
+                </div>
+              </div>
+
+              <div class="button-row">
+                <button type="submit" class="btn btn-primary">Save config</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      </div>
+
+      <div class="card" data-collapsible>
+        <div class="card-header">
+          <h2>Trend History</h2>
+          <span class="toggle-icon">▼</span>
+        </div>
+        <div class="card-body">
+          <p id="trendHistoryStatus">Loading...</p>
+          <table id="trendHistoryTable">
+            <thead>
+              <tr>
+                <th>Time</th>
+                <th>Price</th>
+                <th>Fast EMA</th>
+                <th>Slow EMA</th>
+                <th>ATR</th>
+              </tr>
+            </thead>
+            <tbody id="trendHistoryBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <div id="tab-trading" class="tab-content">
     <div class="row">
       <div class="card" data-collapsible>
         <div class="card-header">
