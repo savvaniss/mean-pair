@@ -437,9 +437,16 @@ canvas {
 
 .bollinger-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-  gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 14px;
   margin-bottom: 12px;
+  align-items: start;
+}
+
+@media (min-width: 1200px) {
+  .bollinger-grid {
+    grid-template-columns: repeat(2, minmax(420px, 1fr));
+  }
 }
 
 .config-panel {
@@ -525,6 +532,10 @@ canvas {
 
 .bollinger-form .button-row {
   margin-top: 4px;
+}
+
+.bollinger-form .form-row {
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
 }
 
 .modal-overlay {
