@@ -6,8 +6,10 @@ from fastapi.staticfiles import StaticFiles
 import config
 from engines import mean_reversion as mr_engine
 from engines import bollinger as boll_engine
+from engines import trend_following as trend_engine
 from routes import mean_reversion as mr_routes
 from routes import bollinger as boll_routes
+from routes import trend_following as trend_routes
 from routes import trading as trading_routes
 
 
@@ -23,6 +25,7 @@ app.mount("/static", StaticFiles(directory="static"), name="static")
 # API routes
 app.include_router(mr_routes.router)
 app.include_router(boll_routes.router)
+app.include_router(trend_routes.router)
 app.include_router(trading_routes.router)
 
 
@@ -36,6 +39,7 @@ def start_threads():
     if not config.BOT_DISABLE_THREADS:
         mr_engine.start_bot_thread()
         boll_engine.start_boll_thread()
+        trend_engine.start_trend_thread()
 
 
 @app.on_event("shutdown")
@@ -43,6 +47,7 @@ def stop_threads():
     if not config.BOT_DISABLE_THREADS:
         mr_engine.stop_bot_thread()
         boll_engine.stop_boll_thread()
+        trend_engine.stop_trend_thread()
 
 
 # =========================

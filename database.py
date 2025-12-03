@@ -105,6 +105,41 @@ class BollSnapshot(Base):
     std = Column(Float)
 
 
+class TrendState(Base):
+    __tablename__ = "trend_state"
+    id = Column(Integer, primary_key=True, index=True)
+    symbol = Column(String)
+    position = Column(String)  # "FLAT" or "LONG"
+    qty_asset = Column(Float)
+    entry_price = Column(Float)
+    realized_pnl_usd = Column(Float)
+    unrealized_pnl_usd = Column(Float)
+
+
+class TrendTrade(Base):
+    __tablename__ = "trend_trades"
+    id = Column(Integer, primary_key=True, index=True)
+    ts = Column(DateTime, index=True)
+    symbol = Column(String)
+    side = Column(String)  # "BUY" or "SELL"
+    qty = Column(Float)
+    price = Column(Float)
+    notional = Column(Float)
+    pnl_usd = Column(Float)
+    is_testnet = Column(Integer)
+
+
+class TrendSnapshot(Base):
+    __tablename__ = "trend_snapshots"
+    id = Column(Integer, primary_key=True, index=True)
+    ts = Column(DateTime, index=True)
+    symbol = Column(String)
+    price = Column(Float)
+    fast_ema = Column(Float)
+    slow_ema = Column(Float)
+    atr = Column(Float)
+
+
 class PairHealth(Base):
     __tablename__ = "pair_health"
     id = Column(Integer, primary_key=True, index=True)

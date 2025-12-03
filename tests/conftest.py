@@ -34,6 +34,7 @@ import app  # noqa: E402
 # Import the new engine modules where the in-memory state lives now
 from engines import mean_reversion as mr_engine  # noqa: E402
 from engines import bollinger as boll_engine     # noqa: E402
+from engines import trend_following as trend_engine  # noqa: E402
 
 
 @pytest.fixture(autouse=True)
@@ -48,12 +49,16 @@ def _reset_histories():
     mr_engine.ratio_history.clear()
     boll_engine.boll_price_history.clear()
     boll_engine.boll_ts_history.clear()
+    trend_engine.tf_price_history.clear()
+    trend_engine.tf_ts_history.clear()
     try:
         yield
     finally:
         mr_engine.ratio_history.clear()
         boll_engine.boll_price_history.clear()
         boll_engine.boll_ts_history.clear()
+        trend_engine.tf_price_history.clear()
+        trend_engine.tf_ts_history.clear()
 
 
 @pytest.fixture

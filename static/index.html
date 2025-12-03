@@ -13,7 +13,7 @@
   <div class="top-bar">
     <div class="title-block">
       <h1>Pair Trading Suite</h1>
-      <div class="title-sub">Unified mean-reversion and Bollinger toolkit</div>
+      <div class="title-sub">Unified mean-reversion, Bollinger, and trend toolkit</div>
     </div>
     <div class="control-buttons">
       <button class="btn btn-ghost" id="syncStateBtn">Sync MR balances</button>
@@ -21,11 +21,12 @@
     </div>
   </div>
 
-  <div class="tab-bar">
-    <button class="tab active" data-tab="mean">Mean Reversion (Pairs)</button>
-    <button class="tab" data-tab="boll">Single-Coin Bollinger</button>
-    <button class="tab" data-tab="trading">Trading Desk</button>
-  </div>
+    <div class="tab-bar">
+      <button class="tab active" data-tab="mean">Mean Reversion (Pairs)</button>
+      <button class="tab" data-tab="boll">Single-Coin Bollinger</button>
+      <button class="tab" data-tab="trend">Trend Following (EMA)</button>
+      <button class="tab" data-tab="trading">Trading Desk</button>
+    </div>
 
   <div id="tab-mean" class="tab-content active">
     <div class="control-buttons" style="margin-bottom:10px;">
@@ -490,9 +491,141 @@
         </table>
       </div>
     </div>
-  </div>
+    </div>
 
-  <div id="tab-trading" class="tab-content">
+    <div id="tab-trend" class="tab-content">
+      <div class="control-buttons" style="margin-bottom:10px;">
+        <button class="btn btn-primary" id="startTrendBtn">Start Trend bot</button>
+        <button class="btn btn-danger" id="stopTrendBtn">Stop Trend bot</button>
+      </div>
+
+      <div class="row">
+        <div class="card" data-collapsible>
+          <div class="card-header">
+            <h2>Trend Status</h2>
+            <span class="toggle-icon">▼</span>
+          </div>
+          <div class="card-body" id="trendStatus">Loading...</div>
+        </div>
+
+        <div class="card" data-collapsible>
+          <div class="card-header">
+            <h2>Trend Config</h2>
+            <span class="toggle-icon">▼</span>
+          </div>
+          <div class="card-body">
+            <form id="trendConfigForm">
+              <div class="form-row">
+                <div>
+                  <label for="trend_symbol" class="label-with-tip">
+                    Trading symbol
+                    <span class="tooltip-icon" title="Coin pair for the EMA/ATR crossover entries. Choose a liquid symbol like BTCUSDT or ETHUSDT.">?</span>
+                  </label>
+                  <input id="trend_symbol" name="symbol" type="text" placeholder="BTCUSDT" />
+                </div>
+                <div>
+                  <label for="trend_poll_interval" class="label-with-tip">
+                    Poll interval (sec)
+                    <span class="tooltip-icon" title="Seconds between price polls, EMA updates, and trading checks.">?</span>
+                  </label>
+                  <input id="trend_poll_interval" name="poll_interval_sec" type="number" min="5" step="1" />
+                </div>
+                <div>
+                  <label for="trend_fast_window" class="label-with-tip">
+                    Fast EMA window
+                    <span class="tooltip-icon" title="Samples used for the fast EMA. Lower values react faster to price swings.">?</span>
+                  </label>
+                  <input id="trend_fast_window" name="fast_window" type="number" min="2" step="1" />
+                </div>
+                <div>
+                  <label for="trend_slow_window" class="label-with-tip">
+                    Slow EMA window
+                    <span class="tooltip-icon" title="Samples used for the slow EMA baseline. Larger windows smooth out noise.">?</span>
+                  </label>
+                  <input id="trend_slow_window" name="slow_window" type="number" min="3" step="1" />
+                </div>
+              </div>
+
+              <div class="form-row">
+                <div>
+                  <label for="trend_atr_window" class="label-with-tip">
+                    ATR window
+                    <span class="tooltip-icon" title="Period used to compute ATR for volatility-aware stops and sizing.">?</span>
+                  </label>
+                  <input id="trend_atr_window" name="atr_window" type="number" min="1" step="1" />
+                </div>
+                <div>
+                  <label for="trend_atr_stop" class="label-with-tip">
+                    ATR stop multiplier
+                    <span class="tooltip-icon" title="Multiple of ATR used for trailing risk control below the entry price.">?</span>
+                  </label>
+                  <input id="trend_atr_stop" name="atr_stop_mult" type="number" step="0.1" />
+                </div>
+                <div>
+                  <label for="trend_max_position" class="label-with-tip">
+                    Max position (<span class="quote-label">USDT</span>)
+                    <span class="tooltip-icon" title="Maximum quote allocation per position. Use lower amounts while testing.">?</span>
+                  </label>
+                  <input id="trend_max_position" name="max_position_usd" type="number" step="1" />
+                </div>
+                <div>
+                  <label for="trend_cooldown" class="label-with-tip">
+                    Cooldown (sec)
+                    <span class="tooltip-icon" title="Minimum wait between consecutive entries to avoid over-trading.">?</span>
+                  </label>
+                  <input id="trend_cooldown" name="cooldown_sec" type="number" min="0" step="1" />
+                </div>
+              </div>
+
+              <div class="form-row">
+                <div class="form-checkbox">
+                  <input type="checkbox" id="trend_use_all" name="use_all_balance" />
+                  <label for="trend_use_all" class="label-with-tip">
+                    Use all quote balance
+                    <span class="tooltip-icon" title="If enabled, allocate the full available quote balance instead of the max position cap.">?</span>
+                  </label>
+                </div>
+                <div class="form-checkbox">
+                  <input type="checkbox" id="trend_use_testnet" name="use_testnet" />
+                  <label for="trend_use_testnet" class="label-with-tip">
+                    Use Binance testnet
+                    <span class="tooltip-icon" title="Send trend-following orders to Binance testnet instead of mainnet.">?</span>
+                  </label>
+                </div>
+              </div>
+
+              <div class="button-row">
+                <button type="submit" class="btn btn-primary">Save config</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      </div>
+
+      <div class="card" data-collapsible>
+        <div class="card-header">
+          <h2>Trend History</h2>
+          <span class="toggle-icon">▼</span>
+        </div>
+        <div class="card-body">
+          <p id="trendHistoryStatus">Loading...</p>
+          <table id="trendHistoryTable">
+            <thead>
+              <tr>
+                <th>Time</th>
+                <th>Price</th>
+                <th>Fast EMA</th>
+                <th>Slow EMA</th>
+                <th>ATR</th>
+              </tr>
+            </thead>
+            <tbody id="trendHistoryBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <div id="tab-trading" class="tab-content">
     <div class="row">
       <div class="card" data-collapsible>
         <div class="card-header">
