@@ -154,7 +154,7 @@ Services:
 | POST | `/config` | Update MR config |
 | POST | `/start` | Start MR bot loop |
 | POST | `/stop` | Stop MR bot loop |
-| POST | `/manual_trade` | Execute manual HBAR↔DOGE trade |
+| POST | `/manual_trade` | Execute manual HBAR↔DOGE trade (specify `from_asset_qty` or `notional_usd`) |
 | GET | `/trades` | List MR trades |
 
 ### Bollinger

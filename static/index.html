@@ -169,11 +169,19 @@
                 </select>
               </div>
               <div>
-                <label for="manual_notional" class="label-with-tip">
-                  Notional (<span class="quote-label">USDT</span>)
-                  <span class="tooltip-icon" title="Quote-currency amount to send through the manual swap.">?</span>
+                <label for="manual_amount" class="label-with-tip">
+                  Amount (<span id="manual_amount_label">HBAR</span>)
+                  <span
+                    class="tooltip-icon"
+                    title="How many units of the FROM asset to swap. Use Max to fill the entire available balance."
+                    >?</span
+                  >
                 </label>
-                <input id="manual_notional" type="number" value="20" step="1" />
+                <div class="input-with-button">
+                  <input id="manual_amount" type="number" value="0" step="0.0001" />
+                  <button type="button" class="btn btn-ghost small" id="manual_max_btn">Max</button>
+                </div>
+                <div class="help-text" id="manual_balance_hint"></div>
               </div>
             </div>
             <button type="submit" class="btn btn-primary">Execute manual trade</button>

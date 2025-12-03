@@ -358,6 +358,16 @@ select {
   box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.35);
 }
 
+.input-with-button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.input-with-button input[type="number"] {
+  flex: 1;
+}
+
 input[type="checkbox"] {
   transform: scale(0.95);
   accent-color: var(--primary-soft);

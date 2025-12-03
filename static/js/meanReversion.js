@@ -10,6 +10,7 @@ let lastPriceB = null;
 let lastRatio = null;
 let currentQuote = 'USDT';
 let currentPair = { asset_a: 'HBAR', asset_b: 'DOGE' };
+let latestStatus = null;
 
 function applyConfigToForm(cfg) {
   botConfig = cfg;
@@ -78,23 +79,92 @@ function updatePairControls(pairs, selected) {
   manualDirection.appendChild(dir2);
 
   currentPair = { asset_a: selected[0], asset_b: selected[1] };
+  updateManualTradeForm();
+}
+
+function getFromAssetInfo(direction) {
+  const [fromAsset] = direction.split('->');
+  let balance = 0;
+  let price = null;
+
+  if (latestStatus) {
+    if (fromAsset === currentPair.asset_a) {
+      balance = latestStatus.asset_a_balance || 0;
+      price = latestStatus.price_a;
+    } else if (fromAsset === currentPair.asset_b) {
+      balance = latestStatus.asset_b_balance || 0;
+      price = latestStatus.price_b;
+    }
+  }
+
+  return { fromAsset, balance, price };
+}
+
+function updateManualTradeForm() {
+  const directionEl = document.getElementById('manual_direction');
+  if (!directionEl) return;
+
+  const { fromAsset, balance } = getFromAssetInfo(directionEl.value);
+  const label = document.getElementById('manual_amount_label');
+  if (label) label.textContent = fromAsset || '—';
+
+  const hint = document.getElementById('manual_balance_hint');
+  if (hint) {
+    if (balance && balance > 0) {
+      hint.textContent = `Available: ${balance.toFixed(4)} ${fromAsset}`;
+    } else {
+      hint.textContent = 'Available: 0';
+    }
+  }
+}
+
+function setManualMax() {
+  const direction = document.getElementById('manual_direction').value;
+  const { fromAsset, balance } = getFromAssetInfo(direction);
+  const input = document.getElementById('manual_amount');
+
+  if (!balance || balance <= 0) {
+    showToast(`No ${fromAsset} balance available.`, 'warning');
+    return;
+  }
+
+  input.value = balance;
 }
 
 async function manualTrade(event) {
   event.preventDefault();
   const direction = document.getElementById('manual_direction').value;
-  const notional = parseFloat(document.getElementById('manual_notional').value);
+  const amountField = document.getElementById('manual_amount');
+  const amount = parseFloat(amountField.value);
+  const { fromAsset, balance, price } = getFromAssetInfo(direction);
 
-  if (isNaN(notional) || notional <= 0) {
-    showToast('Enter a valid notional amount > 0', 'warning');
+  if (isNaN(amount) || amount <= 0) {
+    showToast('Enter a valid trade amount > 0', 'warning');
     return;
+  }
+
+  if (!price || price <= 0) {
+    showToast('Missing price data. Refresh the dashboard and try again.', 'warning');
+    return;
+  }
+
+  if (!balance || balance <= 0) {
+    showToast(`No available ${fromAsset} balance to trade.`, 'warning');
+    return;
+  }
+
+  let qtyToUse = amount;
+  if (amount > balance) {
+    qtyToUse = balance;
+    amountField.value = balance;
+    showToast(`Clamped amount to available ${fromAsset} balance (${balance.toFixed(4)}).`, 'warning');
   }
 
   try {
     const r = await fetch('/manual_trade', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ direction: direction, notional_usd: notional }),
+      body: JSON.stringify({ direction: direction, from_asset_qty: qtyToUse }),
     });
 
     if (!r.ok) {
@@ -183,6 +253,16 @@ async function fetchStatus() {
 
     currentQuote = data.use_testnet ? 'USDT' : 'USDC';
     applyQuoteLabels(currentQuote);
+
+    latestStatus = {
+      base_balance: data.base_balance,
+      asset_a_balance: data.asset_a_balance,
+      asset_b_balance: data.asset_b_balance,
+      price_a: data.price_a,
+      price_b: data.price_b,
+    };
+
+    updateManualTradeForm();
 
     const envChip = `<span class="chip chip-primary">${data.use_testnet ? 'TESTNET' : 'MAINNET'}</span>`;
     const botChip = `<span class="chip ${data.enabled ? 'chip-primary' : 'chip-muted'}">MR Bot: ${
@@ -620,6 +700,8 @@ export async function refreshMeanReversion() {
 export function initMeanReversion() {
   document.getElementById('configForm').addEventListener('submit', saveConfig);
   document.getElementById('manualTradeForm').addEventListener('submit', manualTrade);
+  document.getElementById('manual_direction').addEventListener('change', updateManualTradeForm);
+  document.getElementById('manual_max_btn').addEventListener('click', setManualMax);
   document.getElementById('syncStateBtn').addEventListener('click', syncState);
   document.getElementById('startBotBtn').addEventListener('click', startBot);
   document.getElementById('stopBotBtn').addEventListener('click', stopBot);

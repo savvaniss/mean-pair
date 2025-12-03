@@ -157,3 +157,33 @@ def test_manual_trade_uses_mr_path(client, monkeypatch):
     assert called["symbol"].endswith(mr.get_mr_quote())
     assert called["side"] in ("BUY", "SELL")
     assert called["qty"] > 0
+
+
+def test_manual_trade_accepts_from_asset_qty(client, monkeypatch):
+    called = {"orders": []}
+
+    def fake_prices():
+        return 30000.0, 0.1, 0.2
+
+    def fake_balance(asset):
+        return 2.0 if asset == "HBAR" else 0.0
+
+    def fake_adjust(symbol, qty, **kw):
+        return qty
+
+    def fake_place(symbol, side, quantity):
+        called["orders"].append((symbol, side, quantity))
+        # Use the from-asset price (0.1) so quote math is deterministic
+        return {"orderId": len(called["orders"]), "cummulativeQuoteQty": str(quantity * 0.1)}
+
+    monkeypatch.setattr(mr, "get_prices", fake_prices)
+    monkeypatch.setattr(mr, "get_free_balance_mr", fake_balance)
+    monkeypatch.setattr(mr, "adjust_quantity", fake_adjust)
+    monkeypatch.setattr(mr, "place_market_order_mr", fake_place)
+
+    payload = {"direction": "HBAR->DOGE", "from_asset_qty": 5.0}
+    r = client.post("/manual_trade", json=payload)
+    assert r.status_code == 200
+
+    # The request asked for 5 HBAR but we only had 2.0 available, so the sell should clamp to 2.0
+    assert any(order[2] == 2.0 for order in called["orders"])
