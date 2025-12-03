@@ -435,28 +435,11 @@ canvas {
   flex: 1 1 360px;
 }
 
-.bollinger-form {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.bollinger-setup-grid {
+.bollinger-grid {
   display: grid;
-  grid-template-columns: 1.6fr 1fr;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
   gap: 12px;
-  align-items: start;
-}
-
-.config-stack,
-.summary-stack {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.bollinger-setup-grid .config-panel .form-row {
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  margin-bottom: 12px;
 }
 
 .config-panel {
