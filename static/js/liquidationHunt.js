@@ -93,6 +93,13 @@ function renderSignal(res) {
   const clusterCount = document.getElementById('liqClusterCount');
   if (!chip || !summary || !clusterCount) return;
 
+  const cfg = res.config || {};
+  const envChip = `<span class="chip chip-primary">${cfg.use_testnet ? 'TESTNET' : 'MAINNET'}</span>`;
+  const botChip = `<span class="chip ${cfg.enabled ? 'chip-primary' : 'chip-muted'}">Scanner: ${
+    cfg.enabled ? 'RUNNING' : 'STOPPED'
+  }</span>`;
+  const symbolChip = `<span class="chip">Symbol: ${res.symbol || '-'}</span>`;
+
   document.getElementById('liqSymbolLabel').textContent = res.symbol;
   clusterCount.textContent = `${res.cluster_count} pools`;
 
@@ -101,9 +108,14 @@ function renderSignal(res) {
     chip.className = 'chip chip-muted';
     summary.innerHTML = `
       <div class="status-chip-row">
+        ${envChip}
+        ${botChip}
+        ${symbolChip}
+      </div>
+      <div class="status-chip-row">
         <span class="chip chip-primary">${res.cluster_count} pools</span>
-        <span class="chip chip-muted">${res.symbol}</span>
-        <span class="chip chip-muted">Scanning...</span>
+        <span class="chip chip-muted">Wick ≥ ${fmt(cfg.wick_body_ratio)}x</span>
+        <span class="chip chip-muted">RR ${fmt(cfg.risk_reward)}x</span>
       </div>
       <div class="status-line">Watching clusters for next sweep...</div>
       <div class="status-line">We need a wick through liquidity plus a reclaim to light up an entry.</div>
@@ -118,25 +130,38 @@ function renderSignal(res) {
   chip.textContent = `${sig.direction} setup`;
   chip.className = sig.direction === 'LONG' ? 'chip chip-success' : 'chip chip-danger';
   const reclaimText = sig.reclaim_confirmed ? 'reclaimed' : 'waiting reclaim';
-  const baseRow = `
+  summary.innerHTML = `
     <div class="status-chip-row">
-      <span class="chip chip-primary">${res.cluster_count} pools</span>
-      <span class="chip chip-muted">${res.symbol}</span>
-      <span class="chip chip-muted">${reclaimText}</span>
+      ${envChip}
+      ${botChip}
+      ${symbolChip}
     </div>
-  `;
-  const detailRow = `
     <div class="status-chip-row">
       <span class="chip ${sig.direction === 'LONG' ? 'chip-success' : 'chip-danger'}">${sig.direction} sweep</span>
       <span class="chip chip-primary">${(sig.confidence * 100).toFixed(0)}% confidence</span>
       <span class="chip ${sig.reclaim_confirmed ? 'chip-success' : 'chip-muted'}">${
-        sig.reclaim_confirmed ? 'Reclaimed' : 'Awaiting reclaim'
+        sig.reclaim_confirmed ? 'Reclaimed' : reclaimText
       }</span>
+      <span class="chip chip-primary">${res.cluster_count} pools</span>
     </div>
-  `;
-  summary.innerHTML = `
-    ${baseRow}
-    ${detailRow}
+    <div class="metric-grid">
+      <div class="metric-group">
+        <div class="metric-label">Sweep level</div>
+        <div class="metric-value">${fmt(sig.sweep_level)}</div>
+      </div>
+      <div class="metric-group">
+        <div class="metric-label">Entry</div>
+        <div class="metric-value">${fmt(sig.entry)}</div>
+      </div>
+      <div class="metric-group">
+        <div class="metric-label">Stop loss</div>
+        <div class="metric-value">${fmt(sig.stop_loss)}</div>
+      </div>
+      <div class="metric-group">
+        <div class="metric-label">Target</div>
+        <div class="metric-value">${fmt(sig.take_profit)}</div>
+      </div>
+    </div>
     <div class="status-line">Sweeped liquidity at <b>${fmt(sig.sweep_level)}</b> with ${(sig.confidence * 100).toFixed(0)}% conviction.</div>
     <div class="status-line">Entry <b>${fmt(sig.entry)}</b> · Stop <b>${fmt(sig.stop_loss)}</b> · Target <b>${fmt(sig.take_profit)}</b></div>
     <div class="status-line">${
