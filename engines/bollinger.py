@@ -35,7 +35,7 @@ class BollConfig(BaseModel):
     stop_loss_pct: float = 0.15
     take_profit_pct: float = 0.15
     cooldown_sec: int = 80
-    use_testnet: bool = config.USE_TESTNET
+    use_testnet: bool = config.BOLL_USE_TESTNET
 
 
 boll_config = BollConfig()
@@ -242,7 +242,7 @@ def boll_loop():
                                         price=price,
                                         notional=notional_filled,
                                         pnl_usd=0.0,
-                                        is_testnet=int(config.USE_TESTNET),
+                                        is_testnet=int(config.BOLL_USE_TESTNET),
                                     )
                                     session.add(tr)
                                     boll_last_trade_ts = now_ts
@@ -298,7 +298,7 @@ def boll_loop():
                                     price=price,
                                     notional=notional_filled,
                                     pnl_usd=pnl,
-                                    is_testnet=int(config.USE_TESTNET),
+                                    is_testnet=int(config.BOLL_USE_TESTNET),
                                 )
                                 session.add(tr)
                                 boll_last_trade_ts = now_ts

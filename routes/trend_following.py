@@ -50,7 +50,7 @@ def get_trend_config():
 def update_trend_config(cfg: TrendConfigModel):
     env_changed = cfg.use_testnet != eng.trend_config.use_testnet
     if env_changed:
-        config.switch_env(cfg.use_testnet)
+        config.switch_boll_env(cfg.use_testnet)
         eng.trend_config.use_testnet = cfg.use_testnet
 
     if cfg.symbol:
@@ -107,7 +107,7 @@ def trend_status():
             return TrendStatusResponse(
                 symbol="",
                 base_asset="",
-                quote_asset="USDC" if not config.USE_TESTNET else "USDT",
+                quote_asset="USDC" if not config.BOLL_USE_TESTNET else "USDT",
                 price=0.0,
                 fast_ema=0.0,
                 slow_ema=0.0,

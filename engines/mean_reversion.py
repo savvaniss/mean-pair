@@ -58,7 +58,7 @@ class BotConfig(BaseModel):
 
 
 bot_config = BotConfig()
-bot_config.use_testnet = config.USE_TESTNET
+bot_config.use_testnet = config.MR_USE_TESTNET
 bot_config.enabled = config.AUTO_START
 
 

@@ -155,9 +155,9 @@ def test_boll_config_switches_env(client, monkeypatch):
 
     def fake_switch(flag):
         called["val"] = flag
-        config.USE_TESTNET = flag
+        config.BOLL_USE_TESTNET = flag
 
-    monkeypatch.setattr(config, "switch_env", fake_switch, raising=False)
+    monkeypatch.setattr(config, "switch_boll_env", fake_switch, raising=False)
 
     boll_engine.boll_config.use_testnet = True
 
