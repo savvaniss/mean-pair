@@ -9,7 +9,7 @@ from pydantic import BaseModel
 
 import config
 from database import SessionLocal, BollState, BollTrade, BollSnapshot
-from engines.common import compute_ma_std_window
+from engines.common import clamp_to_step, compute_ma_std_window
 
 # Bollinger in-memory history
 boll_ts_history: List[datetime] = []
@@ -80,14 +80,10 @@ def get_free_balance_boll(asset: str) -> float:
 def adjust_quantity_boll(symbol: str, qty: float) -> float:
     info = config.boll_client.get_symbol_info(symbol)
     lot_filter = next(f for f in info["filters"] if f["filterType"] == "LOT_SIZE")
-    step_size = float(lot_filter["stepSize"])
-    min_qty = float(lot_filter["minQty"])
+    step_size = lot_filter["stepSize"]
+    min_qty = lot_filter["minQty"]
 
-    steps = int(qty / step_size)
-    adj = steps * step_size
-    if adj < min_qty:
-        return 0.0
-    return adj
+    return clamp_to_step(qty, step_size, min_qty)
 
 
 def _min_notional(symbol: str) -> float:
