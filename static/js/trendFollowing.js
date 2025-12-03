@@ -38,6 +38,30 @@ export function initTrendFollowing() {
       showToast(`Failed to save trend config: ${msg}`, 'error');
     }
   });
+
+  const startBtn = document.getElementById('startTrendBtn');
+  const stopBtn = document.getElementById('stopTrendBtn');
+  if (startBtn && stopBtn) {
+    startBtn.addEventListener('click', () => toggleTrend(true));
+    stopBtn.addEventListener('click', () => toggleTrend(false));
+  }
+}
+
+async function toggleTrend(start) {
+  const endpoint = start ? '/trend_start' : '/trend_stop';
+  const label = start ? 'start' : 'stop';
+  try {
+    const resp = await fetch(endpoint, { method: 'POST' });
+    if (!resp.ok) {
+      const msg = await resp.text();
+      throw new Error(msg || resp.statusText);
+    }
+    showToast(`Trend bot ${label}ed`, 'success');
+    await refreshTrendFollowing();
+  } catch (err) {
+    console.error(err);
+    showToast(`Failed to ${label} trend bot: ${err.message}`, 'error');
+  }
 }
 
 async function loadConfig() {
@@ -63,18 +87,34 @@ async function loadStatus() {
   const data = await resp.json();
   const el = statusEl();
   if (!el) return;
+
+  const botChip = `<span class="chip ${data.enabled ? 'chip-primary' : 'chip-muted'}">Trend Bot: ${
+    data.enabled ? 'RUNNING' : 'STOPPED'
+  }</span>`;
+  const envChip = `<span class="chip chip-primary">${data.use_testnet ? 'TESTNET' : 'MAINNET'}</span>`;
+  const symbol = data.symbol || '-';
+  const price = (data.price ?? 0).toFixed(4);
+  const fast = (data.fast_ema ?? 0).toFixed(4);
+  const slow = (data.slow_ema ?? 0).toFixed(4);
+  const atr = (data.atr ?? 0).toFixed(4);
+  const qty = (data.qty_asset ?? 0).toFixed(4);
+  const quoteBal = (data.quote_balance ?? 0).toFixed(4);
+  const realized = (data.realized_pnl_usd ?? 0).toFixed(2);
+  const unrealized = (data.unrealized_pnl_usd ?? 0).toFixed(2);
+
   el.innerHTML = `
+    <div class="chip-row">${botChip}${envChip}</div>
     <div class="stat-grid">
-      <div><span class="label">Symbol</span><span class="value">${data.symbol || '-'}</span></div>
-      <div><span class="label">Price</span><span class="value">${data.price.toFixed(4)}</span></div>
-      <div><span class="label">Fast EMA</span><span class="value">${data.fast_ema.toFixed(4)}</span></div>
-      <div><span class="label">Slow EMA</span><span class="value">${data.slow_ema.toFixed(4)}</span></div>
-      <div><span class="label">ATR</span><span class="value">${data.atr.toFixed(4)}</span></div>
+      <div><span class="label">Symbol</span><span class="value">${symbol}</span></div>
+      <div><span class="label">Price</span><span class="value">${price}</span></div>
+      <div><span class="label">Fast EMA</span><span class="value">${fast}</span></div>
+      <div><span class="label">Slow EMA</span><span class="value">${slow}</span></div>
+      <div><span class="label">ATR</span><span class="value">${atr}</span></div>
       <div><span class="label">Position</span><span class="value">${data.position}</span></div>
-      <div><span class="label">Qty</span><span class="value">${data.qty_asset.toFixed(4)}</span></div>
-      <div><span class="label">Quote balance</span><span class="value">${data.quote_balance.toFixed(4)} ${data.quote_asset}</span></div>
-      <div><span class="label">PnL (realized)</span><span class="value">${data.realized_pnl_usd.toFixed(2)} USD</span></div>
-      <div><span class="label">PnL (unrealized)</span><span class="value">${data.unrealized_pnl_usd.toFixed(2)} USD</span></div>
+      <div><span class="label">Qty (${data.base_asset || '-'})</span><span class="value">${qty}</span></div>
+      <div><span class="label">Quote balance</span><span class="value">${quoteBal} ${data.quote_asset}</span></div>
+      <div><span class="label">PnL (realized)</span><span class="value">${realized} USD</span></div>
+      <div><span class="label">PnL (unrealized)</span><span class="value">${unrealized} USD</span></div>
     </div>
   `;
 }
@@ -88,7 +128,7 @@ async function loadHistory() {
 
   body.innerHTML = '';
   if (!rows.length) {
-    status.textContent = 'No trend data yet';
+    status.textContent = 'No trend snapshots yet';
     return;
   }
   status.textContent = '';
