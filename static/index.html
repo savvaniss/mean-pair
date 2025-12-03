@@ -261,104 +261,160 @@
       </div>
     </div>
 
-      <div class="card" data-collapsible>
-        <div class="card-header">
-          <h2>Bollinger Config</h2>
-          <span class="toggle-icon">▼</span>
-        </div>
-        <div class="card-body">
-          <div class="symbol-picker">
-            <div>
-              <label for="boll_symbol" class="label-with-tip">
-                Symbol
-                <span class="tooltip-icon" title="Trading symbol for the Bollinger bot. Choose a pair with healthy liquidity.">?</span>
-              </label>
-              <div class="symbol-select-row">
-                <select id="boll_symbol"></select>
+    <div class="card" data-collapsible>
+      <div class="card-header">
+        <h2>Bollinger Setup</h2>
+        <span class="toggle-icon">▼</span>
+      </div>
+      <div class="card-body">
+        <div id="bollConfigSummary" class="config-summary">Loading saved config...</div>
+        <form id="bollConfigForm" class="bollinger-form">
+          <div class="bollinger-grid">
+            <div class="config-panel">
+              <div class="panel-heading">
                 <div>
-                  <label for="bollQuoteFilter" class="label-with-tip">
-                    Quote filter
-                    <span class="tooltip-icon" title="Limit the available symbols by quote asset to quickly narrow the dropdown list.">?</span>
-                  </label>
-                  <select id="bollQuoteFilter">
-                    <option value="all">All quotes</option>
-                    <option value="USDT">USDT</option>
-                    <option value="USDC">USDC</option>
-                    <option value="BTC">BTC</option>
-                    <option value="BNB">BNB</option>
-                  </select>
+                  <div class="panel-title">Symbol &amp; routing</div>
+                  <div class="panel-subtitle">Pick a liquid market and where orders are sent.</div>
+                </div>
+                <span class="chip chip-muted">Setup</span>
+              </div>
+              <div class="form-stack">
+                <div class="symbol-picker">
+                  <div class="symbol-select-row">
+                    <div class="symbol-select">
+                      <label for="boll_symbol" class="label-with-tip">
+                        Symbol
+                        <span class="tooltip-icon" title="Trading symbol for the Bollinger bot. Choose a pair with healthy liquidity.">?</span>
+                      </label>
+                      <select id="boll_symbol"></select>
+                    </div>
+                    <div>
+                      <label for="bollQuoteFilter" class="label-with-tip">
+                        Quote filter
+                        <span class="tooltip-icon" title="Limit the available symbols by quote asset to quickly narrow the dropdown list.">?</span>
+                      </label>
+                      <select id="bollQuoteFilter">
+                        <option value="all">All quotes</option>
+                        <option value="USDT">USDT</option>
+                        <option value="USDC">USDC</option>
+                        <option value="BTC">BTC</option>
+                        <option value="BNB">BNB</option>
+                      </select>
+                    </div>
+                  </div>
+                  <div class="pill-row" id="bollSymbolPills"></div>
+                </div>
+                <div class="form-row slim">
+                  <div class="form-checkbox">
+                    <input type="checkbox" id="boll_use_testnet" />
+                    <label for="boll_use_testnet" class="label-with-tip">
+                      Use Binance testnet
+                      <span class="tooltip-icon" title="Execute Bollinger trades against the Binance testnet environment.">?</span>
+                    </label>
+                  </div>
+                  <div class="form-checkbox">
+                    <input type="checkbox" id="boll_use_all_balance" />
+                    <label for="boll_use_all_balance" class="label-with-tip">
+                      Use all quote balance
+                      <span class="tooltip-icon" title="Allow the bot to deploy the entire available quote balance when entering.">?</span>
+                    </label>
+                  </div>
                 </div>
               </div>
             </div>
-            <div class="pill-row" id="bollSymbolPills"></div>
+
+            <div class="config-panel">
+              <div class="panel-heading">
+                <div>
+                  <div class="panel-title">Sizing &amp; signals</div>
+                  <div class="panel-subtitle">Tune entry sizing and band sensitivity.</div>
+                </div>
+                <span class="chip chip-muted">Entries</span>
+              </div>
+              <div class="form-row slim">
+                <div>
+                  <label for="boll_trade_notional" class="label-with-tip">
+                    Max position (<span class="quote-label">USDT</span>)
+                    <span class="tooltip-icon" title="Maximum quote-currency amount to allocate per Bollinger entry.">?</span>
+                  </label>
+                  <input id="boll_trade_notional" type="number" step="1" />
+                </div>
+                <div>
+                  <label for="boll_window" class="label-with-tip">
+                    Window size
+                    <span class="tooltip-icon" title="Number of candles used to compute the moving average and bands.">?</span>
+                  </label>
+                  <input id="boll_window" type="number" min="5" step="1" />
+                </div>
+              </div>
+              <div class="form-row slim">
+                <div>
+                  <label for="boll_dev" class="label-with-tip">
+                    Std Dev (k)
+                    <span class="tooltip-icon" title="Multiplier applied to the standard deviation when constructing upper and lower bands.">?</span>
+                  </label>
+                  <input id="boll_dev" type="number" step="0.1" />
+                </div>
+                <div>
+                  <label for="boll_cooldown" class="label-with-tip">
+                    Cooldown (sec)
+                    <span class="tooltip-icon" title="Minimum delay between consecutive Bollinger trades.">?</span>
+                  </label>
+                  <input id="boll_cooldown" type="number" step="1" min="0" />
+                </div>
+              </div>
+            </div>
+
+            <div class="config-panel">
+              <div class="panel-heading">
+                <div>
+                  <div class="panel-title">Risk controls</div>
+                  <div class="panel-subtitle">Define exits and guardrails for open positions.</div>
+                </div>
+                <span class="chip chip-muted">Protection</span>
+              </div>
+              <div class="form-row slim">
+                <div>
+                  <label for="boll_stop_loss" class="label-with-tip">
+                    Stop loss (fraction)
+                    <span class="tooltip-icon" title="Fractional stop below entry before flattening the position (e.g. 0.1 = 10%).">?</span>
+                  </label>
+                  <input id="boll_stop_loss" type="number" step="0.01" min="0" />
+                </div>
+                <div>
+                  <label for="boll_take_profit" class="label-with-tip">
+                    Take profit (fraction)
+                    <span class="tooltip-icon" title="Fractional take-profit target above entry (e.g. 0.1 = 10%).">?</span>
+                  </label>
+                  <input id="boll_take_profit" type="number" step="0.01" min="0" />
+                </div>
+              </div>
+              <div class="panel-note">Stops and targets are calculated off the entry fill; set both when experimenting on live markets.</div>
+            </div>
+
+            <div class="config-panel info-panel">
+              <div class="panel-heading">
+                <div>
+                  <div class="panel-title">Operating notes</div>
+                  <div class="panel-subtitle">Quick reminders before you hit save.</div>
+                </div>
+                <span class="chip chip-primary">Tips</span>
+              </div>
+              <ul class="muted-list">
+                <li>Use the quote filter to keep the dropdown manageable; curated chips highlight pairs with healthy liquidity.</li>
+                <li>Cooldowns prevent churn when price hugs the bands; increase the value if you see repeated flips.</li>
+                <li>Testnet routes orders to sandbox keys only—ideal for dry runs before enabling mainnet access.</li>
+                <li>Adjust the deviation multiplier to control how aggressive entries are. Smaller numbers fire more often.</li>
+              </ul>
+              <div class="panel-note subtle">Need a starting point? Generate a config from historical saves, then review the summary chips above.</div>
+            </div>
           </div>
-          <form id="bollConfigForm">
-            <div class="form-row">
-              <div>
-                <label for="boll_trade_notional" class="label-with-tip">
-                  Max position (<span class="quote-label">USDT</span>)
-                  <span class="tooltip-icon" title="Maximum quote-currency amount to allocate per Bollinger entry.">?</span>
-                </label>
-                <input id="boll_trade_notional" type="number" step="1" />
-              </div>
-              <div>
-                <label for="boll_window" class="label-with-tip">
-                  Window size
-                  <span class="tooltip-icon" title="Number of candles used to compute the moving average and bands.">?</span>
-                </label>
-                <input id="boll_window" type="number" min="5" step="1" />
-              </div>
-              <div>
-                <label for="boll_dev" class="label-with-tip">
-                  Std Dev (k)
-                  <span class="tooltip-icon" title="Multiplier applied to the standard deviation when constructing upper and lower bands.">?</span>
-                </label>
-                <input id="boll_dev" type="number" step="0.1" />
-              </div>
-              <div class="form-checkbox">
-                <input type="checkbox" id="boll_use_testnet" />
-                <label for="boll_use_testnet" class="label-with-tip">
-                  Use Binance testnet
-                  <span class="tooltip-icon" title="Execute Bollinger trades against the Binance testnet environment.">?</span>
-                </label>
-              </div>
-              <div class="form-checkbox">
-                <input type="checkbox" id="boll_use_all_balance" />
-                <label for="boll_use_all_balance" class="label-with-tip">
-                  Use all quote balance
-                  <span class="tooltip-icon" title="Allow the bot to deploy the entire available quote balance when entering.">?</span>
-                </label>
-              </div>
-            </div>
-            <div class="form-row">
-              <div>
-                <label for="boll_stop_loss" class="label-with-tip">
-                  Stop loss (fraction)
-                  <span class="tooltip-icon" title="Fractional stop below entry before flattening the position (e.g. 0.1 = 10%).">?</span>
-                </label>
-                <input id="boll_stop_loss" type="number" step="0.01" min="0" />
-              </div>
-              <div>
-                <label for="boll_take_profit" class="label-with-tip">
-                  Take profit (fraction)
-                  <span class="tooltip-icon" title="Fractional take-profit target above entry (e.g. 0.1 = 10%).">?</span>
-                </label>
-                <input id="boll_take_profit" type="number" step="0.01" min="0" />
-              </div>
-              <div>
-                <label for="boll_cooldown" class="label-with-tip">
-                  Cooldown (sec)
-                  <span class="tooltip-icon" title="Minimum delay between consecutive Bollinger trades.">?</span>
-                </label>
-                <input id="boll_cooldown" type="number" step="1" min="0" />
-              </div>
-            </div>
-            <div class="button-row">
-              <button type="button" class="btn" id="bollGenerateConfigBtn">Generate from history</button>
-              <button type="submit" class="btn btn-primary">Save Bollinger config</button>
-            </div>
-          </form>
-        <div class="help-text">Curated chips keep you away from scrolling through hundreds of pairs. Use the quote filter to narrow the list.</div>
+          <div class="button-row">
+            <button type="button" class="btn" id="bollGenerateConfigBtn">Generate from history</button>
+            <button type="submit" class="btn btn-primary">Save Bollinger config</button>
+          </div>
+          <div class="help-text">Curated chips keep you away from scrolling through hundreds of pairs. Use the quote filter to narrow the list.</div>
+        </form>
       </div>
     </div>
 
