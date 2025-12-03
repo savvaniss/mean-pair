@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Liquidation Hunt Scanner</title>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" />
+  <link rel="stylesheet" href="/static/css/theme.css" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script type="module" src="/static/js/liquidationHunt.js"></script>
+</head>
+<body>
+  <div class="top-bar">
+    <div class="title-block">
+      <h1>Liquidation Hunt Scanner</h1>
+      <div class="title-sub">Detect sweeps, reclaim entries, and trade them automatically</div>
+    </div>
+    <div class="control-buttons">
+      <a class="btn btn-ghost" href="/">⬅ Back to suite</a>
+      <button class="btn btn-ghost" id="liqRescanBtn">Manual rescan</button>
+      <button class="btn btn-primary" id="liqExecuteBtn">Execute current signal</button>
+    </div>
+  </div>
+
+  <div class="control-buttons" style="margin-bottom: 12px;">
+    <button class="btn btn-primary" id="liqEnableBtn">Start scanner</button>
+    <button class="btn btn-danger" id="liqDisableBtn">Stop scanner</button>
+  </div>
+
+  <div class="row">
+    <div class="card" style="flex: 2;">
+      <div class="card-header">
+        <h2>Live Signal</h2>
+        <span class="chip" id="liqSignalChip">Waiting...</span>
+      </div>
+      <div class="card-body">
+        <div class="status-section" id="liqSignalSummary">No scan data yet.</div>
+        <div class="metric-grid" style="margin-top: 16px;">
+          <div class="metric-group">
+            <div class="metric-label">Symbol</div>
+            <div class="metric-value" id="liqSymbolLabel">-</div>
+          </div>
+          <div class="metric-group">
+            <div class="metric-label">Sweep level</div>
+            <div class="metric-value" id="liqSweepLevel">-</div>
+          </div>
+          <div class="metric-group">
+            <div class="metric-label">Confidence</div>
+            <div class="metric-value" id="liqConfidenceLabel">-</div>
+          </div>
+          <div class="metric-group">
+            <div class="metric-label">Entry</div>
+            <div class="metric-value" id="liqEntryLabel">-</div>
+          </div>
+          <div class="metric-group">
+            <div class="metric-label">Stop</div>
+            <div class="metric-value" id="liqStopLabel">-</div>
+          </div>
+          <div class="metric-group">
+            <div class="metric-label">Target</div>
+            <div class="metric-value" id="liqTargetLabel">-</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card" style="flex: 1;">
+      <div class="card-header">
+        <h2>Scanner Config</h2>
+      </div>
+      <div class="card-body">
+        <form id="liqConfigForm" class="stacked-form">
+          <label>
+            Symbol
+            <input type="text" id="liqCfgSymbol" value="BTCUSDT" />
+          </label>
+          <label>
+            Lookback candles
+            <input type="number" id="liqCfgLookback" min="30" step="10" value="200" />
+          </label>
+          <label>
+            Cluster tolerance (bps)
+            <input type="number" id="liqCfgTolerance" min="1" step="1" value="12" />
+          </label>
+          <label>
+            Wick/body ratio
+            <input type="number" id="liqCfgWickRatio" min="1" step="0.1" value="2.2" />
+          </label>
+          <label>
+            Risk:Reward multiple
+            <input type="number" id="liqCfgRR" min="1" step="0.1" value="2.5" />
+          </label>
+          <label>
+            Poll interval (sec)
+            <input type="number" id="liqCfgPoll" min="5" step="1" value="30" />
+          </label>
+          <label>
+            Auto-trade notional (USD)
+            <input type="number" id="liqCfgNotional" min="1" step="1" value="50" />
+          </label>
+          <label class="form-checkbox">
+            <input type="checkbox" id="liqCfgAuto" />
+            <span>Enable auto-trading on sweeps</span>
+          </label>
+          <label class="form-checkbox">
+            <input type="checkbox" id="liqCfgTestnet" checked />
+            <span>Use Binance testnet</span>
+          </label>
+          <button type="submit" class="btn btn-primary" style="width: 100%;">Save</button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header">
+      <h2>Liquidity Heatmap</h2>
+      <span class="chip chip-primary" id="liqClusterCount">0 pools</span>
+    </div>
+    <div class="card-body">
+      <canvas id="liqHeatmapChart" height="180"></canvas>
+      <div class="help-text" style="margin-top: 8px;">
+        Blue = long-liquidity pools (below price), Red = short-liquidity pools (above price). Bars are scaled by how many swing touches built up there.
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header">
+      <h2>Latest 60 candles (1m)</h2>
+      <span class="chip" id="liqLastExecution">No trades yet</span>
+    </div>
+    <div class="card-body">
+      <table class="table" id="liqCandleTable">
+        <thead>
+          <tr><th>Time</th><th>Open</th><th>High</th><th>Low</th><th>Close</th></tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </div>
+</body>
+</html>
