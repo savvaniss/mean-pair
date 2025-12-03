@@ -67,3 +67,82 @@ def test_heatmap_normalises_strengths():
     assert heatmap["long"][0]["strength"] == 0.5
     assert heatmap["short"][0]["strength"] == 1.0
 
+
+class DummyClient:
+    def __init__(self):
+        self.orders = []
+
+    def get_symbol_ticker(self, symbol):
+        return {"symbol": symbol, "price": "100"}
+
+    def get_symbol_info(self, symbol):
+        return {
+            "baseAsset": symbol[:-4],
+            "quoteAsset": symbol[-4:],
+            "filters": [{"filterType": "LOT_SIZE", "stepSize": "0.01", "minQty": "0.01"}],
+        }
+
+    def order_market(self, symbol, side, quantity):
+        self.orders.append((symbol, side, quantity))
+        return {"status": "FILLED"}
+
+
+def test_manual_execute_places_order_and_records(monkeypatch):
+    orig_client = lh.liq_client
+    orig_cfg = lh.liq_config
+    dummy = DummyClient()
+    try:
+        lh.liq_client = dummy
+        lh.liq_config = lh.liq_config.copy(update={"symbol": "BTCUSDT", "trade_notional_usd": 50})
+        with lh.liq_lock:
+            lh.latest_signal = lh.StopHuntSignal(
+                direction="LONG",
+                sweep_level=99.0,
+                entry=100.0,
+                stop_loss=98.5,
+                take_profit=105.0,
+                confidence=0.8,
+                reclaim_confirmed=True,
+            )
+        res = lh.manual_execute()
+        assert res is not None
+        assert dummy.orders and dummy.orders[0][1] == "BUY"
+    finally:
+        lh.liq_client = orig_client
+        lh.liq_config = orig_cfg
+        lh.latest_signal = None
+
+
+def test_auto_trade_skips_duplicates(monkeypatch):
+    orig_client = lh.liq_client
+    orig_cfg = lh.liq_config
+    dummy = DummyClient()
+    try:
+        lh.liq_client = dummy
+        lh.liq_config = lh.liq_config.copy(
+            update={"symbol": "BTCUSDT", "trade_notional_usd": 25, "auto_trade": True}
+        )
+        signal = lh.StopHuntSignal(
+            direction="SHORT",
+            sweep_level=101.0,
+            entry=100.0,
+            stop_loss=102.0,
+            take_profit=95.0,
+            confidence=0.6,
+            reclaim_confirmed=True,
+        )
+        ts = datetime.utcnow()
+        lh.last_execution_signature = None
+        lh.latest_execution = None
+
+        first = lh.maybe_execute_trade(signal, ts)
+        second = lh.maybe_execute_trade(signal, ts)
+
+        assert first is not None
+        assert second is None
+        assert len(dummy.orders) == 1
+    finally:
+        lh.liq_client = orig_client
+        lh.liq_config = orig_cfg
+        lh.latest_execution = None
+

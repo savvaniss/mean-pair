@@ -21,9 +21,11 @@ from datetime import datetime
 from typing import Dict, List, Optional, Tuple
 
 from binance.client import Client
+from binance.exceptions import BinanceAPIException
 from pydantic import BaseModel
 
 import config
+from database import SessionLocal, Trade
 
 
 @dataclass
@@ -53,6 +55,18 @@ class StopHuntSignal:
     reclaim_confirmed: bool
 
 
+@dataclass
+class ExecutionRecord:
+    ts: datetime
+    symbol: str
+    side: str
+    qty_executed: float
+    price_used: float
+    notional: float
+    is_testnet: bool
+    reason: str
+
+
 class LiquidationConfig(BaseModel):
     enabled: bool = True
     symbol: str = "BTCUSDT"
@@ -63,6 +77,9 @@ class LiquidationConfig(BaseModel):
     reclaim_confirm_bars: int = 1  # close back inside by this many bars after sweep
     risk_reward: float = 2.5  # target multiple of risk
     max_heatmap_levels: int = 12
+    auto_trade: bool = False
+    trade_notional_usd: float = 50.0
+    use_testnet: bool = True
 
 
 liq_config = LiquidationConfig()
@@ -72,6 +89,10 @@ liq_stop_flag = False
 latest_clusters: List[LiquidityCluster] = []
 latest_signal: Optional[StopHuntSignal] = None
 latest_candles: List[Candle] = []
+latest_execution: Optional[ExecutionRecord] = None
+last_execution_signature: Optional[str] = None
+liq_client: Optional[Client] = None
+liq_use_testnet: bool = config.BOLL_USE_TESTNET
 
 
 # ==========================================
@@ -79,8 +100,23 @@ latest_candles: List[Candle] = []
 # ==========================================
 
 
+def init_liq_client(use_testnet: bool) -> None:
+    """Initialise a dedicated client so we don't disturb other bots' env flags."""
+
+    global liq_client, liq_use_testnet
+    liq_use_testnet = use_testnet
+    try:
+        liq_client = config.create_boll_client(use_testnet)
+    except Exception:
+        liq_client = None
+
+
+# bootstrap client on import
+init_liq_client(liq_use_testnet)
+
+
 def _client() -> Optional[Client]:
-    return config.boll_client
+    return liq_client or config.boll_client
 
 
 def fetch_recent_candles(symbol: str, limit: int) -> List[Candle]:
@@ -109,6 +145,51 @@ def fetch_recent_candles(symbol: str, limit: int) -> List[Candle]:
             )
         )
     return candles
+
+
+def _lot_adjust(symbol: str, qty: float) -> float:
+    client = _client()
+    if not client:
+        return qty
+    info = client.get_symbol_info(symbol)
+    lot_filter = next((f for f in info["filters"] if f["filterType"] == "LOT_SIZE"), None)
+    if not lot_filter:
+        return qty
+    step = float(lot_filter.get("stepSize", 0))
+    min_qty = float(lot_filter.get("minQty", 0))
+    if step <= 0:
+        return qty
+    adjusted = round(qty / step) * step
+    return adjusted if adjusted >= min_qty else 0.0
+
+
+def _ticker_price(symbol: str) -> Optional[float]:
+    client = _client()
+    if not client:
+        return None
+    ticker = client.get_symbol_ticker(symbol=symbol)
+    return float(ticker["price"])
+
+
+def _record_trade(side: str, qty: float, price: float, base_asset: str, quote_asset: str) -> None:
+    session = SessionLocal()
+    try:
+        tr = Trade(
+            ts=datetime.utcnow(),
+            side=f"{side} {liq_config.symbol} (liquidation bot)",
+            from_asset=base_asset,
+            to_asset=quote_asset,
+            qty_from=qty,
+            qty_to=qty * price,
+            price=price,
+            fee=0.0,
+            pnl_usd=0.0,
+            is_testnet=int(liq_use_testnet),
+        )
+        session.add(tr)
+        session.commit()
+    finally:
+        session.close()
 
 
 # ==========================================
@@ -238,6 +319,85 @@ def detect_stop_hunt(
     return None
 
 
+def _execution_signature(signal: StopHuntSignal, candle_ts: datetime) -> str:
+    return f"{signal.direction}:{signal.sweep_level:.4f}:{candle_ts.isoformat()}"
+
+
+def _place_trade(signal: StopHuntSignal, reason: str) -> Optional[ExecutionRecord]:
+    client = _client()
+    if not client:
+        return None
+
+    price = _ticker_price(liq_config.symbol)
+    if price is None or price <= 0:
+        return None
+
+    qty = liq_config.trade_notional_usd / price
+    qty_adj = _lot_adjust(liq_config.symbol, qty)
+    if qty_adj <= 0:
+        return None
+
+    info = client.get_symbol_info(liq_config.symbol)
+    base_asset = info.get("baseAsset", liq_config.symbol.rstrip("USDT"))
+    quote_asset = info.get("quoteAsset", "") or liq_config.symbol.replace(base_asset, "", 1)
+
+    side = "BUY" if signal.direction == "LONG" else "SELL"
+
+    try:
+        order = client.order_market(symbol=liq_config.symbol, side=side, quantity=qty_adj)
+    except BinanceAPIException as e:
+        print(f"[LIQ] Binance error: {e}")
+        return None
+
+    if not order:
+        return None
+
+    _record_trade(side, qty_adj, price, base_asset, quote_asset)
+    return ExecutionRecord(
+        ts=datetime.utcnow(),
+        symbol=liq_config.symbol,
+        side=side,
+        qty_executed=qty_adj,
+        price_used=price,
+        notional=qty_adj * price,
+        is_testnet=liq_use_testnet,
+        reason=reason,
+    )
+
+
+def maybe_execute_trade(signal: StopHuntSignal, candle_ts: datetime) -> Optional[ExecutionRecord]:
+    if not liq_config.auto_trade:
+        return None
+
+    signature = _execution_signature(signal, candle_ts)
+    global last_execution_signature
+
+    with liq_lock:
+        if signature == last_execution_signature:
+            return None
+        last_execution_signature = signature
+
+    result = _place_trade(signal, reason="auto-signal")
+    if result:
+        with liq_lock:
+            global latest_execution
+            latest_execution = result
+    return result
+
+
+def manual_execute(signal: Optional[StopHuntSignal] = None) -> Optional[ExecutionRecord]:
+    sig = signal or latest_signal
+    if not sig:
+        return None
+    result = _place_trade(sig, reason="manual")
+    if result:
+        with liq_lock:
+            global latest_execution, last_execution_signature
+            latest_execution = result
+            last_execution_signature = _execution_signature(sig, datetime.utcnow())
+    return result
+
+
 def _reclaimed_after_sweep(
     candles: List[Candle], level: float, bars: int, direction: str
 ) -> bool:
@@ -297,6 +457,9 @@ def liquidation_loop():
             reclaim_confirm_bars=liq_config.reclaim_confirm_bars,
         )
 
+        if signal:
+            maybe_execute_trade(signal, candles[-1].ts)
+
         with liq_lock:
             latest_candles = candles
             latest_clusters = clusters
@@ -326,10 +489,12 @@ def latest_status() -> Dict:
         clusters = list(latest_clusters)
         signal = latest_signal
         candles = list(latest_candles)
+        execution = latest_execution
 
     heatmap = build_heatmap(clusters, liq_config.max_heatmap_levels)
     return {
         "symbol": liq_config.symbol,
+        "config": liq_config.dict(),
         "heatmap": heatmap,
         "has_signal": bool(signal),
         "signal": signal.__dict__ if signal else None,
@@ -344,11 +509,14 @@ def latest_status() -> Dict:
             }
             for c in candles[-60:]
         ],
+        "last_execution": execution.__dict__ if execution else None,
     }
 
 
 def update_config(cfg: Dict) -> LiquidationConfig:
     global liq_config
     liq_config = liq_config.copy(update=cfg)
+    if "use_testnet" in cfg:
+        init_liq_client(liq_config.use_testnet)
     return liq_config
 

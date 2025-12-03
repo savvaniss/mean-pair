@@ -10,6 +10,14 @@ def liquidation_status():
     return lh.latest_status()
 
 
+@router.post("/liquidation/execute")
+def liquidation_execute():
+    res = lh.manual_execute()
+    if not res:
+        raise HTTPException(status_code=400, detail="No executable signal or Binance client unavailable")
+    return res.__dict__
+
+
 @router.post("/liquidation/config")
 def liquidation_config(cfg: dict):
     try:
