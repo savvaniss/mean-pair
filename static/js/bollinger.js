@@ -235,6 +235,69 @@ function applyBollConfigToForm(cfg) {
   document.getElementById('boll_stop_loss').value = cfg.stop_loss_pct ?? '';
   document.getElementById('boll_take_profit').value = cfg.take_profit_pct ?? '';
   document.getElementById('boll_cooldown').value = cfg.cooldown_sec ?? '';
+
+  updateBollConfigSummary(cfg);
+}
+
+function updateBollConfigSummary(cfg) {
+  const summaryEl = document.getElementById('bollConfigSummary');
+  if (!summaryEl) return;
+
+  if (!cfg) {
+    summaryEl.textContent = 'Save a configuration to see a quick snapshot here.';
+    return;
+  }
+
+  const quote = cfg.use_testnet ? 'USDT' : 'USDC';
+  const maxPosition = Number.isFinite(Number(cfg.max_position_usd))
+    ? Number(cfg.max_position_usd).toFixed(2)
+    : 'Not set';
+  const stopLoss = Number.isFinite(Number(cfg.stop_loss_pct))
+    ? `${Math.round(Number(cfg.stop_loss_pct) * 100)}%`
+    : 'Off';
+  const takeProfit = Number.isFinite(Number(cfg.take_profit_pct))
+    ? `${Math.round(Number(cfg.take_profit_pct) * 100)}%`
+    : 'Off';
+  const cooldown = Number.isFinite(Number(cfg.cooldown_sec)) ? `${cfg.cooldown_sec}s` : 'Not set';
+  const windowSize = cfg.window_size || '—';
+  const deviation = Number.isFinite(Number(cfg.num_std)) ? Number(cfg.num_std).toFixed(2) : '—';
+
+  summaryEl.innerHTML = `
+    <div class="summary-title">Saved config snapshot</div>
+    <div class="summary-grid">
+      <div>
+        <div class="metric-label">Symbol</div>
+        <div class="metric-value">${cfg.symbol || 'Not set'}</div>
+      </div>
+      <div>
+        <div class="metric-label">Band window</div>
+        <div class="metric-value">${windowSize} • k=${deviation}</div>
+      </div>
+      <div>
+        <div class="metric-label">Max position</div>
+        <div class="metric-value">${maxPosition} ${quote}</div>
+      </div>
+    </div>
+    <div class="summary-grid">
+      <div>
+        <div class="metric-label">Stop loss</div>
+        <div class="metric-value">${stopLoss}</div>
+      </div>
+      <div>
+        <div class="metric-label">Take profit</div>
+        <div class="metric-value">${takeProfit}</div>
+      </div>
+      <div>
+        <div class="metric-label">Cooldown</div>
+        <div class="metric-value">${cooldown}</div>
+      </div>
+    </div>
+    <div class="chip-row">
+      <span class="chip chip-primary">${cfg.use_testnet ? 'Testnet routing' : 'Mainnet routing'}</span>
+      <span class="chip">${cfg.use_all_balance ? 'Uses full quote balance' : `Cap: ${maxPosition} ${quote}`}</span>
+      <span class="chip chip-muted">${cfg.num_std >= 2 ? 'Conservative bands' : 'Tight bands'}</span>
+    </div>
+  `;
 }
 
 async function fetchBollBalances() {
