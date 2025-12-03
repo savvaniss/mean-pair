@@ -6,7 +6,7 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 import config
-from config import BASE_ASSET, mr_symbol, switch_env
+from config import BASE_ASSET, mr_symbol, switch_mr_env
 from database import SessionLocal, PriceSnapshot, Trade, State
 
 # IMPORTANT: use ONLY module-level import so monkeypatch works
@@ -449,7 +449,7 @@ def update_config(cfg: type(mr.bot_config)):
     current_enabled = mr.bot_config.enabled
 
     if cfg.use_testnet != mr.bot_config.use_testnet:
-        switch_env(cfg.use_testnet)
+        switch_mr_env(cfg.use_testnet)
         mr.bot_config.use_testnet = cfg.use_testnet
 
         mr.ratio_history.clear()

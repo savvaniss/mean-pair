@@ -46,8 +46,10 @@ MAINNET_QUOTE = os.getenv("BINANCE_MAINNET_QUOTE", "USDT").upper()
 DISABLE_BINANCE_CLIENT = os.getenv("DISABLE_BINANCE_CLIENT", "0") == "1"
 BOT_DISABLE_THREADS = os.getenv("BOT_DISABLE_THREADS", "0") == "1"
 
-# Global env flag
-USE_TESTNET: bool = DEFAULT_ENV == "testnet"
+# Global env flags (tracked per bot)
+USE_TESTNET: bool = DEFAULT_ENV == "testnet"  # legacy default / manual trading
+MR_USE_TESTNET: bool = DEFAULT_ENV == "testnet"
+BOLL_USE_TESTNET: bool = DEFAULT_ENV == "testnet"
 
 # Global clients (will be initialised below)
 mr_client: Optional[Client] = None
@@ -107,22 +109,42 @@ def create_boll_client(use_testnet: bool) -> Optional[Client]:
 
 
 def init_clients() -> None:
-    """Initialise global clients according to USE_TESTNET."""
-    global mr_client, boll_client
-    mr_client = create_mr_client(USE_TESTNET)
-    boll_client = create_boll_client(USE_TESTNET)
+    """Initialise global clients according to per-bot env flags."""
+    init_mr_client(MR_USE_TESTNET)
+    init_boll_client(BOLL_USE_TESTNET)
+
+
+def init_mr_client(use_testnet: bool) -> None:
+    global mr_client, MR_USE_TESTNET
+    MR_USE_TESTNET = use_testnet
+    mr_client = create_mr_client(use_testnet)
+
+
+def init_boll_client(use_testnet: bool) -> None:
+    global boll_client, BOLL_USE_TESTNET
+    BOLL_USE_TESTNET = use_testnet
+    boll_client = create_boll_client(use_testnet)
 
 
 def switch_env(use_testnet: bool) -> None:
-    """Switch between testnet/mainnet, recreating clients."""
-    global USE_TESTNET
-    USE_TESTNET = use_testnet
-    init_clients()
+    """Deprecated: switch both MR and Bollinger/trend bots to the same env."""
+    init_mr_client(use_testnet)
+    init_boll_client(use_testnet)
+
+
+def switch_mr_env(use_testnet: bool) -> None:
+    """Switch environment for the mean-reversion bot only."""
+    init_mr_client(use_testnet)
+
+
+def switch_boll_env(use_testnet: bool) -> None:
+    """Switch environment for the Bollinger / trend bots only."""
+    init_boll_client(use_testnet)
 
 
 def get_mr_quote() -> str:
     """Quote asset the MR bot should use (e.g. USDT on testnet, USDC on mainnet)."""
-    return TESTNET_QUOTE if USE_TESTNET else MAINNET_QUOTE
+    return TESTNET_QUOTE if MR_USE_TESTNET else MAINNET_QUOTE
 
 
 def mr_symbol(base: str) -> str:

@@ -53,7 +53,7 @@ class TrendConfig(BaseModel):
     max_position_usd: float = 100.0
     use_all_balance: bool = True
     cooldown_sec: int = 60
-    use_testnet: bool = config.USE_TESTNET
+    use_testnet: bool = config.BOLL_USE_TESTNET
 
 
 trend_config = TrendConfig()

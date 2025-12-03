@@ -88,7 +88,7 @@ def update_boll_config(cfg: BollConfigModel):
 
     env_changed = cfg.use_testnet != eng.boll_config.use_testnet
     if env_changed:
-        config.switch_env(cfg.use_testnet)
+        config.switch_boll_env(cfg.use_testnet)
         eng.boll_config.use_testnet = cfg.use_testnet
 
     # validate symbol's quote asset using the (possibly switched) client
@@ -167,7 +167,7 @@ def boll_status():
             return BollStatusResponse(
                 symbol="",
                 base_asset="",
-                quote_asset="USDC" if not config.USE_TESTNET else "USDT",
+                quote_asset="USDC" if not config.BOLL_USE_TESTNET else "USDT",
                 price=0.0,
                 ma=0.0,
                 upper=0.0,
@@ -415,7 +415,7 @@ def bollinger_manual_sell(req: ManualBollingerSellRequest):
                 price=price,
                 fee=0.0,
                 pnl_usd=0.0,
-                is_testnet=int(config.USE_TESTNET),
+                is_testnet=int(config.BOLL_USE_TESTNET),
             )
             session.add(tr)
             session.commit()
