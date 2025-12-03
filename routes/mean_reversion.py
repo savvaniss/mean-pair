@@ -145,20 +145,47 @@ def sync_state_from_balances():
 
 class ManualTradeRequest(BaseModel):
     direction: str
-    notional_usd: float
+    notional_usd: float | None = None
+    from_asset_qty: float | None = None
 
 
 @router.post("/manual_trade")
 def manual_trade(req: ManualTradeRequest):
-    if req.notional_usd <= 0:
-        raise HTTPException(status_code=400, detail="notional_usd must be > 0")
-
     asset_a, asset_b = mr.current_pair()
     sell_dir = f"{asset_a}->{asset_b}"
     buy_dir = f"{asset_b}->{asset_a}"
 
     if req.direction not in (sell_dir, buy_dir):
         raise HTTPException(status_code=400, detail="Invalid direction")
+
+    has_notional = req.notional_usd is not None and req.notional_usd > 0
+    has_from_qty = req.from_asset_qty is not None and req.from_asset_qty > 0
+    if not (has_notional or has_from_qty):
+        raise HTTPException(
+            status_code=400,
+            detail="Provide a positive notional_usd or from_asset_qty",
+        )
+
+    try:
+        _, price_a, price_b = mr.get_prices()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+    if req.direction == sell_dir:
+        from_asset = asset_a
+        price_from = price_a
+    else:
+        from_asset = asset_b
+        price_from = price_b
+
+    # Cap the notional to the available balance to avoid needless exchange errors
+    from_balance = mr.get_free_balance_mr(from_asset)
+    max_notional = from_balance * price_from
+    if max_notional <= 0:
+        raise HTTPException(status_code=400, detail=f"No balance available for {from_asset}")
+
+    requested_notional = (req.from_asset_qty * price_from) if has_from_qty else req.notional_usd
+    notional_to_use = min(requested_notional, max_notional)
 
     session = SessionLocal()
     try:
@@ -168,7 +195,7 @@ def manual_trade(req: ManualTradeRequest):
         # Manual trades always use the explicit notional; don't use_all_balance
         res = mr.execute_mr_trade(
             direction=req.direction,
-            notional_usd=req.notional_usd,
+            notional_usd=notional_to_use,
             use_all_balance=False,
         )
         if not res:
