@@ -342,6 +342,7 @@ label.label-with-tip {
   display: flex;
   gap: 8px;
   align-items: center;
+  flex-wrap: wrap;
 }
 
 input[type="text"],
@@ -720,6 +721,12 @@ canvas {
   }
 
   .form-row {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 1024px) {
+  .bollinger-setup-grid {
     grid-template-columns: 1fr;
   }
 }
