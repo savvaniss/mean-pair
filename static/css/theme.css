@@ -323,6 +323,17 @@ label.label-with-tip {
   margin-bottom: 4px;
 }
 
+.form-row.slim {
+  margin-bottom: 0;
+  row-gap: 8px;
+}
+
+.form-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
 .symbol-picker {
   margin-bottom: 12px;
 }
@@ -331,6 +342,7 @@ label.label-with-tip {
   display: flex;
   gap: 8px;
   align-items: center;
+  flex-wrap: wrap;
 }
 
 input[type="text"],
@@ -421,6 +433,115 @@ canvas {
 
 .chart-col {
   flex: 1 1 360px;
+}
+
+.bollinger-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.bollinger-setup-grid {
+  display: grid;
+  grid-template-columns: 1.6fr 1fr;
+  gap: 12px;
+  align-items: start;
+}
+
+.config-stack,
+.summary-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.bollinger-setup-grid .config-panel .form-row {
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+}
+
+.config-panel {
+  border: 1px solid var(--border);
+  background: var(--surface-light);
+  border-radius: 12px;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.info-panel {
+  background: linear-gradient(130deg, rgba(17, 27, 47, 0.7), rgba(21, 36, 60, 0.94));
+}
+
+.panel-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.panel-title {
+  font-weight: 700;
+  color: var(--text-main);
+}
+
+.panel-subtitle {
+  color: var(--text-muted);
+  font-size: 0.85rem;
+  margin-top: 2px;
+}
+
+.panel-note {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  background: rgba(74, 163, 244, 0.08);
+  border: 1px dashed var(--border);
+  border-radius: 10px;
+  padding: 10px;
+}
+
+.panel-note.subtle {
+  background: rgba(148, 161, 195, 0.08);
+  border-style: solid;
+}
+
+.config-summary {
+  border: 1px solid var(--border);
+  background: rgba(17, 27, 47, 0.7);
+  border-radius: 12px;
+  padding: 10px 12px;
+  margin-bottom: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.summary-title {
+  font-weight: 700;
+  font-size: 0.95rem;
+}
+
+.summary-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 8px 12px;
+}
+
+.chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.muted-list {
+  margin: 2px 0 0;
+  padding-left: 18px;
+  color: var(--text-muted);
+  line-height: 1.4;
+}
+
+.bollinger-form .button-row {
+  margin-top: 4px;
 }
 
 .modal-overlay {
@@ -617,6 +738,12 @@ canvas {
   }
 
   .form-row {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 1024px) {
+  .bollinger-setup-grid {
     grid-template-columns: 1fr;
   }
 }
