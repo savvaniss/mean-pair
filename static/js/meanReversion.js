@@ -118,17 +118,27 @@ function updateManualTradeForm() {
   }
 }
 
-function setManualMax() {
-  const direction = document.getElementById('manual_direction').value;
-  const { fromAsset, balance } = getFromAssetInfo(direction);
+async function setManualMax() {
+  const directionEl = document.getElementById('manual_direction');
   const input = document.getElementById('manual_amount');
 
+  if (!directionEl || !input) return;
+
+  // Ensure we have a recent balance snapshot before calculating max
+  if (!latestStatus) {
+    await fetchStatus();
+  }
+
+  const { fromAsset, balance } = getFromAssetInfo(directionEl.value);
+
   if (!balance || balance <= 0) {
-    showToast(`No ${fromAsset} balance available.`, 'warning');
+    showToast(`No ${fromAsset || 'selected asset'} balance available.`, 'warning');
     return;
   }
 
-  input.value = balance;
+  const clampedBalance = Number(balance.toFixed(8));
+  input.value = clampedBalance;
+  showToast(`Using max ${fromAsset} balance: ${clampedBalance}`, 'info');
 }
 
 async function manualTrade(event) {
