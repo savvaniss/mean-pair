@@ -99,7 +99,15 @@ function renderSignal(res) {
   if (!res.has_signal || !res.signal) {
     chip.textContent = 'No sweep yet';
     chip.className = 'chip chip-muted';
-    summary.textContent = 'Watching clusters for next sweep...';
+    summary.innerHTML = `
+      <div class="status-chip-row">
+        <span class="chip chip-primary">${res.cluster_count} pools</span>
+        <span class="chip chip-muted">${res.symbol}</span>
+        <span class="chip chip-muted">Scanning...</span>
+      </div>
+      <div class="status-line">Watching clusters for next sweep...</div>
+      <div class="status-line">We need a wick through liquidity plus a reclaim to light up an entry.</div>
+    `;
     ['liqSweepLevel', 'liqConfidenceLabel', 'liqEntryLabel', 'liqStopLabel', 'liqTargetLabel'].forEach(
       (id) => (document.getElementById(id).textContent = '-')
     );
@@ -110,7 +118,33 @@ function renderSignal(res) {
   chip.textContent = `${sig.direction} setup`;
   chip.className = sig.direction === 'LONG' ? 'chip chip-success' : 'chip chip-danger';
   const reclaimText = sig.reclaim_confirmed ? 'reclaimed' : 'waiting reclaim';
-  summary.textContent = `${sig.direction} sweep at ${fmt(sig.sweep_level)} — wick reclaim ${reclaimText}`;
+  const baseRow = `
+    <div class="status-chip-row">
+      <span class="chip chip-primary">${res.cluster_count} pools</span>
+      <span class="chip chip-muted">${res.symbol}</span>
+      <span class="chip chip-muted">${reclaimText}</span>
+    </div>
+  `;
+  const detailRow = `
+    <div class="status-chip-row">
+      <span class="chip ${sig.direction === 'LONG' ? 'chip-success' : 'chip-danger'}">${sig.direction} sweep</span>
+      <span class="chip chip-primary">${(sig.confidence * 100).toFixed(0)}% confidence</span>
+      <span class="chip ${sig.reclaim_confirmed ? 'chip-success' : 'chip-muted'}">${
+        sig.reclaim_confirmed ? 'Reclaimed' : 'Awaiting reclaim'
+      }</span>
+    </div>
+  `;
+  summary.innerHTML = `
+    ${baseRow}
+    ${detailRow}
+    <div class="status-line">Sweeped liquidity at <b>${fmt(sig.sweep_level)}</b> with ${(sig.confidence * 100).toFixed(0)}% conviction.</div>
+    <div class="status-line">Entry <b>${fmt(sig.entry)}</b> · Stop <b>${fmt(sig.stop_loss)}</b> · Target <b>${fmt(sig.take_profit)}</b></div>
+    <div class="status-line">${
+      sig.reclaim_confirmed
+        ? 'Reclaim confirmed — signal is live.'
+        : 'Waiting for the candle to close back inside to confirm the reclaim.'
+    }</div>
+  `;
 
   document.getElementById('liqSweepLevel').textContent = fmt(sig.sweep_level);
   document.getElementById('liqConfidenceLabel').textContent = `${(sig.confidence * 100).toFixed(0)}%`;
