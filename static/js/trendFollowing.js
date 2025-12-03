@@ -4,6 +4,7 @@ const statusEl = () => document.getElementById('trendStatus');
 const configForm = () => document.getElementById('trendConfigForm');
 const historyBody = () => document.getElementById('trendHistoryBody');
 const historyStatus = () => document.getElementById('trendHistoryStatus');
+let lastTrendPrice = null;
 
 export function initTrendFollowing() {
   const form = configForm();
@@ -93,7 +94,19 @@ async function loadStatus() {
   }</span>`;
   const envChip = `<span class="chip chip-primary">${data.use_testnet ? 'TESTNET' : 'MAINNET'}</span>`;
   const symbol = data.symbol || '-';
-  const price = (data.price ?? 0).toFixed(4);
+
+  const priceDirection =
+    data.price !== undefined && data.price !== null && lastTrendPrice !== null
+      ? data.price > lastTrendPrice
+        ? 'price-up'
+        : data.price < lastTrendPrice
+          ? 'price-down'
+          : 'price-flat'
+      : 'price-flat';
+  const priceIcon =
+    priceDirection === 'price-up' ? '↗' : priceDirection === 'price-down' ? '↘' : '';
+
+  const priceLabel = data.price !== undefined && data.price !== null ? data.price.toFixed(4) : '—';
   const fast = (data.fast_ema ?? 0).toFixed(4);
   const slow = (data.slow_ema ?? 0).toFixed(4);
   const atr = (data.atr ?? 0).toFixed(4);
@@ -103,20 +116,65 @@ async function loadStatus() {
   const unrealized = (data.unrealized_pnl_usd ?? 0).toFixed(2);
 
   el.innerHTML = `
-    <div class="chip-row">${botChip}${envChip}</div>
-    <div class="stat-grid">
-      <div><span class="label">Symbol</span><span class="value">${symbol}</span></div>
-      <div><span class="label">Price</span><span class="value">${price}</span></div>
-      <div><span class="label">Fast EMA</span><span class="value">${fast}</span></div>
-      <div><span class="label">Slow EMA</span><span class="value">${slow}</span></div>
-      <div><span class="label">ATR</span><span class="value">${atr}</span></div>
-      <div><span class="label">Position</span><span class="value">${data.position}</span></div>
-      <div><span class="label">Qty (${data.base_asset || '-'})</span><span class="value">${qty}</span></div>
-      <div><span class="label">Quote balance</span><span class="value">${quoteBal} ${data.quote_asset}</span></div>
-      <div><span class="label">PnL (realized)</span><span class="value">${realized} USD</span></div>
-      <div><span class="label">PnL (unrealized)</span><span class="value">${unrealized} USD</span></div>
+    <div class="status-chip-row">
+      ${envChip}
+      ${botChip}
+      <span class="chip">Symbol: ${symbol}</span>
+    </div>
+
+    <div class="metric-grid">
+      <div class="metric-group">
+        <div class="metric-label">Last price</div>
+        <div class="metric-value">
+          <span class="price-pill ${priceDirection}">
+            ${priceLabel}
+            ${priceIcon ? `<span class="price-trend-icon">${priceIcon}</span>` : ''}
+          </span>
+        </div>
+      </div>
+      <div class="metric-group">
+        <div class="metric-label">Fast EMA</div>
+        <div class="metric-value">${fast}</div>
+      </div>
+      <div class="metric-group">
+        <div class="metric-label">Slow EMA</div>
+        <div class="metric-value">${slow}</div>
+      </div>
+      <div class="metric-group">
+        <div class="metric-label">ATR</div>
+        <div class="metric-value">${atr}</div>
+      </div>
+      <div class="metric-group">
+        <div class="metric-label">Position</div>
+        <div class="metric-value">${data.position}</div>
+      </div>
+      <div class="metric-group">
+        <div class="metric-label">Base held (${data.base_asset || '—'})</div>
+        <div class="metric-value">${qty}</div>
+      </div>
+      <div class="metric-group">
+        <div class="metric-label">Quote balance (${data.quote_asset || '—'})</div>
+        <div class="metric-value">${quoteBal}</div>
+      </div>
+      <div class="metric-group">
+        <div class="metric-label">Cooldown</div>
+        <div class="metric-value">${data.cooldown_sec || 0}s</div>
+      </div>
+      <div class="metric-group">
+        <div class="metric-label">ATR stop (x)</div>
+        <div class="metric-value">${(data.atr_stop_mult ?? 0).toFixed(2)}</div>
+      </div>
+    </div>
+
+    <div class="status-line">
+      <b>PnL (realized):</b> ${realized} USD |
+      <b>PnL (unrealized):</b> ${unrealized} USD
     </div>
   `;
+
+  if (data.price !== undefined && data.price !== null) {
+    lastTrendPrice = data.price;
+  }
 }
 
 async function loadHistory() {
