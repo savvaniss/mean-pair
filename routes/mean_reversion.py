@@ -96,7 +96,7 @@ def get_status():
             std_ratio=std_r,
             current_asset=st.current_asset,
             current_qty=st.current_qty,
-            realized_pnl_usd=0.0,
+            realized_pnl_usd=st.realized_pnl_usd,
             unrealized_pnl_usd=unrealized_pnl,
             enabled=mr.bot_config.enabled,
             use_testnet=mr.bot_config.use_testnet,
@@ -173,10 +173,14 @@ def manual_trade(req: ManualTradeRequest):
 
     if req.direction == sell_dir:
         from_asset = asset_a
+        to_asset = asset_b
         price_from = price_a
+        price_to = price_b
     else:
         from_asset = asset_b
+        to_asset = asset_a
         price_from = price_b
+        price_to = price_a
 
     # Cap the notional to the available balance to avoid needless exchange errors
     from_balance = mr.get_free_balance_mr(from_asset)
@@ -206,6 +210,11 @@ def manual_trade(req: ManualTradeRequest):
 
         from_asset, to_asset, qty_from, qty_to, ratio = res
 
+        start_value = qty_from * price_from
+        end_value = qty_to * price_to
+        fee_quote = (start_value + end_value) * mr.TRADE_FEE_RATE
+        pnl_usd = end_value - start_value - fee_quote
+
         tr = Trade(
             ts=ts,
             side=f"{from_asset}->{to_asset} (manual)",
@@ -214,14 +223,15 @@ def manual_trade(req: ManualTradeRequest):
             qty_from=qty_from,
             qty_to=qty_to,
             price=ratio,
-            fee=0.0,
-            pnl_usd=0.0,
+            fee=fee_quote,
+            pnl_usd=pnl_usd,
             is_testnet=int(mr.bot_config.use_testnet),
         )
         session.add(tr)
 
         state.current_asset = to_asset
         state.current_qty = qty_to
+        state.realized_pnl_usd += pnl_usd
 
         session.commit()
         return {"status": "ok"}

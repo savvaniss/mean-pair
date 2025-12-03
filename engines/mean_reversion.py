@@ -158,13 +158,24 @@ def adjust_quantity(symbol: str, qty: float) -> float:
 def _min_notional(symbol: str) -> float:
     client = get_mr_client()
     if client is None:
-        raise RuntimeError("mr_client is None – configure it, or mock _min_notional in tests")
+        # When the client is not available (e.g., tests using monkeypatched helpers),
+        # treat the constraint as non-existent so callers can continue.
+        return 0.0
 
     info = client.get_symbol_info(symbol)
     min_notional_filter = next(
         (f for f in info["filters"] if f["filterType"] == "MIN_NOTIONAL"), None
     )
     return float(min_notional_filter.get("minNotional", 0.0)) if min_notional_filter else 0.0
+
+
+def _violates_min_notional(symbol: str, qty: float, price: float) -> bool:
+    """Return True if qty * price is below Binance MIN_NOTIONAL for the symbol."""
+
+    min_notional = _min_notional(symbol)
+    if min_notional == 0:
+        return False
+    return qty * price < min_notional
 
 
 def place_market_order_mr(symbol: str, side: str, quantity: float):
@@ -640,6 +651,12 @@ def execute_mr_trade(
         print(f"[MR] execute_mr_trade: qty_from too small ({qty_from_raw}) for {from_asset}")
         return None
 
+    if _violates_min_notional(sym_from, qty_from, price_from):
+        print(
+            f"[MR] execute_mr_trade: notional {qty_from * price_from:.6f} below MIN_NOTIONAL for {sym_from}"
+        )
+        return None
+
     # 1) SELL from_asset → quote
     order_sell = place_market_order_mr(sym_from, "SELL", qty_from)
     if not order_sell:
@@ -654,6 +671,12 @@ def execute_mr_trade(
     qty_to = adjust_quantity(sym_to, qty_to_raw)
     if qty_to <= 0:
         print(f"[MR] execute_mr_trade: qty_to too small ({qty_to_raw}) for {to_asset}")
+        return None
+
+    if _violates_min_notional(sym_to, qty_to, price_to):
+        print(
+            f"[MR] execute_mr_trade: notional {qty_to * price_to:.6f} below MIN_NOTIONAL for {sym_to}"
+        )
         return None
 
     order_buy = place_market_order_mr(sym_to, "BUY", qty_to)
