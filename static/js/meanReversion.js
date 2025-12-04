@@ -726,15 +726,19 @@ export function initMeanReversion() {
   document.getElementById('manualTradeForm').addEventListener('submit', manualTrade);
   document.getElementById('manual_direction').addEventListener('change', updateManualTradeForm);
   document.getElementById('manual_max_btn').addEventListener('click', setManualMax);
-  document.getElementById('syncStateBtn').addEventListener('click', syncState);
+  document.querySelectorAll('[data-action="syncState"]').forEach((btn) => {
+    btn.addEventListener('click', syncState);
+  });
   document.getElementById('startBotBtn').addEventListener('click', startBot);
   document.getElementById('stopBotBtn').addEventListener('click', stopBot);
   document
     .getElementById('generateConfigBtn')
     .addEventListener('click', generateConfigFromHistory);
-  document.getElementById('nextTradeBtn').addEventListener('click', () => {
-    openOverlay('nextModalOverlay');
-    fetchNextSignal();
+  document.querySelectorAll('[data-action="nextTrade"]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      openOverlay('nextModalOverlay');
+      fetchNextSignal();
+    });
   });
   document.getElementById('nextModalClose').addEventListener('click', () => closeOverlay('nextModalOverlay'));
   document

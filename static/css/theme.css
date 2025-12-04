@@ -121,8 +121,12 @@ body {
 }
 
 .tab-content {
-  display: block;
+  display: none;
   margin-bottom: 18px;
+}
+
+.tab-content.active {
+  display: block;
 }
 
 .desk-grid {

@@ -14,20 +14,39 @@ export function initCollapsibles() {
 }
 
 export function initTabs() {
-  const tabs = document.querySelectorAll('.tab');
+  const tabs = Array.from(document.querySelectorAll('.tab')).filter((tab) => tab.dataset.target || tab.dataset.tab);
+  const sections = document.querySelectorAll('.tab-content');
+
+  function activateTab(target) {
+    tabs.forEach((t) => {
+      const id = t.dataset.target || t.dataset.tab;
+      t.classList.toggle('active', id === target);
+    });
+
+    sections.forEach((section) => {
+      const matches = section.id === target || section.id === `tab-${target}`;
+      section.classList.toggle('active', matches);
+    });
+
+    const section = document.getElementById(target) || document.getElementById(`tab-${target}`);
+    if (section) {
+      section.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  }
 
   tabs.forEach((tab) => {
     tab.addEventListener('click', () => {
       const target = tab.dataset.target || tab.dataset.tab;
-      tabs.forEach((t) => t.classList.remove('active'));
-      tab.classList.add('active');
-
-      const section = document.getElementById(target) || document.getElementById(`tab-${target}`);
-      if (section) {
-        section.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      }
+      if (target) activateTab(target);
     });
   });
+
+  const active = document.querySelector('.tab.active');
+  if (active && (active.dataset.target || active.dataset.tab)) {
+    activateTab(active.dataset.target || active.dataset.tab);
+  } else if (tabs[0]) {
+    activateTab(tabs[0].dataset.target || tabs[0].dataset.tab);
+  }
 }
 
 export function initModals() {
