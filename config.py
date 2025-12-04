@@ -34,13 +34,13 @@ if DEFAULT_ENV not in ("testnet", "mainnet"):
     raise RuntimeError("BINANCE_DEFAULT_ENV must be 'testnet' or 'mainnet'")
 
 # Base asset you conceptually hold when "neutral"
-BASE_ASSET = os.getenv("BASE_ASSET", "USDT").upper()
+BASE_ASSET = os.getenv("BASE_ASSET", "USDC").upper()
 
 AUTO_START = os.getenv("BOT_AUTO_START", "false").lower() == "true"
 
 # Which quote assets to use for MR prices / symbols
 TESTNET_QUOTE = os.getenv("BINANCE_TESTNET_QUOTE", "USDT").upper()
-MAINNET_QUOTE = os.getenv("BINANCE_MAINNET_QUOTE", "USDT").upper()
+MAINNET_QUOTE = os.getenv("BINANCE_MAINNET_QUOTE", "USDC").upper()
 
 # CI / tests: disable real Binance client creation
 DISABLE_BINANCE_CLIENT = os.getenv("DISABLE_BINANCE_CLIENT", "0") == "1"

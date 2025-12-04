@@ -25,6 +25,7 @@
       <button class="tab active" data-tab="mean">Mean Reversion (Pairs)</button>
       <button class="tab" data-tab="boll">Single-Coin Bollinger</button>
       <button class="tab" data-tab="trend">Trend Following (EMA)</button>
+      <button class="tab" data-tab="rs">Relative Strength</button>
       <button class="tab" data-tab="trading">Trading Desk</button>
       <button class="tab" data-tab="liquidation">Liquidation Hunt</button>
     </div>
@@ -621,6 +622,137 @@
               </tr>
             </thead>
             <tbody id="trendHistoryBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <div id="tab-rs" class="tab-content">
+      <div class="control-buttons" style="margin-bottom:10px;">
+        <button class="btn btn-primary" id="startRSBtn">Start RS bot</button>
+        <button class="btn btn-danger" id="stopRSBtn">Stop RS bot</button>
+      </div>
+
+      <div class="row">
+        <div class="card" data-collapsible>
+          <div class="card-header">
+            <h2>Relative Strength Status</h2>
+            <span class="toggle-icon">▼</span>
+          </div>
+          <div class="card-body" id="rsStatus">Loading...</div>
+        </div>
+
+        <div class="card" data-collapsible>
+          <div class="card-header">
+            <h2>Relative Strength Config</h2>
+            <span class="toggle-icon">▼</span>
+          </div>
+          <div class="card-body">
+            <form id="rsConfigForm">
+              <div class="form-row">
+                <div>
+                  <label for="rs_symbols" class="label-with-tip">
+                    Symbols (comma separated)
+                    <span class="tooltip-icon" title="Universe of quote symbols to rank using relative strength (e.g. BTCUSDC, ETHUSDC).">?</span>
+                  </label>
+                  <input id="rs_symbols" name="symbols" type="text" placeholder="BTCUSDC,ETHUSDC" />
+                </div>
+                <div>
+                  <label for="rs_poll_interval" class="label-with-tip">
+                    Poll interval (sec)
+                    <span class="tooltip-icon" title="Seconds between price polls and ranking updates.">?</span>
+                  </label>
+                  <input id="rs_poll_interval" name="poll_interval_sec" type="number" min="5" step="1" />
+                </div>
+                <div>
+                  <label for="rs_lookback" class="label-with-tip">
+                    Lookback window
+                    <span class="tooltip-icon" title="Number of samples used to compute the RS score per coin.">?</span>
+                  </label>
+                  <input id="rs_lookback" name="lookback_window" type="number" min="5" step="1" />
+                </div>
+                <div>
+                  <label for="rs_rebalance" class="label-with-tip">
+                    Rebalance interval (sec)
+                    <span class="tooltip-icon" title="Seconds between selecting new long/short spreads from the rankings.">?</span>
+                  </label>
+                  <input id="rs_rebalance" name="rebalance_interval_sec" type="number" min="30" step="1" />
+                </div>
+              </div>
+
+              <div class="form-row">
+                <div>
+                  <label for="rs_top_n" class="label-with-tip">
+                    Top-N longs
+                    <span class="tooltip-icon" title="How many strongest symbols to long in the basket.">?</span>
+                  </label>
+                  <input id="rs_top_n" name="top_n" type="number" min="1" step="1" />
+                </div>
+                <div>
+                  <label for="rs_bottom_n" class="label-with-tip">
+                    Bottom-N shorts
+                    <span class="tooltip-icon" title="How many weakest symbols to short in the basket.">?</span>
+                  </label>
+                  <input id="rs_bottom_n" name="bottom_n" type="number" min="1" step="1" />
+                </div>
+                <div>
+                  <label for="rs_min_gap" class="label-with-tip">
+                    Min RS gap
+                    <span class="tooltip-icon" title="Minimum RS spread between long and short legs before a spread is opened.">?</span>
+                  </label>
+                  <input id="rs_min_gap" name="min_rs_gap" type="number" step="0.1" />
+                </div>
+                <div>
+                  <label for="rs_notional" class="label-with-tip">
+                    Max notional per leg (<span class="quote-label">USDT</span>)
+                    <span class="tooltip-icon" title="Target quote size for each leg when not using the full balance.">?</span>
+                  </label>
+                  <input id="rs_notional" name="max_notional_usd" type="number" step="1" />
+                </div>
+              </div>
+
+              <div class="form-row">
+                <div class="form-checkbox">
+                  <input type="checkbox" id="rs_use_all" name="use_all_balance" />
+                  <label for="rs_use_all" class="label-with-tip">
+                    Use all quote balance
+                    <span class="tooltip-icon" title="Allocate the full quote balance across spreads instead of the notional cap.">?</span>
+                  </label>
+                </div>
+                <div class="form-checkbox">
+                  <input type="checkbox" id="rs_use_testnet" name="use_testnet" />
+                  <label for="rs_use_testnet" class="label-with-tip">
+                    Use Binance testnet
+                    <span class="tooltip-icon" title="Route RS trades to Binance testnet instead of live trading.">?</span>
+                  </label>
+                </div>
+              </div>
+
+              <div class="button-row">
+                <button type="submit" class="btn btn-primary">Save config</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      </div>
+
+      <div class="card" data-collapsible>
+        <div class="card-header">
+          <h2>RS Snapshots</h2>
+          <span class="toggle-icon">▼</span>
+        </div>
+        <div class="card-body">
+          <p id="rsHistoryStatus">Loading...</p>
+          <table id="rsHistoryTable">
+            <thead>
+              <tr>
+                <th>Time</th>
+                <th>Symbol</th>
+                <th>Price</th>
+                <th>RS</th>
+              </tr>
+            </thead>
+            <tbody id="rsHistoryBody"></tbody>
           </table>
         </div>
       </div>
