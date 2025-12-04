@@ -15,15 +15,35 @@ export function initCollapsibles() {
 
 export function initTabs() {
   const tabs = document.querySelectorAll('.tab');
-  const contents = document.querySelectorAll('.tab-content');
 
   tabs.forEach((tab) => {
     tab.addEventListener('click', () => {
-      const target = tab.dataset.tab;
+      const target = tab.dataset.target || tab.dataset.tab;
       tabs.forEach((t) => t.classList.remove('active'));
-      contents.forEach((c) => c.classList.remove('active'));
       tab.classList.add('active');
-      document.getElementById(`tab-${target}`).classList.add('active');
+
+      const section = document.getElementById(target) || document.getElementById(`tab-${target}`);
+      if (section) {
+        section.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+    });
+  });
+}
+
+export function initModals() {
+  document.querySelectorAll('[data-modal-open]').forEach((btn) => {
+    btn.addEventListener('click', () => openOverlay(btn.dataset.modalOpen));
+  });
+
+  document.querySelectorAll('[data-modal-close]').forEach((btn) => {
+    btn.addEventListener('click', () => closeOverlay(btn.dataset.modalClose));
+  });
+
+  document.querySelectorAll('.modal-overlay').forEach((overlay) => {
+    overlay.addEventListener('click', (e) => {
+      if (e.target === overlay) {
+        closeOverlay(overlay.id);
+      }
     });
   });
 }

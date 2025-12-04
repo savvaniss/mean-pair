@@ -1,4 +1,4 @@
-import { initCollapsibles, initTabs } from './ui.js';
+import { initCollapsibles, initTabs, initModals } from './ui.js';
 import { initMeanReversion, refreshMeanReversion } from './meanReversion.js';
 import { initBollinger, refreshBollinger } from './bollinger.js';
 import { initTrendFollowing, refreshTrendFollowing } from './trendFollowing.js';
@@ -8,6 +8,7 @@ import { initLiquidation, refreshLiquidation } from './liquidationHunt.js';
 
 async function bootstrap() {
   initTabs();
+  initModals();
   initCollapsibles();
   initMeanReversion();
   initBollinger();

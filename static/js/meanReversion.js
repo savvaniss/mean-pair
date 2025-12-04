@@ -34,6 +34,20 @@ function applyConfigToForm(cfg) {
 
   currentQuote = cfg.use_testnet ? 'USDT' : 'USDC';
   applyQuoteLabels(currentQuote);
+
+  const pairSummary = document.getElementById('meanPairSummary');
+  const windowSummary = document.getElementById('meanWindowSummary');
+  const zSummary = document.getElementById('meanZSummary');
+  const sizingSummary = document.getElementById('meanSizingSummary');
+
+  if (pairSummary) pairSummary.textContent = `${cfg.asset_a}/${cfg.asset_b}`;
+  if (windowSummary) windowSummary.textContent = `${cfg.window_size} samples • ${cfg.poll_interval_sec}s`; 
+  if (zSummary) zSummary.textContent = `${cfg.z_entry} / ${cfg.z_exit}`;
+  if (sizingSummary) {
+    sizingSummary.textContent = cfg.use_all_balance
+      ? 'Use full balances'
+      : `${cfg.trade_notional_usd} ${currentQuote} per leg`;
+  }
 }
 
 function getDirectionClass(current, last) {
