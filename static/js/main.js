@@ -113,7 +113,7 @@ function buildConfigForm(container, config, onSubmit, extra = {}) {
 
 async function loadMeanReversion() {
   const status = await api('/status');
-  const overview = document.getElementById('overview');
+  const overview = document.getElementById('overviewStats');
   if (overview) {
     overview.innerHTML = `
       <div class="stat"><span>Pair</span><strong>${status.asset_a}/${status.asset_b}</strong></div>

@@ -3,26 +3,26 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Strategy Console</title>
+    <title>Strategy Workbench</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
-      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Playfair+Display:wght@600&display=swap"
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
       rel="stylesheet"
     />
     <link rel="stylesheet" href="/static/css/theme.css" />
   </head>
   <body>
-    <header class="topbar">
-      <div class="brand">
-        <div class="mark">◎</div>
+    <header class="masthead">
+      <div class="brandmark">
+        <div class="glyph">△</div>
         <div>
-          <p class="eyebrow">Multi-Strategy Desk</p>
-          <h1>Strategy Console</h1>
+          <p class="quiet">Multi-strategy desk</p>
+          <h1>Strategy Workbench</h1>
         </div>
       </div>
-      <nav class="topnav">
-        <a href="#hall">Overview</a>
+      <nav class="waypoints">
+        <a href="#overview">Overview</a>
         <a href="#mr">Mean Reversion</a>
         <a href="#boll">Bollinger</a>
         <a href="#trend">Trend</a>
@@ -32,37 +32,39 @@
       </nav>
     </header>
 
-    <main class="page">
-      <section class="panel" id="hall">
-        <div class="panel-head">
+    <main class="canvas">
+      <section class="section" id="overview">
+        <div class="section-head">
           <div>
-            <p class="eyebrow">Situation room</p>
+            <p class="quiet">Live picture</p>
             <h2>At a glance</h2>
-            <p class="muted">Balances, mode, and current pair in one line. Auto-refreshes every 20s.</p>
+            <p class="muted">Current pair, balances, and mode refresh automatically every 20s.</p>
           </div>
-          <div class="chip">Live</div>
+          <div class="pill live">Live</div>
         </div>
-        <div id="overview" class="stat-strip"></div>
+        <div id="overviewStats" class="statline"></div>
       </section>
 
-      <section class="panel" id="mr">
-        <div class="panel-head">
+      <section class="section" id="mr">
+        <div class="section-head">
           <div>
-            <p class="eyebrow">Core spread</p>
+            <p class="quiet">Core spread</p>
             <h2>Mean reversion</h2>
-            <p class="muted">Status, next signal, manual adjustment, and config in one compact grid.</p>
+            <p class="muted">Status, signal, quick manual move, config, tracked pairs, history, and trades.</p>
           </div>
-          <div class="actions">
+          <div class="controls">
             <button class="primary" id="mrStart">Start</button>
             <button class="danger" id="mrStop">Stop</button>
             <button id="mrSync">Sync balances</button>
           </div>
         </div>
-        <div class="grid three">
-          <div class="card" id="mrStatus"></div>
-          <div class="card" id="mrNext"></div>
-          <div class="card">
-            <h3>Manual move</h3>
+        <div class="grid trio">
+          <div class="pane" id="mrStatus"></div>
+          <div class="pane" id="mrNext"></div>
+          <div class="pane">
+            <header class="pane-title">
+              <h3>Manual move</h3>
+            </header>
             <form id="mrManual" class="form-grid">
               <label class="field">Direction<select name="direction"></select></label>
               <label class="field">Notional (USD)<input name="notional" type="number" step="0.01" placeholder="optional" /></label>
@@ -72,121 +74,129 @@
             <p class="muted small">Provide either notional or quantity; leave both empty to skip.</p>
           </div>
         </div>
-        <div class="grid two">
-          <div class="card" id="mrConfig"></div>
-          <div class="card">
-            <h3>Tracked pairs</h3>
+        <div class="grid split">
+          <div class="pane" id="mrConfig"></div>
+          <div class="pane">
+            <header class="pane-title">
+              <h3>Tracked pairs</h3>
+            </header>
             <div class="table-wrap" id="mrPairs"></div>
           </div>
         </div>
-        <div class="grid two">
-          <div class="card">
-            <h3>History</h3>
+        <div class="grid split">
+          <div class="pane">
+            <header class="pane-title">
+              <h3>History</h3>
+            </header>
             <div class="table-wrap" id="mrHistory"></div>
           </div>
-          <div class="card">
-            <h3>Trades</h3>
+          <div class="pane">
+            <header class="pane-title">
+              <h3>Trades</h3>
+            </header>
             <div class="table-wrap" id="mrTrades"></div>
           </div>
         </div>
       </section>
 
-      <section class="panel" id="boll">
-        <div class="panel-head">
+      <section class="section" id="boll">
+        <div class="section-head">
           <div>
-            <p class="eyebrow">Bands</p>
+            <p class="quiet">Bands</p>
             <h2>Bollinger</h2>
-            <p class="muted">Keep symbol, bands, manual orders, and configs side by side.</p>
+            <p class="muted">Symbol, bands, manual orders, configs, history, and trades together.</p>
           </div>
-          <div class="actions">
+          <div class="controls">
             <button class="primary" id="bollStart">Start</button>
             <button class="danger" id="bollStop">Stop</button>
             <button id="bollBest">Best config</button>
           </div>
         </div>
-        <div class="grid three">
-          <div class="card" id="bollStatus"></div>
-          <div class="card">
-            <h3>Manual sell</h3>
+        <div class="grid trio">
+          <div class="pane" id="bollStatus"></div>
+          <div class="pane">
+            <header class="pane-title">
+              <h3>Manual sell</h3>
+            </header>
             <form id="bollManual" class="form-grid">
               <label class="field">Symbol<select name="symbol"></select></label>
               <label class="field">Qty (base asset)<input name="qty" type="number" step="0.0001" /></label>
               <button type="submit" class="primary full">Send order</button>
             </form>
           </div>
-          <div class="card" id="bollConfig"></div>
+          <div class="pane" id="bollConfig"></div>
         </div>
-        <div class="grid two">
-          <div class="card">
-            <h3>History</h3>
+        <div class="grid split">
+          <div class="pane">
+            <header class="pane-title"><h3>History</h3></header>
             <div class="table-wrap" id="bollHistory"></div>
           </div>
-          <div class="card">
-            <h3>Trades</h3>
+          <div class="pane">
+            <header class="pane-title"><h3>Trades</h3></header>
             <div class="table-wrap" id="bollTrades"></div>
           </div>
         </div>
       </section>
 
-      <section class="panel" id="trend">
-        <div class="panel-head">
+      <section class="section" id="trend">
+        <div class="section-head">
           <div>
-            <p class="eyebrow">Follow the slope</p>
+            <p class="quiet">Follow the slope</p>
             <h2>Trend</h2>
-            <p class="muted">Essentials only: status, config, and latest history.</p>
+            <p class="muted">Lean view with status, config, and latest history.</p>
           </div>
-          <div class="actions">
+          <div class="controls">
             <button class="primary" id="trendStart">Start</button>
             <button class="danger" id="trendStop">Stop</button>
           </div>
         </div>
-        <div class="grid two">
-          <div class="card" id="trendStatus"></div>
-          <div class="card" id="trendConfig"></div>
+        <div class="grid split">
+          <div class="pane" id="trendStatus"></div>
+          <div class="pane" id="trendConfig"></div>
         </div>
-        <div class="card">
-          <h3>History</h3>
+        <div class="pane">
+          <header class="pane-title"><h3>History</h3></header>
           <div class="table-wrap" id="trendHistory"></div>
         </div>
       </section>
 
-      <section class="panel" id="rs">
-        <div class="panel-head">
+      <section class="section" id="rs">
+        <div class="section-head">
           <div>
-            <p class="eyebrow">Relative strength</p>
+            <p class="quiet">Relative strength</p>
             <h2>Momentum check</h2>
             <p class="muted">Status, config, and latest runs together.</p>
           </div>
-          <div class="actions">
+          <div class="controls">
             <button class="primary" id="rsStart">Start</button>
             <button class="danger" id="rsStop">Stop</button>
           </div>
         </div>
-        <div class="grid two">
-          <div class="card" id="rsStatus"></div>
-          <div class="card" id="rsConfig"></div>
+        <div class="grid split">
+          <div class="pane" id="rsStatus"></div>
+          <div class="pane" id="rsConfig"></div>
         </div>
-        <div class="card">
-          <h3>History</h3>
+        <div class="pane">
+          <header class="pane-title"><h3>History</h3></header>
           <div class="table-wrap" id="rsHistory"></div>
         </div>
       </section>
 
-      <section class="panel" id="trade">
-        <div class="panel-head">
+      <section class="section" id="trade">
+        <div class="section-head">
           <div>
-            <p class="eyebrow">Manual control</p>
+            <p class="quiet">Manual control</p>
             <h2>Trading desk</h2>
-            <p class="muted">Place a direct order and monitor balances in parallel.</p>
+            <p class="muted">Place a direct order and monitor balances side by side.</p>
           </div>
         </div>
-        <div class="grid two">
-          <div class="card">
-            <h3>Balances</h3>
-            <div id="balances" class="card-list"></div>
+        <div class="grid split">
+          <div class="pane">
+            <header class="pane-title"><h3>Balances</h3></header>
+            <div id="balances" class="data-list"></div>
           </div>
-          <div class="card">
-            <h3>Manual order</h3>
+          <div class="pane">
+            <header class="pane-title"><h3>Manual order</h3></header>
             <form id="tradeForm" class="form-grid">
               <label class="field">Account<select name="account"><option value="mr">Mean reversion</option><option value="boll">Bollinger</option></select></label>
               <label class="field">Use testnet<select name="use_testnet"><option value="true">true</option><option value="false">false</option></select></label>
@@ -199,21 +209,21 @@
         </div>
       </section>
 
-      <section class="panel" id="liq">
-        <div class="panel-head">
+      <section class="section" id="liq">
+        <div class="section-head">
           <div>
-            <p class="eyebrow">Quiet watch</p>
+            <p class="quiet">Quiet watch</p>
             <h2>Liquidation hunt</h2>
             <p class="muted">Scan, review config, and execute when a signal is present.</p>
           </div>
-          <div class="actions">
+          <div class="controls">
             <button id="liqScan">Manual scan</button>
             <button class="primary" id="liqExecute">Execute</button>
           </div>
         </div>
-        <div class="grid two">
-          <div class="card" id="liqStatus"></div>
-          <div class="card" id="liqConfig"></div>
+        <div class="grid split">
+          <div class="pane" id="liqStatus"></div>
+          <div class="pane" id="liqConfig"></div>
         </div>
       </section>
     </main>
