@@ -56,39 +56,55 @@ body {
 }
 
 .btn {
-  border: none;
+  border: 1px solid var(--border);
   border-radius: 999px;
   padding: 8px 16px;
   font-size: 0.9rem;
   font-weight: 600;
   cursor: pointer;
-  background: var(--surface-light);
+  background: linear-gradient(120deg, rgba(21, 36, 60, 0.95), rgba(15, 24, 43, 0.95));
   color: var(--text-main);
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  transition: background 0.15s, transform 0.05s, box-shadow 0.15s;
-  box-shadow: 0 6px 14px rgba(0, 0, 0, 0.2);
+  transition: background 0.15s, transform 0.05s, box-shadow 0.15s, border-color 0.15s;
+  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.35);
 }
 
 .btn:hover {
   transform: translateY(-1px);
-  box-shadow: 0 10px 22px rgba(0, 0, 0, 0.28);
+  box-shadow: 0 12px 26px rgba(0, 0, 0, 0.38);
+  border-color: rgba(130, 214, 255, 0.4);
+  background: linear-gradient(120deg, rgba(21, 36, 60, 0.95), rgba(30, 52, 87, 0.95));
 }
 
 .btn-primary {
-  background: linear-gradient(120deg, var(--primary-soft), var(--accent));
+  background: linear-gradient(130deg, rgba(74, 163, 244, 0.9), rgba(126, 224, 194, 0.9));
+  border-color: rgba(130, 214, 255, 0.6);
   color: #081019;
+  box-shadow: 0 12px 28px rgba(90, 177, 234, 0.25);
+}
+
+.btn-primary:hover {
+  background: linear-gradient(130deg, rgba(130, 214, 255, 0.95), rgba(126, 224, 194, 0.95));
+  border-color: rgba(130, 214, 255, 0.9);
 }
 
 .btn-ghost {
   background: transparent;
   border: 1px solid var(--border);
+  color: var(--text-subtle);
 }
 
 .btn-danger {
-  background: linear-gradient(120deg, #f6c1b5, var(--danger));
+  background: linear-gradient(130deg, rgba(246, 193, 181, 0.9), rgba(242, 168, 160, 0.9));
+  border-color: rgba(242, 168, 160, 0.7);
   color: #0d131e;
+  box-shadow: 0 10px 24px rgba(242, 168, 160, 0.25);
+}
+
+.btn-danger:hover {
+  border-color: rgba(242, 168, 160, 0.95);
 }
 
 .btn.small {
@@ -115,9 +131,10 @@ body {
 }
 
 .tab.active {
-  background: var(--primary-soft);
-  color: #0b1720;
-  border-color: var(--primary-soft);
+  background: linear-gradient(120deg, rgba(126, 224, 194, 0.26), rgba(130, 214, 255, 0.24));
+  color: var(--text-main);
+  border-color: rgba(130, 214, 255, 0.65);
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.35);
 }
 
 .tab-content {
