@@ -35,6 +35,7 @@ import app  # noqa: E402
 from engines import mean_reversion as mr_engine  # noqa: E402
 from engines import bollinger as boll_engine     # noqa: E402
 from engines import trend_following as trend_engine  # noqa: E402
+from engines import relative_strength as rs_engine  # noqa: E402
 
 
 @pytest.fixture(autouse=True)
@@ -51,6 +52,9 @@ def _reset_histories():
     boll_engine.boll_ts_history.clear()
     trend_engine.tf_price_history.clear()
     trend_engine.tf_ts_history.clear()
+    rs_engine.rs_price_history.clear()
+    rs_engine.active_spreads.clear()
+    rs_engine.last_rebalance_ts = None
     try:
         yield
     finally:
@@ -59,6 +63,9 @@ def _reset_histories():
         boll_engine.boll_ts_history.clear()
         trend_engine.tf_price_history.clear()
         trend_engine.tf_ts_history.clear()
+        rs_engine.rs_price_history.clear()
+        rs_engine.active_spreads.clear()
+        rs_engine.last_rebalance_ts = None
 
 
 @pytest.fixture

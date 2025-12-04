@@ -140,6 +140,33 @@ class TrendSnapshot(Base):
     atr = Column(Float)
 
 
+class RSState(Base):
+    __tablename__ = "rs_state"
+    id = Column(Integer, primary_key=True, index=True)
+    last_rebalance = Column(DateTime, index=True)
+    open_spreads = Column(Integer)
+    quote_asset = Column(String)
+
+
+class RSTrade(Base):
+    __tablename__ = "rs_trades"
+    id = Column(Integer, primary_key=True, index=True)
+    ts = Column(DateTime, index=True)
+    long_symbol = Column(String)
+    short_symbol = Column(String)
+    rs_gap = Column(Float)
+    notional = Column(Float)
+
+
+class RSSnapshot(Base):
+    __tablename__ = "rs_snapshots"
+    id = Column(Integer, primary_key=True, index=True)
+    ts = Column(DateTime, index=True)
+    symbol = Column(String)
+    price = Column(Float)
+    rs = Column(Float)
+
+
 class PairHealth(Base):
     __tablename__ = "pair_health"
     id = Column(Integer, primary_key=True, index=True)
