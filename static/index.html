@@ -1,976 +1,472 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Trading Suite</title>
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" />
-  <link rel="stylesheet" href="/static/css/theme.css" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Arcane Trading Command</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;700&family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/styles.css" />
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-  <script type="module" src="/static/js/main.js"></script>
+  <script type="module" src="/static/app.js" defer></script>
 </head>
 <body>
-  <div id="toastContainer" class="toast-container" aria-live="polite"></div>
-  <div class="top-bar">
-    <div class="title-block">
-      <h1>Pair Trading Suite</h1>
-      <div class="title-sub">Unified mean-reversion, Bollinger, and trend toolkit</div>
-    </div>
-    <div class="control-buttons">
-      <button class="btn btn-ghost" id="syncStateBtn">Sync MR balances</button>
-      <button class="btn btn-ghost" id="nextTradeBtn">Next MR trade</button>
-    </div>
-  </div>
-
-    <div class="tab-bar">
-      <button class="tab active" data-tab="mean">Mean Reversion (Pairs)</button>
-      <button class="tab" data-tab="boll">Single-Coin Bollinger</button>
-      <button class="tab" data-tab="trend">Trend Following (EMA)</button>
-      <button class="tab" data-tab="rs">Relative Strength</button>
-      <button class="tab" data-tab="trading">Trading Desk</button>
-      <button class="tab" data-tab="liquidation">Liquidation Hunt</button>
-      <a class="tab" href="/listings" role="button">Listings Monitor</a>
-    </div>
-
-  <div id="tab-mean" class="tab-content active">
-    <div class="control-buttons" style="margin-bottom:10px;">
-      <button class="btn btn-primary" id="startBotBtn">Start MR bot</button>
-      <button class="btn btn-danger" id="stopBotBtn">Stop MR bot</button>
-    </div>
-
-    <div class="row">
-      <div class="card" data-collapsible>
-        <div class="card-header">
-          <h2>Live Status</h2>
-          <span class="toggle-icon">▼</span>
-        </div>
-        <div class="card-body">
-          <div id="status" class="status-section">Loading...</div>
-        </div>
-      </div>
-
-      <div class="card" data-collapsible>
-        <div class="card-header">
-          <h2>Config</h2>
-          <span class="toggle-icon">▼</span>
-        </div>
-        <div class="card-body">
-          <form id="configForm">
-            <div class="form-row">
-              <div>
-                <label for="pair_select" class="label-with-tip">
-                  Trading pair
-                  <span class="tooltip-icon" title="Select the correlated asset pair used for mean reversion calculations and trades.">?</span>
-                </label>
-                <select id="pair_select"></select>
-              </div>
-              <div>
-                <label for="poll_interval_sec" class="label-with-tip">
-                  Poll interval (sec)
-                  <span class="tooltip-icon" title="Seconds between price polls, ratio updates, and trading checks.">?</span>
-                </label>
-                <input id="poll_interval_sec" type="number" min="5" step="1" />
-              </div>
-              <div>
-                <label for="window_size" class="label-with-tip">
-                  Window size
-                  <span class="tooltip-icon" title="Number of recent samples used to compute the mean and standard deviation for the ratio.">?</span>
-                </label>
-                <input id="window_size" type="number" min="5" step="1" />
-              </div>
-              <div>
-                <label for="z_entry" class="label-with-tip">
-                  z-entry
-                  <span class="tooltip-icon" title="Z-score threshold that must be crossed before opening a mean-reversion trade.">?</span>
-                </label>
-                <input id="z_entry" type="number" step="0.1" />
-              </div>
-              <div>
-                <label for="z_exit" class="label-with-tip">
-                  z-exit
-                  <span class="tooltip-icon" title="Z-score threshold that signals when to close an open position back toward the mean.">?</span>
-                </label>
-                <input id="z_exit" type="number" step="0.1" />
-              </div>
-              <div>
-                <label for="trade_notional_usd" class="label-with-tip">
-                  Trade notional (<span class="quote-label">USDT</span>)
-                  <span class="tooltip-icon" title="Target USD value for each leg of the trade when not using full balances.">?</span>
-                </label>
-                <input id="trade_notional_usd" type="number" step="1" />
-              </div>
-            </div>
-
-            <div class="form-row">
-              <div class="form-checkbox">
-                <input type="checkbox" id="use_all_balance" />
-                <label for="use_all_balance" class="label-with-tip">
-                  Use all available HBAR/DOGE
-                  <span class="tooltip-icon" title="Trade using the entire available balances instead of the fixed notional size.">?</span>
-                </label>
-              </div>
-              <div class="form-checkbox">
-                <input type="checkbox" id="use_ratio_thresholds" />
-                <label for="use_ratio_thresholds" class="label-with-tip">
-                  Use fixed ratio thresholds
-                  <span class="tooltip-icon" title="Apply static buy/sell ratio bands instead of z-score based entries and exits.">?</span>
-                </label>
-              </div>
-              <div>
-                <label for="sell_ratio_threshold" class="label-with-tip">
-                  Sell ratio threshold
-                  <span class="tooltip-icon" title="If the ratio rises above this level, the bot sells the first asset and buys the second.">?</span>
-                </label>
-                <input id="sell_ratio_threshold" type="number" step="0.0001" />
-              </div>
-              <div>
-                <label for="buy_ratio_threshold" class="label-with-tip">
-                  Buy ratio threshold
-                  <span class="tooltip-icon" title="If the ratio falls below this level, the bot buys the first asset and sells the second.">?</span>
-                </label>
-                <input id="buy_ratio_threshold" type="number" step="0.0001" />
-              </div>
-              <div class="form-checkbox">
-                <input type="checkbox" id="use_testnet" />
-                <label for="use_testnet" class="label-with-tip">
-                  Use Binance testnet
-                  <span class="tooltip-icon" title="Route all mean-reversion trades to the Binance testnet instead of live trading.">?</span>
-                </label>
-              </div>
-            </div>
-
-            <div class="button-row">
-              <button type="submit" class="btn btn-primary">Save config</button>
-              <button type="button" class="btn btn-ghost" id="generateConfigBtn">Generate from history</button>
-            </div>
-          </form>
-        </div>
-      </div>
-
-      <div class="card" data-collapsible>
-        <div class="card-header">
-          <h2>Pair Health & History</h2>
-          <span class="toggle-icon">▼</span>
-        </div>
-        <div class="card-body" id="pairHealth">Loading...</div>
-      </div>
-
-      <div class="card" data-collapsible>
-        <div class="card-header">
-          <h2>Manual Trade</h2>
-          <span class="toggle-icon">▼</span>
-        </div>
-        <div class="card-body">
-          <form id="manualTradeForm">
-            <div class="form-row">
-              <div>
-                <label for="manual_direction" class="label-with-tip">
-                  Direction
-                  <span class="tooltip-icon" title="Choose which way to swap the pair immediately, overriding automated signals.">?</span>
-                </label>
-                <select id="manual_direction">
-                  <option value="HBAR->DOGE">HBAR → DOGE</option>
-                  <option value="DOGE->HBAR">DOGE → HBAR</option>
-                </select>
-              </div>
-              <div>
-                <label for="manual_amount" class="label-with-tip">
-                  Amount (<span id="manual_amount_label">HBAR</span>)
-                  <span
-                    class="tooltip-icon"
-                    title="How many units of the FROM asset to swap. Use Max to fill the entire available balance."
-                    >?</span
-                  >
-                </label>
-                <div class="input-with-button">
-                  <input id="manual_amount" type="number" value="0" step="0.0001" />
-                  <button type="button" class="btn btn-ghost small" id="manual_max_btn">Max</button>
-                </div>
-                <div class="help-text" id="manual_balance_hint"></div>
-              </div>
-            </div>
-            <button type="submit" class="btn btn-primary">Execute manual trade</button>
-          </form>
-          <div class="help-text">
-            Uses market orders on your current environment (testnet / mainnet).
-            Start with small amounts to test.
-          </div>
-        </div>
+  <header class="hero">
+    <div>
+      <p class="eyebrow">Wizardry-grade quant desk</p>
+      <h1>Arcane Pair & Momentum Atelier</h1>
+      <p class="lede">A fresh spellbook for mean reversion, Bollinger scouts, trend sentinels, and liquidation hunters. Built anew with a dash of Hogwarts charm.</p>
+      <div class="hero-actions">
+        <a href="#mean-section" class="cta">Mean Reversion Lab</a>
+        <a href="#bollinger-section" class="ghost">Momentum Arches</a>
+        <a href="/static/liquidation-hunt.html" class="ghost">Liquidation Observatory</a>
       </div>
     </div>
-
-    <div class="card" data-collapsible>
-      <div class="card-header">
-        <h2>Charts</h2>
-        <span class="toggle-icon">▼</span>
-      </div>
-      <div class="card-body">
-        <div class="chart-row">
-          <div class="chart-col">
-            <h3>HBAR / DOGE Prices</h3>
-            <canvas id="priceChart" height="160"></canvas>
-          </div>
-          <div class="chart-col">
-            <h3>Ratio & Bands</h3>
-            <canvas id="ratioChart" height="160"></canvas>
-            <p id="bandInfo"></p>
-          </div>
-        </div>
-      </div>
+    <div class="sigil">
+      <div class="orb"></div>
+      <div class="rune">⚡</div>
     </div>
+  </header>
 
-    <div class="card" data-collapsible>
-      <div class="card-header">
-        <h2>Recent Trades (latest 100)</h2>
-        <span class="toggle-icon">▼</span>
-      </div>
-      <div class="card-body">
-        <table id="tradesTable">
-          <thead>
-            <tr>
-              <th>Time</th>
-              <th>Side</th>
-              <th>From</th>
-              <th>To</th>
-              <th>Qty from</th>
-              <th>Qty to</th>
-              <th>Price</th>
-              <th>PnL (<span class="quote-label">USDT</span>)</th>
-              <th>Env</th>
-            </tr>
-          </thead>
-          <tbody id="tradesBody"></tbody>
-        </table>
-      </div>
-    </div>
-  </div>
+  <nav class="wayfinder">
+    <a href="#mean-section">Mean Reversion</a>
+    <a href="#bollinger-section">Bollinger Scout</a>
+    <a href="#trend-section">Trend Sentinel</a>
+    <a href="#rs-section">Relative Strength</a>
+    <a href="#trading-section">Trading Desk</a>
+    <a href="/listings" class="external">Listings Monitor ↗</a>
+  </nav>
 
-  <div id="tab-boll" class="tab-content">
-    <div class="control-buttons" style="margin-bottom:10px;">
-      <button class="btn btn-primary" id="startBollBtn">Start Bollinger bot</button>
-      <button class="btn btn-danger" id="stopBollBtn">Stop Bollinger bot</button>
-    </div>
-
-    <div class="row">
-      <div class="card" data-collapsible>
-        <div class="card-header">
-          <h2>Bollinger Overview</h2>
-          <span class="toggle-icon">▼</span>
+  <main class="content">
+    <section id="mean-section" class="panel">
+      <div class="panel-head">
+        <div>
+          <p class="eyebrow">Pairs desk</p>
+          <h2>Mean Reversion Laboratory</h2>
+          <p class="lede">Monitor spreads, trigger manual swaps, and sculpt configuration in a compact modal.</p>
         </div>
-        <div class="card-body">
-          <div id="bollStatus" class="status-section">Loading...</div>
-          <div class="inline-metrics" id="bollPosition"></div>
+        <div class="actions">
+          <button id="mr-config-open" class="ghost">Edit config</button>
+          <button id="mr-sync" class="ghost">Sync balances</button>
+          <button id="mr-next" class="ghost">Peek next signal</button>
+          <button id="mr-start" class="cta">Start bot</button>
+          <button id="mr-stop" class="danger">Stop bot</button>
         </div>
       </div>
 
-      <div class="card" data-collapsible>
-        <div class="card-header">
-          <h2>Account snapshot</h2>
-          <span class="toggle-icon">▼</span>
-        </div>
-        <div class="card-body">
-          <div id="bollBalances" class="balance-grid">Loading...</div>
-        </div>
-      </div>
-    </div>
-
-    <div class="card" data-collapsible>
-      <div class="card-header">
-        <h2>Bollinger Setup</h2>
-        <span class="toggle-icon">▼</span>
-      </div>
-      <div class="card-body">
-        <div id="bollConfigSummary" class="config-summary">Loading saved config...</div>
-        <form id="bollConfigForm" class="bollinger-form">
-          <div class="bollinger-grid">
-            <div class="config-panel">
-              <div class="panel-heading">
-                <div>
-                  <div class="panel-title">Symbol &amp; routing</div>
-                  <div class="panel-subtitle">Pick a liquid market and where orders are sent.</div>
-                </div>
-                <span class="chip chip-muted">Setup</span>
-              </div>
-              <div class="form-stack">
-                <div class="symbol-picker">
-                  <div class="symbol-select-row">
-                    <div class="symbol-select">
-                      <label for="boll_symbol" class="label-with-tip">
-                        Symbol
-                        <span class="tooltip-icon" title="Trading symbol for the Bollinger bot. Choose a pair with healthy liquidity.">?</span>
-                      </label>
-                      <select id="boll_symbol"></select>
-                    </div>
-                    <div>
-                      <label for="bollQuoteFilter" class="label-with-tip">
-                        Quote filter
-                        <span class="tooltip-icon" title="Limit the available symbols by quote asset to quickly narrow the dropdown list.">?</span>
-                      </label>
-                      <select id="bollQuoteFilter">
-                        <option value="all">All quotes</option>
-                        <option value="USDT">USDT</option>
-                        <option value="USDC">USDC</option>
-                        <option value="BTC">BTC</option>
-                        <option value="BNB">BNB</option>
-                      </select>
-                    </div>
-                  </div>
-                  <div class="pill-row" id="bollSymbolPills"></div>
-                </div>
-                <div class="form-row slim">
-                  <div class="form-checkbox">
-                    <input type="checkbox" id="boll_use_testnet" />
-                    <label for="boll_use_testnet" class="label-with-tip">
-                      Use Binance testnet
-                      <span class="tooltip-icon" title="Execute Bollinger trades against the Binance testnet environment.">?</span>
-                    </label>
-                  </div>
-                  <div class="form-checkbox">
-                    <input type="checkbox" id="boll_use_all_balance" />
-                    <label for="boll_use_all_balance" class="label-with-tip">
-                      Use all quote balance
-                      <span class="tooltip-icon" title="Allow the bot to deploy the entire available quote balance when entering.">?</span>
-                    </label>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div class="config-panel">
-              <div class="panel-heading">
-                <div>
-                  <div class="panel-title">Sizing &amp; signals</div>
-                  <div class="panel-subtitle">Tune entry sizing and band sensitivity.</div>
-                </div>
-                <span class="chip chip-muted">Entries</span>
-              </div>
-              <div class="form-row slim">
-                <div>
-                  <label for="boll_trade_notional" class="label-with-tip">
-                    Max position (<span class="quote-label">USDT</span>)
-                    <span class="tooltip-icon" title="Maximum quote-currency amount to allocate per Bollinger entry.">?</span>
-                  </label>
-                  <input id="boll_trade_notional" type="number" step="1" />
-                </div>
-                <div>
-                  <label for="boll_window" class="label-with-tip">
-                    Window size
-                    <span class="tooltip-icon" title="Number of candles used to compute the moving average and bands.">?</span>
-                  </label>
-                  <input id="boll_window" type="number" min="5" step="1" />
-                </div>
-              </div>
-              <div class="form-row slim">
-                <div>
-                  <label for="boll_dev" class="label-with-tip">
-                    Std Dev (k)
-                    <span class="tooltip-icon" title="Multiplier applied to the standard deviation when constructing upper and lower bands.">?</span>
-                  </label>
-                  <input id="boll_dev" type="number" step="0.1" />
-                </div>
-                <div>
-                  <label for="boll_cooldown" class="label-with-tip">
-                    Cooldown (sec)
-                    <span class="tooltip-icon" title="Minimum delay between consecutive Bollinger trades.">?</span>
-                  </label>
-                  <input id="boll_cooldown" type="number" step="1" min="0" />
-                </div>
-              </div>
-            </div>
-
-            <div class="config-panel">
-              <div class="panel-heading">
-                <div>
-                  <div class="panel-title">Risk controls</div>
-                  <div class="panel-subtitle">Define exits and guardrails for open positions.</div>
-                </div>
-                <span class="chip chip-muted">Protection</span>
-              </div>
-              <div class="form-row slim">
-                <div>
-                  <label for="boll_stop_loss" class="label-with-tip">
-                    Stop loss (fraction)
-                    <span class="tooltip-icon" title="Fractional stop below entry before flattening the position (e.g. 0.1 = 10%).">?</span>
-                  </label>
-                  <input id="boll_stop_loss" type="number" step="0.01" min="0" />
-                </div>
-                <div>
-                  <label for="boll_take_profit" class="label-with-tip">
-                    Take profit (fraction)
-                    <span class="tooltip-icon" title="Fractional take-profit target above entry (e.g. 0.1 = 10%).">?</span>
-                  </label>
-                  <input id="boll_take_profit" type="number" step="0.01" min="0" />
-                </div>
-              </div>
-              <div class="panel-note">Stops and targets are calculated off the entry fill; set both when experimenting on live markets.</div>
-            </div>
-
-            <div class="config-panel info-panel">
-              <div class="panel-heading">
-                <div>
-                  <div class="panel-title">Operating notes</div>
-                  <div class="panel-subtitle">Quick reminders before you hit save.</div>
-                </div>
-                <span class="chip chip-primary">Tips</span>
-              </div>
-              <ul class="muted-list">
-                <li>Use the quote filter to keep the dropdown manageable; curated chips highlight pairs with healthy liquidity.</li>
-                <li>Cooldowns prevent churn when price hugs the bands; increase the value if you see repeated flips.</li>
-                <li>Testnet routes orders to sandbox keys only—ideal for dry runs before enabling mainnet access.</li>
-                <li>Adjust the deviation multiplier to control how aggressive entries are. Smaller numbers fire more often.</li>
-              </ul>
-              <div class="panel-note subtle">Need a starting point? Generate a config from historical saves, then review the summary chips above.</div>
-            </div>
-          </div>
-          <div class="button-row">
-            <button type="button" class="btn" id="bollGenerateConfigBtn">Generate from history</button>
-            <button type="submit" class="btn btn-primary">Save Bollinger config</button>
-          </div>
-          <div class="help-text">Curated chips keep you away from scrolling through hundreds of pairs. Use the quote filter to narrow the list.</div>
-        </form>
-      </div>
-    </div>
-
-    <div class="card" data-collapsible>
-      <div class="card-header">
-        <h2>Bollinger Chart</h2>
-        <span class="toggle-icon">▼</span>
-      </div>
-      <div class="card-body">
-        <div class="help-text">
-          Price vs moving average and Bollinger bands. Use a symbol not overlapping with HBAR/DOGE if both bots are running.
-        </div>
-        <canvas id="bollChart" height="180"></canvas>
-        <p id="bollBandInfo"></p>
-      </div>
-    </div>
-
-    <div class="card" data-collapsible>
-      <div class="card-header">
-        <h2>Saved Coin History</h2>
-        <span class="toggle-icon">▼</span>
-      </div>
-      <div class="card-body">
-        <div class="help-text">
-          Latest saved Bollinger snapshots for the configured symbol. Switch symbols above to view a different coin.
-        </div>
-        <div class="table-scroll">
-          <table id="bollHistoryTable">
-            <thead>
-              <tr>
-                <th>Time</th>
-                <th>Price</th>
-                <th>MA</th>
-                <th>Upper</th>
-                <th>Lower</th>
-              </tr>
-            </thead>
-            <tbody id="bollHistoryBody"></tbody>
-          </table>
-        </div>
-        <p id="bollHistoryStatus" class="help-text"></p>
-      </div>
-    </div>
-
-    <div class="card" data-collapsible>
-      <div class="card-header">
-        <h2>Bollinger Trades (latest 100)</h2>
-        <span class="toggle-icon">▼</span>
-      </div>
-      <div class="card-body">
-        <table id="bollTradesTable">
-          <thead>
-            <tr>
-              <th>Time</th>
-              <th>Symbol</th>
-              <th>Side</th>
-              <th>Qty</th>
-              <th>Price</th>
-              <th>Notional</th>
-              <th>PnL (<span class="quote-label">USDT</span>)</th>
-              <th>Env</th>
-            </tr>
-          </thead>
-          <tbody id="bollTradesBody"></tbody>
-        </table>
-      </div>
-    </div>
-    </div>
-
-    <div id="tab-trend" class="tab-content">
-      <div class="control-buttons" style="margin-bottom:10px;">
-        <button class="btn btn-primary" id="startTrendBtn">Start Trend bot</button>
-        <button class="btn btn-danger" id="stopTrendBtn">Stop Trend bot</button>
-      </div>
-
-      <div class="row">
-        <div class="card" data-collapsible>
-          <div class="card-header">
-            <h2>Trend Status</h2>
-            <span class="toggle-icon">▼</span>
-          </div>
-          <div class="card-body" id="trendStatus">Loading...</div>
-        </div>
-
-        <div class="card" data-collapsible>
-          <div class="card-header">
-            <h2>Trend Config</h2>
-            <span class="toggle-icon">▼</span>
-          </div>
-          <div class="card-body">
-            <form id="trendConfigForm">
-              <div class="form-row">
-                <div>
-                  <label for="trend_symbol" class="label-with-tip">
-                    Trading symbol
-                    <span class="tooltip-icon" title="Coin pair for the EMA/ATR crossover entries. Choose a liquid symbol like BTCUSDT or ETHUSDT.">?</span>
-                  </label>
-                  <input id="trend_symbol" name="symbol" type="text" placeholder="BTCUSDT" />
-                </div>
-                <div>
-                  <label for="trend_poll_interval" class="label-with-tip">
-                    Poll interval (sec)
-                    <span class="tooltip-icon" title="Seconds between price polls, EMA updates, and trading checks.">?</span>
-                  </label>
-                  <input id="trend_poll_interval" name="poll_interval_sec" type="number" min="5" step="1" />
-                </div>
-                <div>
-                  <label for="trend_fast_window" class="label-with-tip">
-                    Fast EMA window
-                    <span class="tooltip-icon" title="Samples used for the fast EMA. Lower values react faster to price swings.">?</span>
-                  </label>
-                  <input id="trend_fast_window" name="fast_window" type="number" min="2" step="1" />
-                </div>
-                <div>
-                  <label for="trend_slow_window" class="label-with-tip">
-                    Slow EMA window
-                    <span class="tooltip-icon" title="Samples used for the slow EMA baseline. Larger windows smooth out noise.">?</span>
-                  </label>
-                  <input id="trend_slow_window" name="slow_window" type="number" min="3" step="1" />
-                </div>
-              </div>
-
-              <div class="form-row">
-                <div>
-                  <label for="trend_atr_window" class="label-with-tip">
-                    ATR window
-                    <span class="tooltip-icon" title="Period used to compute ATR for volatility-aware stops and sizing.">?</span>
-                  </label>
-                  <input id="trend_atr_window" name="atr_window" type="number" min="1" step="1" />
-                </div>
-                <div>
-                  <label for="trend_atr_stop" class="label-with-tip">
-                    ATR stop multiplier
-                    <span class="tooltip-icon" title="Multiple of ATR used for trailing risk control below the entry price.">?</span>
-                  </label>
-                  <input id="trend_atr_stop" name="atr_stop_mult" type="number" step="0.1" />
-                </div>
-                <div>
-                  <label for="trend_max_position" class="label-with-tip">
-                    Max position (<span class="quote-label">USDT</span>)
-                    <span class="tooltip-icon" title="Maximum quote allocation per position. Use lower amounts while testing.">?</span>
-                  </label>
-                  <input id="trend_max_position" name="max_position_usd" type="number" step="1" />
-                </div>
-                <div>
-                  <label for="trend_cooldown" class="label-with-tip">
-                    Cooldown (sec)
-                    <span class="tooltip-icon" title="Minimum wait between consecutive entries to avoid over-trading.">?</span>
-                  </label>
-                  <input id="trend_cooldown" name="cooldown_sec" type="number" min="0" step="1" />
-                </div>
-              </div>
-
-              <div class="form-row">
-                <div class="form-checkbox">
-                  <input type="checkbox" id="trend_use_all" name="use_all_balance" />
-                  <label for="trend_use_all" class="label-with-tip">
-                    Use all quote balance
-                    <span class="tooltip-icon" title="If enabled, allocate the full available quote balance instead of the max position cap.">?</span>
-                  </label>
-                </div>
-                <div class="form-checkbox">
-                  <input type="checkbox" id="trend_use_testnet" name="use_testnet" />
-                  <label for="trend_use_testnet" class="label-with-tip">
-                    Use Binance testnet
-                    <span class="tooltip-icon" title="Send trend-following orders to Binance testnet instead of mainnet.">?</span>
-                  </label>
-                </div>
-              </div>
-
-              <div class="button-row">
-                <button type="submit" class="btn btn-primary">Save config</button>
-              </div>
-            </form>
-          </div>
-        </div>
-      </div>
-
-      <div class="card" data-collapsible>
-        <div class="card-header">
-          <h2>Trend History</h2>
-          <span class="toggle-icon">▼</span>
-        </div>
-        <div class="card-body">
-          <p id="trendHistoryStatus">Loading...</p>
-          <table id="trendHistoryTable">
-            <thead>
-              <tr>
-                <th>Time</th>
-                <th>Price</th>
-                <th>Fast EMA</th>
-                <th>Slow EMA</th>
-                <th>ATR</th>
-              </tr>
-            </thead>
-            <tbody id="trendHistoryBody"></tbody>
-          </table>
-        </div>
-      </div>
-    </div>
-
-    <div id="tab-rs" class="tab-content">
-      <div class="control-buttons" style="margin-bottom:10px;">
-        <button class="btn btn-primary" id="startRSBtn">Start RS bot</button>
-        <button class="btn btn-danger" id="stopRSBtn">Stop RS bot</button>
-      </div>
-
-      <div class="row">
-        <div class="card" data-collapsible>
-          <div class="card-header">
-            <h2>Relative Strength Status</h2>
-            <span class="toggle-icon">▼</span>
-          </div>
-          <div class="card-body" id="rsStatus">Loading...</div>
-        </div>
-
-        <div class="card" data-collapsible>
-          <div class="card-header">
-            <h2>Relative Strength Config</h2>
-            <span class="toggle-icon">▼</span>
-          </div>
-          <div class="card-body">
-            <form id="rsConfigForm">
-              <div class="form-row">
-                <div>
-                  <label for="rs_symbols" class="label-with-tip">
-                    Symbols (comma separated)
-                    <span class="tooltip-icon" title="Universe of quote symbols to rank using relative strength (e.g. BTCUSDC, ETHUSDC).">?</span>
-                  </label>
-                  <input id="rs_symbols" name="symbols" type="text" placeholder="BTCUSDC,ETHUSDC" />
-                </div>
-                <div>
-                  <label for="rs_poll_interval" class="label-with-tip">
-                    Poll interval (sec)
-                    <span class="tooltip-icon" title="Seconds between price polls and ranking updates.">?</span>
-                  </label>
-                  <input id="rs_poll_interval" name="poll_interval_sec" type="number" min="5" step="1" />
-                </div>
-                <div>
-                  <label for="rs_lookback" class="label-with-tip">
-                    Lookback window
-                    <span class="tooltip-icon" title="Number of samples used to compute the RS score per coin.">?</span>
-                  </label>
-                  <input id="rs_lookback" name="lookback_window" type="number" min="5" step="1" />
-                </div>
-                <div>
-                  <label for="rs_rebalance" class="label-with-tip">
-                    Rebalance interval (sec)
-                    <span class="tooltip-icon" title="Seconds between selecting new long/short spreads from the rankings.">?</span>
-                  </label>
-                  <input id="rs_rebalance" name="rebalance_interval_sec" type="number" min="30" step="1" />
-                </div>
-              </div>
-
-              <div class="form-row">
-                <div>
-                  <label for="rs_top_n" class="label-with-tip">
-                    Top-N longs
-                    <span class="tooltip-icon" title="How many strongest symbols to long in the basket.">?</span>
-                  </label>
-                  <input id="rs_top_n" name="top_n" type="number" min="1" step="1" />
-                </div>
-                <div>
-                  <label for="rs_bottom_n" class="label-with-tip">
-                    Bottom-N shorts
-                    <span class="tooltip-icon" title="How many weakest symbols to short in the basket.">?</span>
-                  </label>
-                  <input id="rs_bottom_n" name="bottom_n" type="number" min="1" step="1" />
-                </div>
-                <div>
-                  <label for="rs_min_gap" class="label-with-tip">
-                    Min RS gap
-                    <span class="tooltip-icon" title="Minimum RS spread between long and short legs before a spread is opened.">?</span>
-                  </label>
-                  <input id="rs_min_gap" name="min_rs_gap" type="number" step="0.1" />
-                </div>
-                <div>
-                  <label for="rs_notional" class="label-with-tip">
-                    Max notional per leg (<span class="quote-label">USDT</span>)
-                    <span class="tooltip-icon" title="Target quote size for each leg when not using the full balance.">?</span>
-                  </label>
-                  <input id="rs_notional" name="max_notional_usd" type="number" step="1" />
-                </div>
-              </div>
-
-              <div class="form-row">
-                <div class="form-checkbox">
-                  <input type="checkbox" id="rs_use_all" name="use_all_balance" />
-                  <label for="rs_use_all" class="label-with-tip">
-                    Use all quote balance
-                    <span class="tooltip-icon" title="Allocate the full quote balance across spreads instead of the notional cap.">?</span>
-                  </label>
-                </div>
-                <div class="form-checkbox">
-                  <input type="checkbox" id="rs_use_testnet" name="use_testnet" />
-                  <label for="rs_use_testnet" class="label-with-tip">
-                    Use Binance testnet
-                    <span class="tooltip-icon" title="Route RS trades to Binance testnet instead of live trading.">?</span>
-                  </label>
-                </div>
-              </div>
-
-              <div class="button-row">
-                <button type="submit" class="btn btn-primary">Save config</button>
-              </div>
-            </form>
-          </div>
-        </div>
-      </div>
-
-      <div class="card" data-collapsible>
-        <div class="card-header">
-          <h2>RS Snapshots</h2>
-          <span class="toggle-icon">▼</span>
-        </div>
-        <div class="card-body">
-          <p id="rsHistoryStatus">Loading...</p>
-          <table id="rsHistoryTable">
-            <thead>
-              <tr>
-                <th>Time</th>
-                <th>Symbol</th>
-                <th>Price</th>
-                <th>RS</th>
-              </tr>
-            </thead>
-            <tbody id="rsHistoryBody"></tbody>
-          </table>
-        </div>
-      </div>
-    </div>
-
-    <div id="tab-trading" class="tab-content">
-    <div class="row">
-      <div class="card" data-collapsible>
-        <div class="card-header">
-          <h2>Accounts</h2>
-          <span class="toggle-icon">▼</span>
-        </div>
-        <div class="card-body">
-          <div class="form-row">
+      <div class="grid two">
+        <div class="canvas">
+          <div class="tile-head">
             <div>
-              <label for="tradingEnv" class="label-with-tip">
-                Environment
-                <span class="tooltip-icon" title="Choose whether manual desk actions use mainnet or testnet endpoints.">?</span>
-              </label>
-              <select id="tradingEnv">
-                <option value="testnet">Testnet</option>
-                <option value="mainnet">Mainnet</option>
-              </select>
+              <p class="eyebrow">Live pulse</p>
+              <h3>Status</h3>
             </div>
+            <span id="mr-enabled" class="chip">-</span>
+          </div>
+          <div id="mr-status" class="stat-grid"></div>
+        </div>
+
+        <div class="canvas">
+          <div class="tile-head">
             <div>
-              <label for="tradingAccount" class="label-with-tip">
-                Account keys
-                <span class="tooltip-icon" title="Pick which configured API key set to use for account queries and orders.">?</span>
+              <p class="eyebrow">Manual override</p>
+              <h3>Swap instantly</h3>
+            </div>
+          </div>
+          <form id="mr-manual-form" class="stacked">
+            <label>
+              Direction
+              <select id="mr-direction"></select>
+            </label>
+            <div class="split">
+              <label>Amount (from asset)
+                <input type="number" step="0.0001" id="mr-qty" placeholder="Leave blank to use notional" />
               </label>
-              <select id="tradingAccount">
-                <option value="mr">Mean Reversion keys</option>
-                <option value="boll">Bollinger keys</option>
-              </select>
+              <label>Notional (USD)
+                <input type="number" step="0.01" id="mr-notional" placeholder="50" />
+              </label>
             </div>
-          </div>
-          <div id="tradingBalances" class="balance-grid">Loading...</div>
-        </div>
-      </div>
-
-      <div class="card" data-collapsible>
-        <div class="card-header">
-          <h2>Manual order</h2>
-          <span class="toggle-icon">▼</span>
-        </div>
-        <div class="card-body">
-          <form id="tradingOrderForm">
-            <div class="form-row">
-              <div>
-                <label for="tradingSymbol" class="label-with-tip">
-                  Symbol
-                  <span class="tooltip-icon" title="Market symbol to trade from the selected account and environment.">?</span>
-                </label>
-                <input id="tradingSymbol" list="tradingSymbolList" placeholder="e.g. BTCUSDT" />
-                <datalist id="tradingSymbolList"></datalist>
-              </div>
-              <div>
-                <label for="tradingSide" class="label-with-tip">
-                  Side
-                  <span class="tooltip-icon" title="Choose BUY to acquire the base asset or SELL to offload it.">?</span>
-                </label>
-                <select id="tradingSide">
-                  <option value="BUY">Buy</option>
-                  <option value="SELL">Sell</option>
-                </select>
-              </div>
-              <div>
-                <label for="tradingQty" class="label-with-tip">
-                  Qty (base)
-                  <span class="tooltip-icon" title="Base-asset quantity to send with the manual order.">?</span>
-                </label>
-                <input id="tradingQty" type="number" min="0" step="0.0001" />
-              </div>
-            </div>
-            <button type="submit" class="btn btn-primary">Execute</button>
-          </form>
-          <div class="help-text">Uses whichever API key set you pick above. Balances refresh automatically after the trade.</div>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <div id="tab-liquidation" class="tab-content">
-    <div class="control-buttons" style="margin-bottom: 12px;">
-      <button class="btn btn-primary" id="liqEnableBtn">Start scanner</button>
-      <button class="btn btn-danger" id="liqDisableBtn">Stop scanner</button>
-      <button class="btn btn-ghost" id="liqRescanBtn">Manual rescan</button>
-      <button class="btn btn-ghost" id="liqExecuteBtn">Execute current signal</button>
-    </div>
-
-    <div class="row">
-      <div class="card" style="flex: 2;">
-        <div class="card-header">
-          <h2>Live Signal</h2>
-          <span class="chip" id="liqSignalChip">Waiting...</span>
-        </div>
-        <div class="card-body">
-        <div class="status-section" id="liqSignalSummary">No scan data yet.</div>
-        <div class="metric-grid" style="margin-top: 16px;">
-          <div class="metric-group">
-            <div class="metric-label">Symbol</div>
-            <div class="metric-value" id="liqSymbolLabel">-</div>
-          </div>
-          <div class="metric-group">
-            <div class="metric-label">Sweep level</div>
-            <div class="metric-value" id="liqSweepLevel">-</div>
-          </div>
-          <div class="metric-group">
-            <div class="metric-label">Confidence</div>
-            <div class="metric-value" id="liqConfidenceLabel">-</div>
-          </div>
-          <div class="metric-group">
-            <div class="metric-label">Entry</div>
-            <div class="metric-value" id="liqEntryLabel">-</div>
-          </div>
-          <div class="metric-group">
-            <div class="metric-label">Stop</div>
-            <div class="metric-value" id="liqStopLabel">-</div>
-          </div>
-          <div class="metric-group">
-            <div class="metric-label">Target</div>
-            <div class="metric-value" id="liqTargetLabel">-</div>
-          </div>
-        </div>
-      </div>
-    </div>
-
-      <div class="card" style="flex: 1;">
-        <div class="card-header">
-          <h2>Scanner Config</h2>
-        </div>
-        <div class="card-body">
-          <form id="liqConfigForm" class="stacked-form">
-            <label>
-              Symbol
-              <input type="text" id="liqCfgSymbol" value="BTCUSDT" />
-            </label>
-            <label>
-              Lookback candles
-              <input type="number" id="liqCfgLookback" min="30" step="10" value="200" />
-            </label>
-            <label>
-              Cluster tolerance (bps)
-              <input type="number" id="liqCfgTolerance" min="1" step="1" value="12" />
-            </label>
-            <label>
-              Wick/body ratio
-              <input type="number" id="liqCfgWickRatio" min="1" step="0.1" value="2.2" />
-            </label>
-            <label>
-              Risk:Reward multiple
-              <input type="number" id="liqCfgRR" min="1" step="0.1" value="2.5" />
-            </label>
-            <label>
-              Poll interval (sec)
-              <input type="number" id="liqCfgPoll" min="5" step="1" value="30" />
-            </label>
-            <label>
-              Auto-trade notional (USD)
-              <input type="number" id="liqCfgNotional" min="1" step="1" value="50" />
-            </label>
-            <label class="form-checkbox">
-              <input type="checkbox" id="liqCfgAuto" />
-              <span>Enable auto-trading on sweeps</span>
-            </label>
-            <label class="form-checkbox">
-              <input type="checkbox" id="liqCfgTestnet" checked />
-              <span>Use Binance testnet</span>
-            </label>
-            <button type="submit" class="btn btn-primary" style="width: 100%;">Save</button>
+            <button type="submit" class="cta">Execute manual trade</button>
           </form>
         </div>
       </div>
-    </div>
 
-    <div class="card">
-      <div class="card-header">
-        <h2>Liquidity Heatmap</h2>
-        <span class="chip chip-primary" id="liqClusterCount">0 pools</span>
-      </div>
-      <div class="card-body">
-        <canvas id="liqHeatmapChart" height="180"></canvas>
-        <div class="help-text" style="margin-top: 8px;">
-          Blue = long-liquidity pools (below price), Red = short-liquidity pools (above price). Bars are scaled by how many swing touches built up there.
+      <div class="grid two">
+        <div class="canvas">
+          <div class="tile-head">
+            <div>
+              <p class="eyebrow">History</p>
+              <h3>Spread drift</h3>
+            </div>
+            <span id="mr-last-refresh" class="chip subtle">-</span>
+          </div>
+          <canvas id="mr-chart" height="150"></canvas>
+        </div>
+        <div class="canvas">
+          <div class="tile-head">
+            <div>
+              <p class="eyebrow">Ledger</p>
+              <h3>Recent trades</h3>
+            </div>
+          </div>
+          <div class="table-wrap">
+            <table id="mr-trades">
+              <thead><tr><th>Time</th><th>Side</th><th>Qty</th><th>Price</th><th>PNL</th></tr></thead>
+              <tbody></tbody>
+            </table>
+          </div>
         </div>
       </div>
-    </div>
 
-    <div class="card">
-      <div class="card-header">
-        <h2>Latest 60 candles (1m)</h2>
-        <span class="chip" id="liqLastExecution">No trades yet</span>
+      <div class="canvas">
+        <div class="tile-head">
+          <div>
+            <p class="eyebrow">Pair heartbeat</p>
+            <h3>Correlation notes</h3>
+          </div>
+        </div>
+        <div id="mr-pair-health" class="pill-rail"></div>
       </div>
-      <div class="card-body">
-        <table class="table" id="liqCandleTable">
-          <thead>
-            <tr><th>Time</th><th>Open</th><th>High</th><th>Low</th><th>Close</th></tr>
-          </thead>
-          <tbody></tbody>
-        </table>
+    </section>
+
+    <section id="bollinger-section" class="panel">
+      <div class="panel-head">
+        <div>
+          <p class="eyebrow">Volatility scout</p>
+          <h2>Bollinger Archways</h2>
+          <p class="lede">Follow single-asset envelopes and react with swift sells.</p>
+        </div>
+        <div class="actions">
+          <button id="boll-config-open" class="ghost">Edit config</button>
+          <button id="boll-start" class="cta">Start</button>
+          <button id="boll-stop" class="danger">Stop</button>
+        </div>
       </div>
+      <div class="grid two">
+        <div class="canvas">
+          <div class="tile-head">
+            <div>
+              <p class="eyebrow">Position</p>
+              <h3>Bollinger status</h3>
+            </div>
+            <span id="boll-enabled" class="chip">-</span>
+          </div>
+          <div id="boll-status" class="stat-grid"></div>
+        </div>
+        <div class="canvas">
+          <div class="tile-head">
+            <div>
+              <p class="eyebrow">Manual safeguard</p>
+              <h3>Sell base asset</h3>
+            </div>
+          </div>
+          <form id="boll-sell-form" class="stacked">
+            <label>Symbol
+              <input type="text" id="boll-sell-symbol" placeholder="BTCUSDT" />
+            </label>
+            <label>Quantity (base asset)
+              <input type="number" step="0.0001" id="boll-sell-qty" />
+            </label>
+            <button type="submit" class="cta">Market sell</button>
+          </form>
+        </div>
+      </div>
+    </section>
+
+    <section id="trend-section" class="panel">
+      <div class="panel-head">
+        <div>
+          <p class="eyebrow">Momentum sentry</p>
+          <h2>Trend Sentinel</h2>
+          <p class="lede">EMA crossovers with ATR guardrails.</p>
+        </div>
+        <div class="actions">
+          <button id="trend-config-open" class="ghost">Edit config</button>
+          <button id="trend-start" class="cta">Start</button>
+          <button id="trend-stop" class="danger">Stop</button>
+        </div>
+      </div>
+      <div class="canvas">
+        <div class="tile-head">
+          <div>
+            <p class="eyebrow">State</p>
+            <h3>Trend status</h3>
+          </div>
+          <span id="trend-enabled" class="chip">-</span>
+        </div>
+        <div id="trend-status" class="stat-grid"></div>
+      </div>
+    </section>
+
+    <section id="rs-section" class="panel">
+      <div class="panel-head">
+        <div>
+          <p class="eyebrow">Cross-asset duel</p>
+          <h2>Relative Strength Arena</h2>
+          <p class="lede">Rank universes, pair longs and shorts, and rebalance on cadence.</p>
+        </div>
+        <div class="actions">
+          <button id="rs-config-open" class="ghost">Edit config</button>
+          <button id="rs-start" class="cta">Start</button>
+          <button id="rs-stop" class="danger">Stop</button>
+        </div>
+      </div>
+      <div class="grid two">
+        <div class="canvas">
+          <div class="tile-head">
+            <div>
+              <p class="eyebrow">Leaderboard</p>
+              <h3>Top vs Bottom</h3>
+            </div>
+            <span id="rs-enabled" class="chip">-</span>
+          </div>
+          <div class="table-wrap">
+            <table id="rs-table">
+              <thead><tr><th>Tier</th><th>Symbol</th><th>RS</th><th>Price</th></tr></thead>
+              <tbody></tbody>
+            </table>
+          </div>
+        </div>
+        <div class="canvas">
+          <div class="tile-head">
+            <div>
+              <p class="eyebrow">Open spreads</p>
+              <h3>Active duels</h3>
+            </div>
+          </div>
+          <div id="rs-spreads" class="pill-rail"></div>
+        </div>
+      </div>
+    </section>
+
+    <section id="trading-section" class="panel">
+      <div class="panel-head">
+        <div>
+          <p class="eyebrow">Manual wand</p>
+          <h2>Trading Desk</h2>
+          <p class="lede">Place ad-hoc market orders from either account.</p>
+        </div>
+      </div>
+      <div class="grid two">
+        <div class="canvas">
+          <div class="tile-head">
+            <div>
+              <p class="eyebrow">Balances</p>
+              <h3>Account overview</h3>
+            </div>
+          </div>
+          <div id="trading-balances" class="table-wrap">
+            <table>
+              <thead><tr><th>Account</th><th>Asset</th><th>Free</th><th>Locked</th></tr></thead>
+              <tbody></tbody>
+            </table>
+          </div>
+        </div>
+        <div class="canvas">
+          <div class="tile-head">
+            <div>
+              <p class="eyebrow">Order spell</p>
+              <h3>Market order</h3>
+            </div>
+          </div>
+          <form id="trading-form" class="stacked">
+            <label>Account
+              <select id="trade-account"><option value="mr">Mean Reversion</option><option value="boll">Bollinger</option></select>
+            </label>
+            <label>Environment
+              <select id="trade-env"><option value="true">Testnet</option><option value="false">Live</option></select>
+            </label>
+            <label>Symbol
+              <input type="text" id="trade-symbol" placeholder="ETHUSDT" />
+            </label>
+            <label>Side
+              <select id="trade-side"><option value="BUY">BUY</option><option value="SELL">SELL</option></select>
+            </label>
+            <label>Quantity (base)
+              <input type="number" step="0.0001" id="trade-qty" />
+            </label>
+            <button type="submit" class="cta">Place order</button>
+          </form>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <div class="modal" id="mr-config-modal">
+    <div class="modal-card">
+      <div class="modal-head">
+        <h3>Mean Reversion Config</h3>
+        <button class="icon" data-close="mr-config-modal">×</button>
+      </div>
+      <form id="mr-config-form" class="grid two">
+        <label>Pair
+          <select id="mr-pair"></select>
+        </label>
+        <label>Poll interval (sec)
+          <input type="number" id="mr-poll" min="5" />
+        </label>
+        <label>Window size
+          <input type="number" id="mr-window" min="5" />
+        </label>
+        <label>Z-entry
+          <input type="number" step="0.1" id="mr-entry" />
+        </label>
+        <label>Z-exit
+          <input type="number" step="0.1" id="mr-exit" />
+        </label>
+        <label>Trade notional (USD)
+          <input type="number" step="1" id="mr-notional-usd" />
+        </label>
+        <label class="checkbox">
+          <input type="checkbox" id="mr-use-all" /> Use all balance
+        </label>
+        <label class="checkbox">
+          <input type="checkbox" id="mr-use-testnet" /> Use testnet
+        </label>
+        <label class="checkbox">
+          <input type="checkbox" id="mr-use-ratio" /> Use ratio thresholds
+        </label>
+        <label>Sell ratio threshold
+          <input type="number" step="0.0001" id="mr-sell-th" />
+        </label>
+        <label>Buy ratio threshold
+          <input type="number" step="0.0001" id="mr-buy-th" />
+        </label>
+        <div class="full-row modal-actions">
+          <button type="button" id="mr-config-best" class="ghost">Suggest from history</button>
+          <div>
+            <button type="button" class="ghost" data-close="mr-config-modal">Cancel</button>
+            <button type="submit" class="cta">Save</button>
+          </div>
+        </div>
+      </form>
     </div>
   </div>
 
-  <div id="nextModalOverlay" class="modal-overlay">
-    <div class="modal">
-      <div class="modal-header">
-        <div class="modal-header-title">Next possible MR trade</div>
-        <button class="btn btn-ghost small" id="nextModalClose">✕</button>
+  <div class="modal" id="boll-config-modal">
+    <div class="modal-card">
+      <div class="modal-head">
+        <h3>Bollinger Config</h3>
+        <button class="icon" data-close="boll-config-modal">×</button>
       </div>
-      <div class="modal-body">
-        <div id="nextSignalModalBody" class="status-section">Loading...</div>
-      </div>
-      <div class="modal-footer">
-        <button class="btn btn-primary small" id="nextModalRecalc">Recalculate</button>
-        <button class="btn btn-ghost small" id="nextModalCloseFooter">Close</button>
-      </div>
+      <form id="boll-config-form" class="grid two">
+        <label>Symbol
+          <input type="text" id="boll-symbol" />
+        </label>
+        <label>Poll interval (sec)
+          <input type="number" id="boll-poll" />
+        </label>
+        <label>Window size
+          <input type="number" id="boll-window" />
+        </label>
+        <label>Std devs
+          <input type="number" step="0.1" id="boll-std" />
+        </label>
+        <label>Max position (USD)
+          <input type="number" id="boll-max" />
+        </label>
+        <label>Cooldown (sec)
+          <input type="number" id="boll-cool" />
+        </label>
+        <label>Stop loss %
+          <input type="number" step="0.01" id="boll-sl" />
+        </label>
+        <label>Take profit %
+          <input type="number" step="0.01" id="boll-tp" />
+        </label>
+        <label class="checkbox">
+          <input type="checkbox" id="boll-use-all" /> Use full balance
+        </label>
+        <label class="checkbox">
+          <input type="checkbox" id="boll-testnet" /> Use testnet
+        </label>
+        <div class="full-row modal-actions">
+          <button type="button" class="ghost" data-close="boll-config-modal">Cancel</button>
+          <button type="submit" class="cta">Save</button>
+        </div>
+      </form>
     </div>
   </div>
+
+  <div class="modal" id="trend-config-modal">
+    <div class="modal-card">
+      <div class="modal-head">
+        <h3>Trend Config</h3>
+        <button class="icon" data-close="trend-config-modal">×</button>
+      </div>
+      <form id="trend-config-form" class="grid two">
+        <label>Symbol
+          <input type="text" id="trend-symbol" />
+        </label>
+        <label>Poll interval (sec)
+          <input type="number" id="trend-poll" />
+        </label>
+        <label>Fast EMA window
+          <input type="number" id="trend-fast" />
+        </label>
+        <label>Slow EMA window
+          <input type="number" id="trend-slow" />
+        </label>
+        <label>ATR window
+          <input type="number" id="trend-atr" />
+        </label>
+        <label class="checkbox">
+          <input type="checkbox" id="trend-testnet" /> Use testnet
+        </label>
+        <div class="full-row modal-actions">
+          <button type="button" class="ghost" data-close="trend-config-modal">Cancel</button>
+          <button type="submit" class="cta">Save</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div class="modal" id="rs-config-modal">
+    <div class="modal-card">
+      <div class="modal-head">
+        <h3>Relative Strength Config</h3>
+        <button class="icon" data-close="rs-config-modal">×</button>
+      </div>
+      <form id="rs-config-form" class="grid two">
+        <label>Symbols (comma separated)
+          <input type="text" id="rs-symbols" />
+        </label>
+        <label>Poll interval (sec)
+          <input type="number" id="rs-poll" />
+        </label>
+        <label>Lookback window
+          <input type="number" id="rs-lookback" />
+        </label>
+        <label>Rebalance interval (sec)
+          <input type="number" id="rs-rebalance" />
+        </label>
+        <label>Top N
+          <input type="number" id="rs-top" />
+        </label>
+        <label>Bottom N
+          <input type="number" id="rs-bottom" />
+        </label>
+        <label>Min RS gap
+          <input type="number" step="0.01" id="rs-gap" />
+        </label>
+        <label>Max notional (USD)
+          <input type="number" id="rs-max-notional" />
+        </label>
+        <label class="checkbox">
+          <input type="checkbox" id="rs-all" /> Use all balance
+        </label>
+        <label class="checkbox">
+          <input type="checkbox" id="rs-testnet" /> Use testnet
+        </label>
+        <div class="full-row modal-actions">
+          <button type="button" class="ghost" data-close="rs-config-modal">Cancel</button>
+          <button type="submit" class="cta">Save</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div id="toast"></div>
 </body>
 </html>
