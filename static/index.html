@@ -3,50 +3,44 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Oasis Control Deck</title>
+    <title>Strategy Console</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
-      href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700&family=Cormorant+Garamond:wght@500;600&display=swap"
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Playfair+Display:wght@600&display=swap"
       rel="stylesheet"
     />
     <link rel="stylesheet" href="/static/css/theme.css" />
   </head>
   <body>
-    <header class="hero">
-      <div class="hero-text">
-        <p class="badge">Serene Strategies</p>
-        <h1>Oasis Control Deck</h1>
-        <p class="lede">
-          An exotic yet calming console for every trading engine. Glide between overviews, configs, and manual actions
-          without breaking the tranquil flow.
-        </p>
-        <div class="pills">
-          <a href="#mr">Mean Reversion</a>
-          <a href="#boll">Bollinger</a>
-          <a href="#trend">Trend</a>
-          <a href="#rs">Relative Strength</a>
-          <a href="#trade">Trading Desk</a>
-          <a href="#liq">Liquidation Hunt</a>
+    <header class="topbar">
+      <div class="brand">
+        <div class="mark">◎</div>
+        <div>
+          <p class="eyebrow">Multi-Strategy Desk</p>
+          <h1>Strategy Console</h1>
         </div>
-        <div class="note">Auto-refreshes every 20s</div>
       </div>
-      <div class="hero-visual">
-        <div class="sun"></div>
-        <div class="dune"></div>
-        <div class="wave"></div>
-        <div class="stone"></div>
-      </div>
+      <nav class="topnav">
+        <a href="#hall">Overview</a>
+        <a href="#mr">Mean Reversion</a>
+        <a href="#boll">Bollinger</a>
+        <a href="#trend">Trend</a>
+        <a href="#rs">Relative Strength</a>
+        <a href="#trade">Trading Desk</a>
+        <a href="#liq">Liquidation</a>
+      </nav>
     </header>
 
-    <main class="layout">
+    <main class="page">
       <section class="panel" id="hall">
         <div class="panel-head">
           <div>
-            <p class="eyebrow">Panorama</p>
-            <h2>Universal Status</h2>
-            <p class="muted">One calm glance at the balances and regime you are currently sailing through.</p>
+            <p class="eyebrow">Situation room</p>
+            <h2>At a glance</h2>
+            <p class="muted">Balances, mode, and current pair in one line. Auto-refreshes every 20s.</p>
           </div>
+          <div class="chip">Live</div>
         </div>
         <div id="overview" class="stat-strip"></div>
       </section>
@@ -54,9 +48,9 @@
       <section class="panel" id="mr">
         <div class="panel-head">
           <div>
-            <p class="eyebrow">Paired serenity</p>
-            <h2>Mean Reversion</h2>
-            <p class="muted">Hold the spread steady, or nudge trades when the waters ripple.</p>
+            <p class="eyebrow">Core spread</p>
+            <h2>Mean reversion</h2>
+            <p class="muted">Status, next signal, manual adjustment, and config in one compact grid.</p>
           </div>
           <div class="actions">
             <button class="primary" id="mrStart">Start</button>
@@ -100,9 +94,9 @@
       <section class="panel" id="boll">
         <div class="panel-head">
           <div>
-            <p class="eyebrow">Banded calm</p>
+            <p class="eyebrow">Bands</p>
             <h2>Bollinger</h2>
-            <p class="muted">Watch the price sway between soft bounds and step in with composure.</p>
+            <p class="muted">Keep symbol, bands, manual orders, and configs side by side.</p>
           </div>
           <div class="actions">
             <button class="primary" id="bollStart">Start</button>
@@ -137,9 +131,9 @@
       <section class="panel" id="trend">
         <div class="panel-head">
           <div>
-            <p class="eyebrow">Flow state</p>
+            <p class="eyebrow">Follow the slope</p>
             <h2>Trend</h2>
-            <p class="muted">Align with the current tide or step aside when the current stalls.</p>
+            <p class="muted">Essentials only: status, config, and latest history.</p>
           </div>
           <div class="actions">
             <button class="primary" id="trendStart">Start</button>
@@ -159,9 +153,9 @@
       <section class="panel" id="rs">
         <div class="panel-head">
           <div>
-            <p class="eyebrow">Strength in contrast</p>
-            <h2>Relative Strength</h2>
-            <p class="muted">See which symbols stay resilient and cue the bot accordingly.</p>
+            <p class="eyebrow">Relative strength</p>
+            <h2>Momentum check</h2>
+            <p class="muted">Status, config, and latest runs together.</p>
           </div>
           <div class="actions">
             <button class="primary" id="rsStart">Start</button>
@@ -181,9 +175,9 @@
       <section class="panel" id="trade">
         <div class="panel-head">
           <div>
-            <p class="eyebrow">Quick dispatch</p>
-            <h2>Trading Desk</h2>
-            <p class="muted">Handwrite a direct order or keep tabs on balances across accounts.</p>
+            <p class="eyebrow">Manual control</p>
+            <h2>Trading desk</h2>
+            <p class="muted">Place a direct order and monitor balances in parallel.</p>
           </div>
         </div>
         <div class="grid two">
@@ -208,16 +202,16 @@
       <section class="panel" id="liq">
         <div class="panel-head">
           <div>
-            <p class="eyebrow">Quiet hunt</p>
-            <h2>Liquidation</h2>
-            <p class="muted">Scan clusters, keep watch, and act softly when the signal appears.</p>
+            <p class="eyebrow">Quiet watch</p>
+            <h2>Liquidation hunt</h2>
+            <p class="muted">Scan, review config, and execute when a signal is present.</p>
           </div>
           <div class="actions">
             <button id="liqScan">Manual scan</button>
             <button class="primary" id="liqExecute">Execute</button>
           </div>
         </div>
-        <div class="grid three">
+        <div class="grid two">
           <div class="card" id="liqStatus"></div>
           <div class="card" id="liqConfig"></div>
         </div>
