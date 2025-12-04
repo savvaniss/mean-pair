@@ -32,7 +32,7 @@ class RSConfig(BaseModel):
     min_rs_gap: float = 0.5
     max_notional_usd: float = 50.0
     use_all_balance: bool = True
-    symbols: List[str] = ["BTCUSDT", "ETHUSDT", "BNBUSDT", "ADAUSDT", "XRPUSDT"]
+    symbols: List[str] = ["BTCUSDC", "ETHUSDC", "BNBUSDC", "ADAUSDC", "XRPUSDC"]
     use_testnet: bool = config.BOLL_USE_TESTNET
 
 

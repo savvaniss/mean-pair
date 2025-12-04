@@ -8,7 +8,7 @@ def test_compute_relative_strength_positive():
 
 
 def test_build_spreads_respects_gap():
-    ranked = [("AAAUSDT", 1.5, 10.0), ("BBBUSDT", 0.1, 5.0)]
+    ranked = [("AAAUSDC", 1.5, 10.0), ("BBBUSDC", 0.1, 5.0)]
     old_gap = rs_engine.rs_config.min_rs_gap
     old_top = rs_engine.rs_config.top_n
     old_bottom = rs_engine.rs_config.bottom_n

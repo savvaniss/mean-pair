@@ -10,9 +10,9 @@ from routes import relative_strength as rs_routes
 class FakeRSClient:
     def __init__(self):
         self.tickers = {
-            "BTCUSDT": "100.0",
-            "ETHUSDT": "10.0",
-            "ADAUSDT": "1.0",
+            "BTCUSDC": "100.0",
+            "ETHUSDC": "10.0",
+            "ADAUSDC": "1.0",
         }
 
     def get_all_tickers(self):
@@ -22,14 +22,14 @@ class FakeRSClient:
         return {
             "symbol": symbol,
             "baseAsset": symbol[:-4],
-            "quoteAsset": "USDT",
+            "quoteAsset": "USDC",
             "filters": [
                 {"filterType": "LOT_SIZE", "minQty": "0.001", "stepSize": "0.001"},
             ],
         }
 
     def get_account(self):
-        return {"balances": [{"asset": "USDT", "free": "200.0", "locked": "0"}]}
+        return {"balances": [{"asset": "USDC", "free": "200.0", "locked": "0"}]}
 
     def create_order(self, **kwargs):
         return {"cummulativeQuoteQty": "50.0", "executedQty": "5.0"}
@@ -39,7 +39,7 @@ def test_rs_config_resets_history_and_env(monkeypatch, client):
     fake = FakeRSClient()
     monkeypatch.setattr(config, "boll_client", fake, raising=False)
 
-    rs_engine.rs_price_history["BTCUSDT"] = [1.0, 1.1]
+    rs_engine.rs_price_history["BTCUSDC"] = [1.0, 1.1]
 
     payload = {
         "enabled": False,
@@ -51,7 +51,7 @@ def test_rs_config_resets_history_and_env(monkeypatch, client):
         "min_rs_gap": 0.3,
         "max_notional_usd": 75.0,
         "use_all_balance": True,
-        "symbols": ["BTCUSDT", "ETHUSDT"],
+        "symbols": ["BTCUSDC", "ETHUSDC"],
         "use_testnet": False,
     }
 
@@ -73,16 +73,16 @@ def test_rs_status_with_rankings(monkeypatch, client):
     fake = FakeRSClient()
     monkeypatch.setattr(config, "boll_client", fake, raising=False)
 
-    rs_engine.rs_config.symbols = ["BTCUSDT", "ETHUSDT", "ADAUSDT"]
+    rs_engine.rs_config.symbols = ["BTCUSDC", "ETHUSDC", "ADAUSDC"]
     with rs_engine.rs_lock:
-        rs_engine.rs_price_history["BTCUSDT"] = [90.0, 100.0, 105.0]
-        rs_engine.rs_price_history["ETHUSDT"] = [8.0, 9.0, 10.0]
-        rs_engine.rs_price_history["ADAUSDT"] = [1.0, 0.99, 0.98]
+        rs_engine.rs_price_history["BTCUSDC"] = [90.0, 100.0, 105.0]
+        rs_engine.rs_price_history["ETHUSDC"] = [8.0, 9.0, 10.0]
+        rs_engine.rs_price_history["ADAUSDC"] = [1.0, 0.99, 0.98]
 
     resp = client.get("/rs_status")
     assert resp.status_code == 200
     data = resp.json()
-    assert data["quote_asset"] == "USDT"
+    assert data["quote_asset"] == "USDC"
     assert data["quote_balance"] == pytest.approx(200.0)
     assert len(data["top_symbols"]) >= 1
     assert len(data["bottom_symbols"]) >= 1
@@ -98,7 +98,7 @@ def test_rs_history_endpoint(monkeypatch, client):
         session.add(
             rs_routes.RSSnapshot(
                 ts=ts,
-                symbol="BTCUSDT",
+                symbol="BTCUSDC",
                 price=100.0,
                 rs=1.2,
             )
@@ -111,4 +111,4 @@ def test_rs_history_endpoint(monkeypatch, client):
     assert resp.status_code == 200
     rows = resp.json()
     assert len(rows) >= 1
-    assert rows[-1]["symbol"] == "BTCUSDT"
+    assert rows[-1]["symbol"] == "BTCUSDC"
