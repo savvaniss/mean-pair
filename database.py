@@ -178,4 +178,18 @@ class PairHealth(Base):
     sample_count = Column(Integer)
 
 
+class ListingEvent(Base):
+    __tablename__ = "listing_events"
+    id = Column(Integer, primary_key=True, index=True)
+    listed_at = Column(DateTime, index=True)
+    fetched_at = Column(DateTime, index=True)
+    symbol = Column(String, index=True)
+    name = Column(String)
+    pair = Column(String, index=True)
+    network = Column(String, index=True)
+    exchange_type = Column(String, index=True)  # CEX/DEX
+    source = Column(String, index=True)  # exchange name
+    url = Column(String)
+
+
 Base.metadata.create_all(bind=engine)

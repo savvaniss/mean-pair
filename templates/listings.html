@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>New Listings Monitor</title>
+    <link rel="stylesheet" href="/static/css/listings.css">
+</head>
+<body>
+    <header>
+        <h1>Live Exchange Listings</h1>
+        <p>Track fresh listings across Binance, major CEXs, and DEX aggregators.</p>
+    </header>
+
+    <section id="filters">
+        <div class="filter">
+            <label for="exchangeType">Exchange Type</label>
+            <select id="exchangeType">
+                <option value="">All</option>
+                <option value="cex">CEX</option>
+                <option value="dex">DEX</option>
+            </select>
+        </div>
+        <div class="filter">
+            <label for="exchange">Exchange</label>
+            <input id="exchange" type="text" placeholder="Binance, OKX..." />
+        </div>
+        <div class="filter">
+            <label for="network">Network</label>
+            <input id="network" type="text" placeholder="ETH, BSC, Base" />
+        </div>
+        <div class="filter">
+            <label for="minutes">Time Window (mins)</label>
+            <input id="minutes" type="number" value="120" min="5" max="1440" />
+        </div>
+        <div class="filter">
+            <label for="search">Search</label>
+            <input id="search" type="text" placeholder="Symbol or name" />
+        </div>
+        <div class="filter">
+            <label for="sort">Sort</label>
+            <select id="sort">
+                <option value="listed_at_desc">Newest</option>
+                <option value="listed_at_asc">Oldest</option>
+            </select>
+        </div>
+        <button id="refresh">Refresh</button>
+    </section>
+
+    <section id="health">
+        <h2>Collector Health</h2>
+        <div id="healthStatus"></div>
+    </section>
+
+    <section>
+        <h2>Recent Listings</h2>
+        <div class="table-wrapper">
+            <table id="listingsTable">
+                <thead>
+                    <tr>
+                        <th>Symbol</th>
+                        <th>Name</th>
+                        <th>Pair</th>
+                        <th>Network</th>
+                        <th>Source</th>
+                        <th>Listed At</th>
+                        <th>Link</th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+        </div>
+    </section>
+
+    <script src="/static/js/listings.js"></script>
+</body>
+</html>

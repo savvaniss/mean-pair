@@ -1,0 +1,96 @@
+body {
+    font-family: Arial, sans-serif;
+    margin: 0;
+    padding: 0 20px;
+    background: #0f172a;
+    color: #e2e8f0;
+}
+
+header {
+    padding: 20px 0 10px 0;
+}
+
+h1 {
+    margin: 0;
+}
+
+#filters {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-bottom: 15px;
+    background: #1e293b;
+    padding: 12px;
+    border-radius: 8px;
+}
+
+.filter {
+    display: flex;
+    flex-direction: column;
+    min-width: 140px;
+}
+
+.filter input,
+.filter select {
+    padding: 6px;
+    border-radius: 4px;
+    border: 1px solid #334155;
+    background: #0b1220;
+    color: #e2e8f0;
+}
+
+#refresh {
+    align-self: flex-end;
+    padding: 8px 12px;
+    background: #22c55e;
+    color: #0f172a;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+#refresh:hover {
+    background: #16a34a;
+}
+
+#health {
+    margin-bottom: 12px;
+}
+
+#healthStatus {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+.health-card {
+    background: #111827;
+    border: 1px solid #334155;
+    border-radius: 6px;
+    padding: 10px;
+    min-width: 180px;
+}
+
+.table-wrapper {
+    overflow-x: auto;
+}
+
+table {
+    width: 100%;
+    border-collapse: collapse;
+    background: #111827;
+}
+
+th, td {
+    padding: 10px;
+    text-align: left;
+    border-bottom: 1px solid #1f2937;
+}
+
+th {
+    background: #0b1220;
+}
+
+a {
+    color: #22c55e;
+}

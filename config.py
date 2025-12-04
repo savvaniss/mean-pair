@@ -45,6 +45,9 @@ MAINNET_QUOTE = os.getenv("BINANCE_MAINNET_QUOTE", "USDC").upper()
 # CI / tests: disable real Binance client creation
 DISABLE_BINANCE_CLIENT = os.getenv("DISABLE_BINANCE_CLIENT", "0") == "1"
 BOT_DISABLE_THREADS = os.getenv("BOT_DISABLE_THREADS", "0") == "1"
+LISTINGS_DISABLE_SCHEDULER = os.getenv("LISTINGS_DISABLE_SCHEDULER", "0") == "1"
+LISTINGS_REFRESH_SECONDS = int(os.getenv("LISTINGS_REFRESH_SECONDS", "60"))
+LISTINGS_RETENTION_MINUTES = int(os.getenv("LISTINGS_RETENTION_MINUTES", "240"))
 
 # Global env flags (tracked per bot)
 USE_TESTNET: bool = DEFAULT_ENV == "testnet"  # legacy default / manual trading
