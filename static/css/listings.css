@@ -1,96 +1,51 @@
-body {
-    font-family: Arial, sans-serif;
-    margin: 0;
-    padding: 0 20px;
-    background: #0f172a;
-    color: #e2e8f0;
+.filters-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 12px;
 }
 
-header {
-    padding: 20px 0 10px 0;
-}
-
-h1 {
-    margin: 0;
-}
-
-#filters {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 10px;
-    margin-bottom: 15px;
-    background: #1e293b;
-    padding: 12px;
-    border-radius: 8px;
-}
-
-.filter {
+.stacked-field {
     display: flex;
     flex-direction: column;
-    min-width: 140px;
+    gap: 6px;
+    font-size: 0.9rem;
+    color: var(--text-subtle);
 }
 
-.filter input,
-.filter select {
-    padding: 6px;
-    border-radius: 4px;
-    border: 1px solid #334155;
-    background: #0b1220;
-    color: #e2e8f0;
+.stacked-field input,
+.stacked-field select {
+    width: 100%;
+    padding: 8px 10px;
+    border-radius: 10px;
+    border: 1px solid var(--border);
+    background: var(--surface-light);
+    color: var(--text-main);
 }
 
-#refresh {
-    align-self: flex-end;
-    padding: 8px 12px;
-    background: #22c55e;
-    color: #0f172a;
-    border: none;
-    border-radius: 4px;
-    cursor: pointer;
-}
-
-#refresh:hover {
-    background: #16a34a;
-}
-
-#health {
-    margin-bottom: 12px;
-}
-
-#healthStatus {
-    display: flex;
+.health-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
     gap: 12px;
-    flex-wrap: wrap;
 }
 
 .health-card {
-    background: #111827;
-    border: 1px solid #334155;
-    border-radius: 6px;
-    padding: 10px;
-    min-width: 180px;
+    border: 1px solid var(--border);
+    background: var(--surface-light);
+    border-radius: 12px;
+    padding: 12px;
+    color: var(--text-main);
+    box-shadow: 0 8px 18px rgba(0, 0, 0, 0.25);
 }
 
-.table-wrapper {
-    overflow-x: auto;
+.health-card strong {
+    color: var(--primary);
 }
 
-table {
-    width: 100%;
-    border-collapse: collapse;
-    background: #111827;
+#listingsTable a {
+    color: var(--primary);
+    text-decoration: none;
 }
 
-th, td {
-    padding: 10px;
-    text-align: left;
-    border-bottom: 1px solid #1f2937;
-}
-
-th {
-    background: #0b1220;
-}
-
-a {
-    color: #22c55e;
+#listingsTable a:hover {
+    text-decoration: underline;
 }
