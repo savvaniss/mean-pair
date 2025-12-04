@@ -8,13 +8,19 @@ let groupedSymbols = {};
 const curatedSymbols = ['BTCUSDT', 'ETHUSDT', 'BNBUSDT', 'SOLUSDT', 'XRPUSDT', 'HBARUSDC', 'DOGEUSDC', 'LINKUSDT', 'MATICUSDT'];
 
 export function initBollinger() {
-  document.getElementById('bollConfigForm').addEventListener('submit', saveBollConfig);
-  document.getElementById('startBollBtn').addEventListener('click', startBoll);
-  document.getElementById('stopBollBtn').addEventListener('click', stopBoll);
-  document.getElementById('bollQuoteFilter').addEventListener('change', renderSymbolSelect);
-  document
-    .getElementById('bollGenerateConfigBtn')
-    .addEventListener('click', generateBollConfigFromHistory);
+  const form = document.getElementById('bollConfigForm');
+  const startBtn = document.getElementById('startBollBtn');
+  const stopBtn = document.getElementById('stopBollBtn');
+  const quoteFilter = document.getElementById('bollQuoteFilter');
+  const generateBtn = document.getElementById('bollGenerateConfigBtn');
+
+  if (!form || !startBtn || !stopBtn) return;
+
+  form.addEventListener('submit', saveBollConfig);
+  startBtn.addEventListener('click', startBoll);
+  stopBtn.addEventListener('click', stopBoll);
+  if (quoteFilter) quoteFilter.addEventListener('change', renderSymbolSelect);
+  if (generateBtn) generateBtn.addEventListener('click', generateBollConfigFromHistory);
 }
 
 export async function refreshBollinger() {

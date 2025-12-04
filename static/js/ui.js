@@ -26,6 +26,16 @@ export function initTabs() {
       document.getElementById(`tab-${target}`).classList.add('active');
     });
   });
+
+  const params = new URLSearchParams(window.location.search);
+  const requestedTab = params.get('tab') || window.location.hash.replace('#', '');
+  const defaultTab = requestedTab
+    ? Array.from(tabs).find((tab) => tab.dataset.tab === requestedTab)
+    : null;
+
+  if (defaultTab) {
+    defaultTab.click();
+  }
 }
 
 export function applyQuoteLabels(value) {

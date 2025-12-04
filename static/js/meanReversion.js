@@ -34,6 +34,58 @@ function applyConfigToForm(cfg) {
 
   currentQuote = cfg.use_testnet ? 'USDT' : 'USDC';
   applyQuoteLabels(currentQuote);
+  updateMeanConfigSummary(cfg);
+}
+
+function updateMeanConfigSummary(cfg) {
+  const summaryEl = document.getElementById('mrConfigSummary');
+  if (!summaryEl) return;
+
+  if (!cfg) {
+    summaryEl.textContent = 'Save a configuration to see a quick snapshot here.';
+    return;
+  }
+
+  const quote = cfg.use_testnet ? 'USDT' : 'USDC';
+  const notional = Number.isFinite(Number(cfg.trade_notional_usd))
+    ? `${Number(cfg.trade_notional_usd).toFixed(2)} ${quote}`
+    : 'Not set';
+  const thresholds = cfg.use_ratio_thresholds
+    ? `${cfg.buy_ratio_threshold?.toFixed(5)} / ${cfg.sell_ratio_threshold?.toFixed(5)}`
+    : `${cfg.z_entry} / ${cfg.z_exit}`;
+  const thresholdLabel = cfg.use_ratio_thresholds ? 'Ratio bands' : 'Z-entry / exit';
+
+  summaryEl.innerHTML = `
+    <div class="summary-title">Saved config snapshot</div>
+    <div class="summary-grid">
+      <div>
+        <div class="metric-label">Pair</div>
+        <div class="metric-value">${cfg.asset_a}/${cfg.asset_b}</div>
+      </div>
+      <div>
+        <div class="metric-label">Window / poll</div>
+        <div class="metric-value">${cfg.window_size} • ${cfg.poll_interval_sec}s</div>
+      </div>
+      <div>
+        <div class="metric-label">Notional</div>
+        <div class="metric-value">${notional}</div>
+      </div>
+    </div>
+    <div class="summary-grid">
+      <div>
+        <div class="metric-label">${thresholdLabel}</div>
+        <div class="metric-value">${thresholds}</div>
+      </div>
+      <div>
+        <div class="metric-label">Routing</div>
+        <div class="metric-value">${cfg.use_testnet ? 'Testnet' : 'Mainnet'}</div>
+      </div>
+      <div>
+        <div class="metric-label">Balance usage</div>
+        <div class="metric-value">${cfg.use_all_balance ? 'Use full balances' : 'Cap at notional'}</div>
+      </div>
+    </div>
+  `;
 }
 
 function getDirectionClass(current, last) {
@@ -708,25 +760,35 @@ export async function refreshMeanReversion() {
 }
 
 export function initMeanReversion() {
-  document.getElementById('configForm').addEventListener('submit', saveConfig);
-  document.getElementById('manualTradeForm').addEventListener('submit', manualTrade);
-  document.getElementById('manual_direction').addEventListener('change', updateManualTradeForm);
-  document.getElementById('manual_max_btn').addEventListener('click', setManualMax);
-  document.getElementById('syncStateBtn').addEventListener('click', syncState);
-  document.getElementById('startBotBtn').addEventListener('click', startBot);
-  document.getElementById('stopBotBtn').addEventListener('click', stopBot);
-  document
-    .getElementById('generateConfigBtn')
-    .addEventListener('click', generateConfigFromHistory);
-  document.getElementById('nextTradeBtn').addEventListener('click', () => {
-    openOverlay('nextModalOverlay');
-    fetchNextSignal();
-  });
-  document.getElementById('nextModalClose').addEventListener('click', () => closeOverlay('nextModalOverlay'));
-  document
-    .getElementById('nextModalCloseFooter')
-    .addEventListener('click', () => closeOverlay('nextModalOverlay'));
-  document.getElementById('nextModalRecalc').addEventListener('click', fetchNextSignal);
+  const configForm = document.getElementById('configForm');
+  const manualForm = document.getElementById('manualTradeForm');
+  const manualDirection = document.getElementById('manual_direction');
+  const manualMax = document.getElementById('manual_max_btn');
+  const syncBtn = document.getElementById('syncStateBtn');
+  const startBtn = document.getElementById('startBotBtn');
+  const stopBtn = document.getElementById('stopBotBtn');
+  const genConfigBtn = document.getElementById('generateConfigBtn');
+  const nextBtn = document.getElementById('nextTradeBtn');
+  const nextClose = document.getElementById('nextModalClose');
+  const nextCloseFooter = document.getElementById('nextModalCloseFooter');
+  const nextRecalc = document.getElementById('nextModalRecalc');
+
+  if (configForm) configForm.addEventListener('submit', saveConfig);
+  if (manualForm) manualForm.addEventListener('submit', manualTrade);
+  if (manualDirection) manualDirection.addEventListener('change', updateManualTradeForm);
+  if (manualMax) manualMax.addEventListener('click', setManualMax);
+  if (syncBtn) syncBtn.addEventListener('click', syncState);
+  if (startBtn) startBtn.addEventListener('click', startBot);
+  if (stopBtn) stopBtn.addEventListener('click', stopBot);
+  if (genConfigBtn) genConfigBtn.addEventListener('click', generateConfigFromHistory);
+  if (nextBtn)
+    nextBtn.addEventListener('click', () => {
+      openOverlay('nextModalOverlay');
+      fetchNextSignal();
+    });
+  if (nextClose) nextClose.addEventListener('click', () => closeOverlay('nextModalOverlay'));
+  if (nextCloseFooter) nextCloseFooter.addEventListener('click', () => closeOverlay('nextModalOverlay'));
+  if (nextRecalc) nextRecalc.addEventListener('click', fetchNextSignal);
 }
 
 export function getCurrentQuote() {

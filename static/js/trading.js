@@ -3,9 +3,13 @@ import { applyQuoteLabels, showToast } from './ui.js';
 let cachedSymbols = [];
 
 export function initTrading() {
-  document.getElementById('tradingEnv').addEventListener('change', refreshTrading);
-  document.getElementById('tradingAccount').addEventListener('change', refreshTrading);
-  document.getElementById('tradingOrderForm').addEventListener('submit', submitOrder);
+  const env = document.getElementById('tradingEnv');
+  const account = document.getElementById('tradingAccount');
+  const orderForm = document.getElementById('tradingOrderForm');
+
+  if (env) env.addEventListener('change', refreshTrading);
+  if (account) account.addEventListener('change', refreshTrading);
+  if (orderForm) orderForm.addEventListener('submit', submitOrder);
 }
 
 export async function refreshTrading() {

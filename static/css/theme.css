@@ -39,8 +39,9 @@ body {
 .title-block h1 {
   margin: 0;
   font-size: 1.6rem;
-  font-weight: 600;
-  color: var(--primary);
+  font-weight: 700;
+  color: var(--text-main);
+  letter-spacing: 0.01em;
 }
 
 .title-sub {
@@ -56,39 +57,56 @@ body {
 }
 
 .btn {
-  border: none;
+  border: 1px solid var(--border);
   border-radius: 999px;
   padding: 8px 16px;
   font-size: 0.9rem;
   font-weight: 600;
   cursor: pointer;
-  background: var(--surface-light);
+  background: linear-gradient(140deg, rgba(17, 27, 47, 0.96), rgba(12, 19, 33, 0.96));
   color: var(--text-main);
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  transition: background 0.15s, transform 0.05s, box-shadow 0.15s;
-  box-shadow: 0 6px 14px rgba(0, 0, 0, 0.2);
+  transition: background 0.15s, transform 0.05s, box-shadow 0.15s, border-color 0.15s, color 0.15s;
+  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.28);
 }
 
 .btn:hover {
   transform: translateY(-1px);
-  box-shadow: 0 10px 22px rgba(0, 0, 0, 0.28);
+  box-shadow: 0 12px 26px rgba(0, 0, 0, 0.32);
+  border-color: rgba(130, 214, 255, 0.32);
+  background: linear-gradient(140deg, rgba(22, 35, 60, 0.98), rgba(17, 26, 44, 0.98));
 }
 
 .btn-primary {
-  background: linear-gradient(120deg, var(--primary-soft), var(--accent));
-  color: #081019;
+  background: linear-gradient(130deg, rgba(76, 125, 192, 0.9), rgba(73, 164, 189, 0.9));
+  border-color: rgba(130, 214, 255, 0.55);
+  color: var(--text-main);
+  box-shadow: 0 12px 28px rgba(82, 149, 217, 0.2);
+}
+
+.btn-primary:hover {
+  background: linear-gradient(130deg, rgba(96, 165, 228, 0.95), rgba(90, 198, 213, 0.95));
+  border-color: rgba(130, 214, 255, 0.8);
 }
 
 .btn-ghost {
-  background: transparent;
+  background: rgba(17, 27, 47, 0.6);
   border: 1px solid var(--border);
+  color: var(--text-subtle);
 }
 
 .btn-danger {
-  background: linear-gradient(120deg, #f6c1b5, var(--danger));
-  color: #0d131e;
+  background: linear-gradient(130deg, rgba(186, 93, 93, 0.9), rgba(210, 120, 120, 0.9));
+  border-color: rgba(242, 168, 160, 0.65);
+  color: var(--text-main);
+  box-shadow: 0 10px 24px rgba(191, 97, 97, 0.22);
+}
+
+.btn-danger:hover {
+  border-color: rgba(242, 168, 160, 0.9);
+  background: linear-gradient(130deg, rgba(209, 123, 123, 0.95), rgba(232, 150, 150, 0.95));
 }
 
 .btn.small {
@@ -115,9 +133,10 @@ body {
 }
 
 .tab.active {
-  background: var(--primary-soft);
-  color: #0b1720;
-  border-color: var(--primary-soft);
+  background: linear-gradient(140deg, rgba(32, 52, 83, 0.9), rgba(25, 43, 70, 0.92));
+  color: var(--primary);
+  border-color: rgba(130, 214, 255, 0.55);
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.35);
 }
 
 .tab-content {
@@ -581,6 +600,10 @@ canvas {
   flex-direction: column;
 }
 
+.modal.wide {
+  width: min(980px, 94%);
+}
+
 .modal-header,
 .modal-footer {
   padding: 12px 16px;
@@ -604,6 +627,37 @@ canvas {
 .modal-body {
   padding: 12px 16px 14px 16px;
   overflow-y: auto;
+}
+
+.action-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 16px;
+}
+
+.action-column {
+  background: var(--surface-light);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.modal-subtitle {
+  font-weight: 600;
+  font-size: 0.95rem;
+}
+
+.button-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.button-stack .btn {
+  width: 100%;
 }
 
 .balance-grid {
