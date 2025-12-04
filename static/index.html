@@ -1,236 +1,181 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Trading Control Center</title>
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" />
-  <link rel="stylesheet" href="/static/css/theme.css" />
-  <script defer type="module" src="/static/js/main.js"></script>
-</head>
-<body>
-  <header class="hero">
-    <div>
-      <p class="eyebrow">Mean Reversion · Bollinger · Trend · RS · Liquidity</p>
-      <h1>Trading Control Center</h1>
-      <p class="subhead">Operate every strategy, review live telemetry, and run manual actions from a single dashboard.</p>
-      <div class="hero-actions">
-        <button id="refreshAll" class="btn primary">Refresh everything</button>
-        <button id="syncBalances" class="btn">Sync MR balances</button>
-        <button id="nextSignal" class="btn ghost">Preview next MR trade</button>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Strategy Console</title>
+    <link rel="stylesheet" href="/static/css/theme.css" />
+  </head>
+  <body>
+    <header>
+      <div class="hero">
+        <div class="hero-card">
+          <h1>Strategy Console</h1>
+          <p>Fresh control surface for every trading engine, with live state, configs, history, and manual overrides.</p>
+          <div class="kv" id="overview"></div>
+        </div>
+        <div class="panel">
+          <h3>Navigation</h3>
+          <div class="nav">
+            <a href="#mr">Mean reversion</a>
+            <a href="#boll">Bollinger</a>
+            <a href="#trend">Trend</a>
+            <a href="#rs">Relative strength</a>
+            <a href="#trade">Trading desk</a>
+            <a href="#liq">Liquidation hunt</a>
+          </div>
+          <div class="small-note">Data refreshes automatically every 20 seconds.</div>
+        </div>
       </div>
-    </div>
-    <div class="hero-metrics" id="globalSummary"></div>
-  </header>
+    </header>
 
-  <nav class="sections">
-    <a href="#mean" class="chip">Mean Reversion</a>
-    <a href="#bollinger" class="chip">Single-Coin Bollinger</a>
-    <a href="#trend" class="chip">Trend Following</a>
-    <a href="#rs" class="chip">Relative Strength</a>
-    <a href="#trading" class="chip">Trading Desk</a>
-    <a href="#liquidation" class="chip">Liquidation Hunt</a>
-    <a href="/listings" class="chip ghost">Listings Monitor</a>
-  </nav>
+    <main>
+      <section class="section" id="mr">
+        <h2>Mean reversion</h2>
+        <div class="panel-grid">
+          <div class="panel" id="mrStatus"></div>
+          <div class="panel" id="mrNext"></div>
+          <div class="panel">
+            <h3>Actions</h3>
+            <div class="btn-row">
+              <button class="primary" id="mrStart">Start bot</button>
+              <button class="danger" id="mrStop">Stop bot</button>
+              <button id="mrSync">Sync state from balances</button>
+            </div>
+            <form id="mrManual" class="form-grid">
+              <label class="field">Direction<select name="direction"></select></label>
+              <label class="field">Notional (USD) <input name="notional" type="number" step="0.01" placeholder="optional" /></label>
+              <label class="field">From asset qty <input name="qty" type="number" step="0.0001" placeholder="optional" /></label>
+              <button type="submit" class="primary">Send manual trade</button>
+            </form>
+            <div class="small-note">Provide either notional or from-asset quantity.</div>
+          </div>
+          <div class="panel" id="mrConfig"></div>
+        </div>
+        <div class="grid-two">
+          <div class="panel">
+            <h3>History (ratios)</h3>
+            <div class="table-wrap" id="mrHistory"></div>
+          </div>
+          <div class="panel">
+            <h3>Trades</h3>
+            <div class="table-wrap" id="mrTrades"></div>
+          </div>
+        </div>
+        <div class="panel">
+          <h3>Tracked pairs</h3>
+          <div class="table-wrap" id="mrPairs"></div>
+        </div>
+      </section>
 
-  <main class="layout">
-    <section id="mean" class="panel">
-      <div class="panel-head">
-        <div>
-          <p class="eyebrow">Pairs strategy</p>
-          <h2>Mean Reversion</h2>
+      <section class="section" id="boll">
+        <h2>Bollinger bands</h2>
+        <div class="panel-grid">
+          <div class="panel" id="bollStatus"></div>
+          <div class="panel">
+            <h3>Actions</h3>
+            <div class="btn-row">
+              <button class="primary" id="bollStart">Start bot</button>
+              <button class="danger" id="bollStop">Stop bot</button>
+              <button id="bollBest">Load best config</button>
+            </div>
+            <form id="bollManual" class="form-grid">
+              <label class="field">Symbol<select name="symbol"></select></label>
+              <label class="field">Qty (base asset)<input name="qty" type="number" step="0.0001" /></label>
+              <button type="submit" class="primary">Manual sell</button>
+            </form>
+            <div class="small-note">Symbols come from the configured universe.</div>
+          </div>
+          <div class="panel" id="bollConfig"></div>
         </div>
-        <div class="panel-actions">
-          <button id="mrStart" class="btn primary">Start</button>
-          <button id="mrStop" class="btn danger">Stop</button>
+        <div class="grid-two">
+          <div class="panel">
+            <h3>History</h3>
+            <div class="table-wrap" id="bollHistory"></div>
+          </div>
+          <div class="panel">
+            <h3>Trades</h3>
+            <div class="table-wrap" id="bollTrades"></div>
+          </div>
         </div>
-      </div>
-      <div class="grid two">
-        <div class="card">
-          <div class="card-head">Live status</div>
-          <div id="mrStatus" class="stack"></div>
-        </div>
-        <div class="card">
-          <div class="card-head">Next trade preview</div>
-          <div id="mrNext" class="stack"></div>
-        </div>
-      </div>
-      <div class="grid two">
-        <div class="card">
-          <div class="card-head">Configuration</div>
-          <div id="mrConfig"></div>
-        </div>
-        <div class="card">
-          <div class="card-head">Manual trade</div>
-          <form id="mrManual" class="form-grid">
-            <label>Direction<select name="direction"></select></label>
-            <label>Notional (USD)<input type="number" name="notional_usd" step="0.01" /></label>
-            <label>From amount<input type="number" name="from_asset_qty" step="0.0001" /></label>
-            <button type="submit" class="btn primary">Execute</button>
-          </form>
-        </div>
-      </div>
-      <div class="grid two">
-        <div class="card">
-          <div class="card-head">History (last 120)</div>
-          <div id="mrHistory" class="table"></div>
-        </div>
-        <div class="card">
-          <div class="card-head">Trades</div>
-          <div id="mrTrades" class="table"></div>
-        </div>
-      </div>
-      <div class="card">
-        <div class="card-head">Pair health</div>
-        <div id="mrPairs" class="table"></div>
-      </div>
-    </section>
+      </section>
 
-    <section id="bollinger" class="panel">
-      <div class="panel-head">
-        <div>
-          <p class="eyebrow">Single coin mean-reversion</p>
-          <h2>Bollinger Bot</h2>
+      <section class="section" id="trend">
+        <h2>Trend following</h2>
+        <div class="panel-grid">
+          <div class="panel" id="trendStatus"></div>
+          <div class="panel">
+            <h3>Actions</h3>
+            <div class="btn-row">
+              <button class="primary" id="trendStart">Start bot</button>
+              <button class="danger" id="trendStop">Stop bot</button>
+            </div>
+          </div>
+          <div class="panel" id="trendConfig"></div>
         </div>
-        <div class="panel-actions">
-          <button id="bollStart" class="btn primary">Start</button>
-          <button id="bollStop" class="btn danger">Stop</button>
+        <div class="panel">
+          <h3>History</h3>
+          <div class="table-wrap" id="trendHistory"></div>
         </div>
-      </div>
-      <div class="grid two">
-        <div class="card">
-          <div class="card-head">Status</div>
-          <div id="bollStatus" class="stack"></div>
-        </div>
-        <div class="card">
-          <div class="card-head">Configuration</div>
-          <div id="bollConfig"></div>
-        </div>
-      </div>
-      <div class="grid two">
-        <div class="card">
-          <div class="card-head">History</div>
-          <div id="bollHistory" class="table"></div>
-        </div>
-        <div class="card">
-          <div class="card-head">Trades</div>
-          <div id="bollTrades" class="table"></div>
-        </div>
-      </div>
-      <div class="card">
-        <div class="card-head">Manual sell</div>
-        <form id="bollManual" class="form-grid">
-          <label>Symbol<input name="symbol" placeholder="HBARUSDC" /></label>
-          <label>Qty (base)<input type="number" step="0.0001" name="qty_base" /></label>
-          <button type="submit" class="btn primary">Sell base asset</button>
-        </form>
-      </div>
-    </section>
+      </section>
 
-    <section id="trend" class="panel">
-      <div class="panel-head">
-        <div>
-          <p class="eyebrow">Momentum strategy</p>
-          <h2>Trend Following</h2>
+      <section class="section" id="rs">
+        <h2>Relative strength</h2>
+        <div class="panel-grid">
+          <div class="panel" id="rsStatus"></div>
+          <div class="panel">
+            <h3>Actions</h3>
+            <div class="btn-row">
+              <button class="primary" id="rsStart">Start bot</button>
+              <button class="danger" id="rsStop">Stop bot</button>
+            </div>
+          </div>
+          <div class="panel" id="rsConfig"></div>
         </div>
-        <div class="panel-actions">
-          <button id="trendStart" class="btn primary">Start</button>
-          <button id="trendStop" class="btn danger">Stop</button>
+        <div class="panel">
+          <h3>History</h3>
+          <div class="table-wrap" id="rsHistory"></div>
         </div>
-      </div>
-      <div class="grid two">
-        <div class="card">
-          <div class="card-head">Status</div>
-          <div id="trendStatus" class="stack"></div>
-        </div>
-        <div class="card">
-          <div class="card-head">Configuration</div>
-          <div id="trendConfig"></div>
-        </div>
-      </div>
-      <div class="card">
-        <div class="card-head">History</div>
-        <div id="trendHistory" class="table"></div>
-      </div>
-    </section>
+      </section>
 
-    <section id="rs" class="panel">
-      <div class="panel-head">
-        <div>
-          <p class="eyebrow">Basket momentum</p>
-          <h2>Relative Strength</h2>
+      <section class="section" id="trade">
+        <h2>Trading desk</h2>
+        <div class="panel-grid">
+          <div class="panel">
+            <h3>Balances</h3>
+            <div id="balances" class="card-list"></div>
+          </div>
+          <div class="panel">
+            <h3>Manual order</h3>
+            <form id="tradeForm" class="form-grid">
+              <label class="field">Account<select name="account"><option value="mr">Mean reversion</option><option value="boll">Bollinger</option></select></label>
+              <label class="field">Use testnet<select name="use_testnet"><option value="true">true</option><option value="false">false</option></select></label>
+              <label class="field">Symbol<input name="symbol" placeholder="e.g. BTCUSDT" /></label>
+              <label class="field">Side<select name="side"><option value="BUY">BUY</option><option value="SELL">SELL</option></select></label>
+              <label class="field">Qty (base asset)<input name="qty" type="number" step="0.0001" /></label>
+              <button type="submit" class="primary">Submit order</button>
+            </form>
+          </div>
         </div>
-        <div class="panel-actions">
-          <button id="rsStart" class="btn primary">Start</button>
-          <button id="rsStop" class="btn danger">Stop</button>
-        </div>
-      </div>
-      <div class="grid two">
-        <div class="card">
-          <div class="card-head">Status</div>
-          <div id="rsStatus" class="stack"></div>
-        </div>
-        <div class="card">
-          <div class="card-head">Configuration</div>
-          <div id="rsConfig"></div>
-        </div>
-      </div>
-      <div class="card">
-        <div class="card-head">History</div>
-        <div id="rsHistory" class="table"></div>
-      </div>
-    </section>
+      </section>
 
-    <section id="trading" class="panel">
-      <div class="panel-head">
-        <div>
-          <p class="eyebrow">Manual orders</p>
-          <h2>Trading Desk</h2>
+      <section class="section" id="liq">
+        <h2>Liquidation hunt</h2>
+        <div class="panel-grid">
+          <div class="panel" id="liqStatus"></div>
+          <div class="panel">
+            <h3>Actions</h3>
+            <div class="btn-row">
+              <button id="liqScan">Manual scan</button>
+              <button class="primary" id="liqExecute">Execute signal</button>
+            </div>
+          </div>
+          <div class="panel" id="liqConfig"></div>
         </div>
-      </div>
-      <div class="grid two">
-        <div class="card">
-          <div class="card-head">Balances</div>
-          <div id="tradingBalances" class="table"></div>
-        </div>
-        <div class="card">
-          <div class="card-head">Place order</div>
-          <form id="tradingOrder" class="form-grid">
-            <label>Account<select name="account"><option value="mr">Mean Reversion</option><option value="boll">Bollinger</option></select></label>
-            <label>Environment<select name="use_testnet"><option value="true">Testnet</option><option value="false">Mainnet</option></select></label>
-            <label>Symbol<input name="symbol" placeholder="BTCUSDT" /></label>
-            <label>Side<select name="side"><option>BUY</option><option>SELL</option></select></label>
-            <label>Qty (base)<input type="number" name="qty_base" step="0.0001" /></label>
-            <button type="submit" class="btn primary">Submit order</button>
-          </form>
-        </div>
-      </div>
-    </section>
+      </section>
+    </main>
 
-    <section id="liquidation" class="panel">
-      <div class="panel-head">
-        <div>
-          <p class="eyebrow">Stop hunt detection</p>
-          <h2>Liquidation Hunt</h2>
-        </div>
-        <div class="panel-actions">
-          <button id="liqScan" class="btn">Manual scan</button>
-          <button id="liqExecute" class="btn primary">Execute signal</button>
-        </div>
-      </div>
-      <div class="grid two">
-        <div class="card">
-          <div class="card-head">Status</div>
-          <div id="liqStatus" class="stack"></div>
-        </div>
-        <div class="card">
-          <div class="card-head">Configuration</div>
-          <div id="liqConfig"></div>
-        </div>
-      </div>
-    </section>
-  </main>
-
-  <div id="toast" class="toast hidden"></div>
-</body>
+    <div id="toast"></div>
+    <script src="/static/js/main.js" defer></script>
+  </body>
 </html>
