@@ -3,174 +3,210 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Strategy Console</title>
+    <title>Wizarding Strategy Console</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;800&family=Manrope:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
     <link rel="stylesheet" href="/static/css/theme.css" />
   </head>
   <body>
-    <header>
-      <div class="hero">
-        <div class="hero-card">
-          <h1>Strategy Console</h1>
-          <p>Fresh control surface for every trading engine, with live state, configs, history, and manual overrides.</p>
-          <div class="kv" id="overview"></div>
+    <header class="banner">
+      <div class="crest">⚡</div>
+      <div>
+        <p class="eyebrow">The Wizarding Exchange</p>
+        <h1>Strategy Great Hall</h1>
+        <p class="lede">
+          Command every enchanted trading engine from a single hall, watch their stories unfold, and cast the right
+          spells when markets move.
+        </p>
+        <div class="chips">
+          <a href="#mr">Mean Reversion</a>
+          <a href="#boll">Bollinger</a>
+          <a href="#trend">Trend</a>
+          <a href="#rs">Relative Strength</a>
+          <a href="#trade">Trading Desk</a>
+          <a href="#liq">Liquidation Hunt</a>
         </div>
-        <div class="panel">
-          <h3>Navigation</h3>
-          <div class="nav">
-            <a href="#mr">Mean reversion</a>
-            <a href="#boll">Bollinger</a>
-            <a href="#trend">Trend</a>
-            <a href="#rs">Relative strength</a>
-            <a href="#trade">Trading desk</a>
-            <a href="#liq">Liquidation hunt</a>
-          </div>
-          <div class="small-note">Data refreshes automatically every 20 seconds.</div>
-        </div>
+      </div>
+      <div class="sigil">
+        <div class="orb"></div>
+        <div class="orb delay"></div>
+        <div class="orb slow"></div>
+        <p>Auto-refresh every 20 seconds</p>
       </div>
     </header>
 
     <main>
-      <section class="section" id="mr">
-        <h2>Mean reversion</h2>
-        <div class="panel-grid">
-          <div class="panel" id="mrStatus"></div>
-          <div class="panel" id="mrNext"></div>
-          <div class="panel">
-            <h3>Actions</h3>
+      <section class="panel spell" id="hall">
+        <div class="section-head">
+          <h2>Marauder's Map</h2>
+          <p class="muted">A quick scrying glass across every house account.</p>
+        </div>
+        <div id="overview" class="stat-grid"></div>
+      </section>
+
+      <section class="panel spell" id="mr">
+        <div class="section-head">
+          <h2>Mean Reversion Brew</h2>
+          <p class="muted">Keep the potion balanced between the paired assets—or tip the scales manually.</p>
+        </div>
+        <div class="grid">
+          <div class="card" id="mrStatus"></div>
+          <div class="card" id="mrNext"></div>
+          <div class="card">
+            <h3>Spellbook</h3>
             <div class="btn-row">
-              <button class="primary" id="mrStart">Start bot</button>
-              <button class="danger" id="mrStop">Stop bot</button>
-              <button id="mrSync">Sync state from balances</button>
+              <button class="primary" id="mrStart">Enchanted start</button>
+              <button class="danger" id="mrStop">Counter-curse (stop)</button>
+              <button id="mrSync">Sync balances</button>
             </div>
             <form id="mrManual" class="form-grid">
               <label class="field">Direction<select name="direction"></select></label>
-              <label class="field">Notional (USD) <input name="notional" type="number" step="0.01" placeholder="optional" /></label>
-              <label class="field">From asset qty <input name="qty" type="number" step="0.0001" placeholder="optional" /></label>
-              <button type="submit" class="primary">Send manual trade</button>
+              <label class="field">Notional (USD)<input name="notional" type="number" step="0.01" placeholder="optional" /></label>
+              <label class="field">From asset qty<input name="qty" type="number" step="0.0001" placeholder="optional" /></label>
+              <button type="submit" class="primary">Cast manual trade</button>
             </form>
-            <div class="small-note">Provide either notional or from-asset quantity.</div>
+            <p class="muted small">Provide either notional or from-asset quantity.</p>
           </div>
-          <div class="panel" id="mrConfig"></div>
+          <div class="card" id="mrConfig"></div>
         </div>
-        <div class="grid-two">
-          <div class="panel">
+        <div class="grid two">
+          <div class="card">
             <h3>History (ratios)</h3>
             <div class="table-wrap" id="mrHistory"></div>
           </div>
-          <div class="panel">
+          <div class="card">
             <h3>Trades</h3>
             <div class="table-wrap" id="mrTrades"></div>
           </div>
         </div>
-        <div class="panel">
+        <div class="card">
           <h3>Tracked pairs</h3>
           <div class="table-wrap" id="mrPairs"></div>
         </div>
       </section>
 
-      <section class="section" id="boll">
-        <h2>Bollinger bands</h2>
-        <div class="panel-grid">
-          <div class="panel" id="bollStatus"></div>
-          <div class="panel">
-            <h3>Actions</h3>
+      <section class="panel spell" id="boll">
+        <div class="section-head">
+          <h2>Bollinger Enchantments</h2>
+          <p class="muted">Guard the castle gates with banded wards and swift counter-spells.</p>
+        </div>
+        <div class="grid">
+          <div class="card" id="bollStatus"></div>
+          <div class="card">
+            <h3>Spellbook</h3>
             <div class="btn-row">
-              <button class="primary" id="bollStart">Start bot</button>
-              <button class="danger" id="bollStop">Stop bot</button>
-              <button id="bollBest">Load best config</button>
+              <button class="primary" id="bollStart">Awaken bot</button>
+              <button class="danger" id="bollStop">Put bot to sleep</button>
+              <button id="bollBest">Load best scroll</button>
             </div>
             <form id="bollManual" class="form-grid">
               <label class="field">Symbol<select name="symbol"></select></label>
               <label class="field">Qty (base asset)<input name="qty" type="number" step="0.0001" /></label>
               <button type="submit" class="primary">Manual sell</button>
             </form>
-            <div class="small-note">Symbols come from the configured universe.</div>
+            <p class="muted small">Symbols come from the configured universe.</p>
           </div>
-          <div class="panel" id="bollConfig"></div>
+          <div class="card" id="bollConfig"></div>
         </div>
-        <div class="grid-two">
-          <div class="panel">
+        <div class="grid two">
+          <div class="card">
             <h3>History</h3>
             <div class="table-wrap" id="bollHistory"></div>
           </div>
-          <div class="panel">
+          <div class="card">
             <h3>Trades</h3>
             <div class="table-wrap" id="bollTrades"></div>
           </div>
         </div>
       </section>
 
-      <section class="section" id="trend">
-        <h2>Trend following</h2>
-        <div class="panel-grid">
-          <div class="panel" id="trendStatus"></div>
-          <div class="panel">
-            <h3>Actions</h3>
+      <section class="panel spell" id="trend">
+        <div class="section-head">
+          <h2>Trend Divination</h2>
+          <p class="muted">Read the tea leaves, stay with the flow, and stop when omens sour.</p>
+        </div>
+        <div class="grid">
+          <div class="card" id="trendStatus"></div>
+          <div class="card">
+            <h3>Spellbook</h3>
             <div class="btn-row">
-              <button class="primary" id="trendStart">Start bot</button>
-              <button class="danger" id="trendStop">Stop bot</button>
+              <button class="primary" id="trendStart">Start divination</button>
+              <button class="danger" id="trendStop">Stop divination</button>
             </div>
           </div>
-          <div class="panel" id="trendConfig"></div>
+          <div class="card" id="trendConfig"></div>
         </div>
-        <div class="panel">
+        <div class="card">
           <h3>History</h3>
           <div class="table-wrap" id="trendHistory"></div>
         </div>
       </section>
 
-      <section class="section" id="rs">
-        <h2>Relative strength</h2>
-        <div class="panel-grid">
-          <div class="panel" id="rsStatus"></div>
-          <div class="panel">
-            <h3>Actions</h3>
+      <section class="panel spell" id="rs">
+        <div class="section-head">
+          <h2>House Cup (Relative Strength)</h2>
+          <p class="muted">Let the strongest champions duel while you steer the scoring.</p>
+        </div>
+        <div class="grid">
+          <div class="card" id="rsStatus"></div>
+          <div class="card">
+            <h3>Spellbook</h3>
             <div class="btn-row">
-              <button class="primary" id="rsStart">Start bot</button>
-              <button class="danger" id="rsStop">Stop bot</button>
+              <button class="primary" id="rsStart">Let games begin</button>
+              <button class="danger" id="rsStop">Call the match</button>
             </div>
           </div>
-          <div class="panel" id="rsConfig"></div>
+          <div class="card" id="rsConfig"></div>
         </div>
-        <div class="panel">
+        <div class="card">
           <h3>History</h3>
           <div class="table-wrap" id="rsHistory"></div>
         </div>
       </section>
 
-      <section class="section" id="trade">
-        <h2>Trading desk</h2>
-        <div class="panel-grid">
-          <div class="panel">
-            <h3>Balances</h3>
+      <section class="panel spell" id="trade">
+        <div class="section-head">
+          <h2>Trading Desk (Great Hall)</h2>
+          <p class="muted">Direct orders between houses, mind your gold reserves.</p>
+        </div>
+        <div class="grid">
+          <div class="card">
+            <h3>Vaults</h3>
             <div id="balances" class="card-list"></div>
           </div>
-          <div class="panel">
-            <h3>Manual order</h3>
+          <div class="card">
+            <h3>Quill Order</h3>
             <form id="tradeForm" class="form-grid">
               <label class="field">Account<select name="account"><option value="mr">Mean reversion</option><option value="boll">Bollinger</option></select></label>
               <label class="field">Use testnet<select name="use_testnet"><option value="true">true</option><option value="false">false</option></select></label>
               <label class="field">Symbol<input name="symbol" placeholder="e.g. BTCUSDT" /></label>
               <label class="field">Side<select name="side"><option value="BUY">BUY</option><option value="SELL">SELL</option></select></label>
               <label class="field">Qty (base asset)<input name="qty" type="number" step="0.0001" /></label>
-              <button type="submit" class="primary">Submit order</button>
+              <button type="submit" class="primary">Submit parchment</button>
             </form>
           </div>
         </div>
       </section>
 
-      <section class="section" id="liq">
-        <h2>Liquidation hunt</h2>
-        <div class="panel-grid">
-          <div class="panel" id="liqStatus"></div>
-          <div class="panel">
-            <h3>Actions</h3>
+      <section class="panel spell" id="liq">
+        <div class="section-head">
+          <h2>Liquidation Hunt</h2>
+          <p class="muted">Send the aurors on patrol or execute the current signal.</p>
+        </div>
+        <div class="grid">
+          <div class="card" id="liqStatus"></div>
+          <div class="card">
+            <h3>Spellbook</h3>
             <div class="btn-row">
               <button id="liqScan">Manual scan</button>
               <button class="primary" id="liqExecute">Execute signal</button>
             </div>
           </div>
-          <div class="panel" id="liqConfig"></div>
+          <div class="card" id="liqConfig"></div>
         </div>
       </section>
     </main>

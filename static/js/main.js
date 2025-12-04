@@ -116,10 +116,10 @@ async function loadMeanReversion() {
   const overview = document.getElementById('overview');
   if (overview) {
     overview.innerHTML = `
-      <div><span>Pair</span><strong>${status.asset_a}/${status.asset_b}</strong></div>
-      <div><span>Wallet</span><strong>${status.base_balance?.toFixed?.(2)} base</strong></div>
-      <div><span>Realized PnL</span><strong>${status.realized_pnl_usd?.toFixed?.(2)}</strong></div>
-      <div><span>Mode</span><strong>${status.use_testnet ? 'Testnet' : 'Mainnet'}</strong></div>`;
+      <div class="stat"><span>Pair</span><strong>${status.asset_a}/${status.asset_b}</strong></div>
+      <div class="stat"><span>Wallet</span><strong>${status.base_balance?.toFixed?.(2)} base</strong></div>
+      <div class="stat"><span>Realized PnL</span><strong>${status.realized_pnl_usd?.toFixed?.(2)}</strong></div>
+      <div class="stat"><span>Mode</span><strong>${status.use_testnet ? 'Testnet' : 'Mainnet'}</strong></div>`;
   }
 
   keyValue(document.getElementById('mrStatus'), [
