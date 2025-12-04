@@ -81,6 +81,57 @@ async function loadConfig() {
   form.use_all_balance.checked = cfg.use_all_balance;
   form.cooldown_sec.value = cfg.cooldown_sec;
   form.use_testnet.checked = cfg.use_testnet;
+
+  updateTrendConfigSummary(cfg);
+}
+
+function updateTrendConfigSummary(cfg) {
+  const summary = document.getElementById('trendConfigSummary');
+  if (!summary) return;
+
+  if (!cfg) {
+    summary.textContent = 'Save a configuration to see a quick snapshot here.';
+    return;
+  }
+
+  const env = cfg.use_testnet ? 'Testnet' : 'Mainnet';
+  const cooldown = Number.isFinite(cfg.cooldown_sec) ? `${cfg.cooldown_sec}s` : '—';
+  const notional = Number.isFinite(cfg.max_position_usd) ? `${cfg.max_position_usd} USDT` : 'Not set';
+
+  summary.innerHTML = `
+    <div class="summary-title">Saved config snapshot</div>
+    <div class="summary-grid">
+      <div>
+        <div class="metric-label">Symbol</div>
+        <div class="metric-value">${cfg.symbol || 'Not set'}</div>
+      </div>
+      <div>
+        <div class="metric-label">EMA windows</div>
+        <div class="metric-value">${cfg.fast_window} / ${cfg.slow_window}</div>
+      </div>
+      <div>
+        <div class="metric-label">ATR window</div>
+        <div class="metric-value">${cfg.atr_window}</div>
+      </div>
+    </div>
+    <div class="summary-grid">
+      <div>
+        <div class="metric-label">Stop mult</div>
+        <div class="metric-value">${cfg.atr_stop_mult}</div>
+      </div>
+      <div>
+        <div class="metric-label">Cooldown</div>
+        <div class="metric-value">${cooldown}</div>
+      </div>
+      <div>
+        <div class="metric-label">Exposure</div>
+        <div class="metric-value">${cfg.use_all_balance ? 'Use full balance' : notional}</div>
+      </div>
+    </div>
+    <div class="chip-row">
+      <span class="chip chip-primary">${env}</span>
+    </div>
+  `;
 }
 
 async function loadStatus() {

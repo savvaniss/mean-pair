@@ -581,6 +581,10 @@ canvas {
   flex-direction: column;
 }
 
+.modal.wide {
+  width: min(980px, 94%);
+}
+
 .modal-header,
 .modal-footer {
   padding: 12px 16px;
@@ -604,6 +608,37 @@ canvas {
 .modal-body {
   padding: 12px 16px 14px 16px;
   overflow-y: auto;
+}
+
+.action-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 16px;
+}
+
+.action-column {
+  background: var(--surface-light);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.modal-subtitle {
+  font-weight: 600;
+  font-size: 0.95rem;
+}
+
+.button-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.button-stack .btn {
+  width: 100%;
 }
 
 .balance-grid {

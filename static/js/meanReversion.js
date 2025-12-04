@@ -34,6 +34,58 @@ function applyConfigToForm(cfg) {
 
   currentQuote = cfg.use_testnet ? 'USDT' : 'USDC';
   applyQuoteLabels(currentQuote);
+  updateMeanConfigSummary(cfg);
+}
+
+function updateMeanConfigSummary(cfg) {
+  const summaryEl = document.getElementById('mrConfigSummary');
+  if (!summaryEl) return;
+
+  if (!cfg) {
+    summaryEl.textContent = 'Save a configuration to see a quick snapshot here.';
+    return;
+  }
+
+  const quote = cfg.use_testnet ? 'USDT' : 'USDC';
+  const notional = Number.isFinite(Number(cfg.trade_notional_usd))
+    ? `${Number(cfg.trade_notional_usd).toFixed(2)} ${quote}`
+    : 'Not set';
+  const thresholds = cfg.use_ratio_thresholds
+    ? `${cfg.buy_ratio_threshold?.toFixed(5)} / ${cfg.sell_ratio_threshold?.toFixed(5)}`
+    : `${cfg.z_entry} / ${cfg.z_exit}`;
+  const thresholdLabel = cfg.use_ratio_thresholds ? 'Ratio bands' : 'Z-entry / exit';
+
+  summaryEl.innerHTML = `
+    <div class="summary-title">Saved config snapshot</div>
+    <div class="summary-grid">
+      <div>
+        <div class="metric-label">Pair</div>
+        <div class="metric-value">${cfg.asset_a}/${cfg.asset_b}</div>
+      </div>
+      <div>
+        <div class="metric-label">Window / poll</div>
+        <div class="metric-value">${cfg.window_size} • ${cfg.poll_interval_sec}s</div>
+      </div>
+      <div>
+        <div class="metric-label">Notional</div>
+        <div class="metric-value">${notional}</div>
+      </div>
+    </div>
+    <div class="summary-grid">
+      <div>
+        <div class="metric-label">${thresholdLabel}</div>
+        <div class="metric-value">${thresholds}</div>
+      </div>
+      <div>
+        <div class="metric-label">Routing</div>
+        <div class="metric-value">${cfg.use_testnet ? 'Testnet' : 'Mainnet'}</div>
+      </div>
+      <div>
+        <div class="metric-label">Balance usage</div>
+        <div class="metric-value">${cfg.use_all_balance ? 'Use full balances' : 'Cap at notional'}</div>
+      </div>
+    </div>
+  `;
 }
 
 function getDirectionClass(current, last) {

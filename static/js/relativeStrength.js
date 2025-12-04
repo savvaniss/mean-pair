@@ -87,6 +87,54 @@ async function loadConfig() {
   form.use_all_balance.checked = cfg.use_all_balance;
   form.use_testnet.checked = cfg.use_testnet;
   form.symbols.value = (cfg.symbols || []).join(',');
+
+  updateRSConfigSummary(cfg);
+}
+
+function updateRSConfigSummary(cfg) {
+  const summary = document.getElementById('rsConfigSummary');
+  if (!summary) return;
+
+  if (!cfg) {
+    summary.textContent = 'Save a configuration to see a quick snapshot here.';
+    return;
+  }
+
+  const env = cfg.use_testnet ? 'Testnet' : 'Mainnet';
+  const symbols = cfg.symbols?.join(', ') || 'No symbols set';
+  const notional = Number.isFinite(cfg.max_notional_usd) ? `${cfg.max_notional_usd} USDT` : 'Not set';
+
+  summary.innerHTML = `
+    <div class="summary-title">Saved config snapshot</div>
+    <div class="summary-grid">
+      <div>
+        <div class="metric-label">Symbols</div>
+        <div class="metric-value">${symbols}</div>
+      </div>
+      <div>
+        <div class="metric-label">Top/Bottom N</div>
+        <div class="metric-value">${cfg.top_n} / ${cfg.bottom_n}</div>
+      </div>
+      <div>
+        <div class="metric-label">Rebalance</div>
+        <div class="metric-value">${cfg.rebalance_interval_sec}s</div>
+      </div>
+    </div>
+    <div class="summary-grid">
+      <div>
+        <div class="metric-label">RS gap min</div>
+        <div class="metric-value">${cfg.min_rs_gap}</div>
+      </div>
+      <div>
+        <div class="metric-label">Allocation</div>
+        <div class="metric-value">${cfg.use_all_balance ? 'Use full balance' : notional}</div>
+      </div>
+      <div>
+        <div class="metric-label">Environment</div>
+        <div class="metric-value">${env}</div>
+      </div>
+    </div>
+  `;
 }
 
 function renderBucket(title, scores) {
