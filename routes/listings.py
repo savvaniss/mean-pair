@@ -2,7 +2,7 @@ from datetime import datetime
 from typing import List, Optional
 
 from fastapi import APIRouter, Query
-from fastapi.responses import HTMLResponse, FileResponse
+from fastapi.responses import HTMLResponse, RedirectResponse
 from pydantic import BaseModel
 
 from engines import listings_service
@@ -23,7 +23,7 @@ class ListingOut(BaseModel):
 
 @router.get("/listings", response_class=HTMLResponse)
 def listings_page():
-    return FileResponse("templates/listings.html")
+    return RedirectResponse(url="/?tab=listings")
 
 
 @router.get("/api/listings/latest", response_model=List[ListingOut])

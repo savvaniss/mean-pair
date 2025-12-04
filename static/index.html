@@ -5,6 +5,7 @@
   <title>Trading Suite</title>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" />
   <link rel="stylesheet" href="/static/css/theme.css" />
+  <link rel="stylesheet" href="/static/css/listings.css" />
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script type="module" src="/static/js/main.js"></script>
 </head>
@@ -28,7 +29,7 @@
       <button class="tab" data-tab="rs">Relative Strength</button>
       <button class="tab" data-tab="trading">Trading Desk</button>
       <button class="tab" data-tab="liquidation">Liquidation Hunt</button>
-      <a class="tab" href="/listings" role="button">Listings Monitor</a>
+      <button class="tab" data-tab="listings">Listings Monitor</button>
     </div>
 
   <div id="tab-mean" class="tab-content active">
@@ -953,6 +954,92 @@
           </thead>
           <tbody></tbody>
         </table>
+      </div>
+    </div>
+  </div>
+
+  <div id="tab-listings" class="tab-content">
+    <div class="control-buttons" style="margin-bottom: 12px;">
+      <span class="title-sub" id="listingsHint">Auto-refreshes every 15s</span>
+      <button class="btn btn-ghost" id="refreshListings">Refresh now</button>
+    </div>
+
+    <div class="row">
+      <div class="card" data-collapsible>
+        <div class="card-header">
+          <h2>Filters</h2>
+          <span class="toggle-icon">▼</span>
+        </div>
+        <div class="card-body">
+          <div class="filters-grid">
+            <label class="stacked-field">
+              Exchange type
+              <select id="exchangeType">
+                <option value="">All</option>
+                <option value="cex">CEX</option>
+                <option value="dex">DEX</option>
+              </select>
+            </label>
+            <label class="stacked-field">
+              Exchange
+              <input id="exchange" type="text" placeholder="Binance, OKX..." />
+            </label>
+            <label class="stacked-field">
+              Network
+              <input id="network" type="text" placeholder="ETH, BSC, Base" />
+            </label>
+            <label class="stacked-field">
+              Time window (mins)
+              <input id="minutes" type="number" value="120" min="5" max="1440" />
+            </label>
+            <label class="stacked-field">
+              Search
+              <input id="search" type="text" placeholder="Symbol or name" />
+            </label>
+            <label class="stacked-field">
+              Sort
+              <select id="sort">
+                <option value="listed_at_desc">Newest</option>
+                <option value="listed_at_asc">Oldest</option>
+              </select>
+            </label>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="row">
+      <div class="card">
+        <div class="card-header">
+          <h2>Collector health</h2>
+        </div>
+        <div class="card-body">
+          <div id="healthStatus" class="health-grid"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <h2>Recent listings</h2>
+      </div>
+      <div class="card-body">
+        <div class="table-wrapper">
+          <table id="listingsTable">
+            <thead>
+              <tr>
+                <th>Symbol</th>
+                <th>Name</th>
+                <th>Pair</th>
+                <th>Network</th>
+                <th>Source</th>
+                <th>Listed at</th>
+                <th>Link</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
       </div>
     </div>
   </div>

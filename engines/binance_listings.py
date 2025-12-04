@@ -20,9 +20,15 @@ class BinanceListingsCollector:
 
     def fetch(self, limit: int = 15) -> List[Listing]:
         """Return the most recent listing announcements."""
-        url = "/bapi/composite/v1/public/cms/article/list"
+        url = "/bapi/composite/v1/public/cms/article/list/query"
         params = {"type": 1, "pageSize": limit, "pageNo": 1}
         resp = self.client.get(url, params=params, timeout=10.0)
+
+        if resp.status_code == 404:
+            raise RuntimeError(
+                "Binance listings endpoint returned 404; the public CMS API path likely changed."
+            )
+
         resp.raise_for_status()
         payload = resp.json()
         articles = payload.get("data", {}).get("articles", []) if isinstance(payload, dict) else []

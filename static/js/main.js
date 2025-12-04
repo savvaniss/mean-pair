@@ -5,6 +5,7 @@ import { initTrendFollowing, refreshTrendFollowing } from './trendFollowing.js';
 import { initRelativeStrength, refreshRelativeStrength } from './relativeStrength.js';
 import { initTrading, refreshTrading } from './trading.js';
 import { initLiquidation, refreshLiquidation } from './liquidationHunt.js';
+import { initListings, refreshListings } from './listings.js';
 
 async function bootstrap() {
   initTabs();
@@ -15,6 +16,7 @@ async function bootstrap() {
   initRelativeStrength();
   initTrading();
   initLiquidation();
+  initListings();
 
   await refreshMeanReversion();
   await refreshBollinger();
@@ -22,6 +24,7 @@ async function bootstrap() {
   await refreshRelativeStrength();
   await refreshTrading();
   await refreshLiquidation();
+  await refreshListings();
 
   setInterval(async () => {
     await refreshMeanReversion();
