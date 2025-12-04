@@ -1,0 +1,51 @@
+.filters-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 12px;
+}
+
+.stacked-field {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    font-size: 0.9rem;
+    color: var(--text-subtle);
+}
+
+.stacked-field input,
+.stacked-field select {
+    width: 100%;
+    padding: 8px 10px;
+    border-radius: 10px;
+    border: 1px solid var(--border);
+    background: var(--surface-light);
+    color: var(--text-main);
+}
+
+.health-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 12px;
+}
+
+.health-card {
+    border: 1px solid var(--border);
+    background: var(--surface-light);
+    border-radius: 12px;
+    padding: 12px;
+    color: var(--text-main);
+    box-shadow: 0 8px 18px rgba(0, 0, 0, 0.25);
+}
+
+.health-card strong {
+    color: var(--primary);
+}
+
+#listingsTable a {
+    color: var(--primary);
+    text-decoration: none;
+}
+
+#listingsTable a:hover {
+    text-decoration: underline;
+}

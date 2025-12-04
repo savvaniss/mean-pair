@@ -34,6 +34,7 @@ A modular cryptocurrency trading bot that implements **mean reversion** for the 
 - Centralized configuration management in `config.py` with per-bot settings.
 - SQLite-backed state and logging handled via `database.py`.
 - Single-page dashboard for live monitoring, manual control, and charting.
+- Listing monitor that aggregates new coin/pair launches across Binance, major CEXs, and DEX aggregators.
 - Docker and docker-compose for reproducible deployments.
 
 ---
@@ -49,6 +50,8 @@ The HTML/JavaScript dashboard (served from `/`) provides:
 - Trade history tables for auditing decisions
 
 Static assets live in `static/` and are served directly by FastAPI.
+
+The `/listings` page provides a live feed of new listings with filters by exchange type (CEX/DEX), exchange name, network, search, and time window. A JSON API (`/api/listings/latest`) powers the table and can be consumed programmatically.
 
 ---
 
@@ -102,6 +105,9 @@ ENV=testnet
 # Internal flags (used by CI)
 BOT_DISABLE_THREADS=0
 DISABLE_BINANCE_CLIENT=0
+LISTINGS_DISABLE_SCHEDULER=0
+LISTINGS_REFRESH_SECONDS=60
+LISTINGS_RETENTION_MINUTES=240
 ```
 
 ---
@@ -168,6 +174,14 @@ Services:
 | GET | `/boll_trades` | List Bollinger trades |
 | POST | `/bollinger_manual_sell` | Manual exit trade |
 | GET | `/symbols_grouped` | Binance symbols grouped by quote asset |
+
+### Listings Monitor
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/listings/latest` | Latest normalized listings with filters for exchange/network/time window |
+| GET | `/api/listings/health` | Health/last run details for each collector |
+| GET | `/listings` | UI that renders the listings table and filters |
 
 ---
 

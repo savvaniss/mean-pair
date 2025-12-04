@@ -19,6 +19,7 @@ os.environ.setdefault("BOT_DISABLE_THREADS", "1")
 
 # Disable real Binance clients – tests will monkeypatch the engines/config instead
 os.environ.setdefault("DISABLE_BINANCE_CLIENT", "1")
+os.environ.setdefault("LISTINGS_DISABLE_SCHEDULER", "1")
 
 # Provide dummy API keys so create_*_client won't explode on import
 os.environ.setdefault("BINANCE_TESTNET_API_KEY", "dummy")
