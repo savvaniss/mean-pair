@@ -146,6 +146,11 @@ Services:
 - FastAPI app: http://localhost:8000
 - Nginx Proxy Manager (if enabled): http://localhost:81
 
+Notes:
+- The `bot` service mounts `mean_reversion.db` so database state persists across restarts.
+- Static assets and templates are mounted read-only from the working directory, so UI changes are reflected without rebuilding the image.
+- Ensure a `.env` file is present next to `docker-compose.yml` before starting the stack.
+
 ---
 
 ## API Endpoints

@@ -9,9 +9,15 @@ services:
     restart: unless-stopped
     env_file:
       - .env
+    command: ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8000"]
     # ⬇ Direct access on server IP: http://SERVER_IP:8000
     ports:
       - "8000:8000"
+    volumes:
+      # Persist SQLite database and serve the latest static/templates directly
+      - ./mean_reversion.db:/app/mean_reversion.db
+      - ./static:/app/static:ro
+      - ./templates:/app/templates:ro
     # ⬇ Also reachable from Nginx Proxy Manager on the same Docker network
     networks:
       - proxy_net
