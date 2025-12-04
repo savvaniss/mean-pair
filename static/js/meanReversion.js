@@ -760,25 +760,35 @@ export async function refreshMeanReversion() {
 }
 
 export function initMeanReversion() {
-  document.getElementById('configForm').addEventListener('submit', saveConfig);
-  document.getElementById('manualTradeForm').addEventListener('submit', manualTrade);
-  document.getElementById('manual_direction').addEventListener('change', updateManualTradeForm);
-  document.getElementById('manual_max_btn').addEventListener('click', setManualMax);
-  document.getElementById('syncStateBtn').addEventListener('click', syncState);
-  document.getElementById('startBotBtn').addEventListener('click', startBot);
-  document.getElementById('stopBotBtn').addEventListener('click', stopBot);
-  document
-    .getElementById('generateConfigBtn')
-    .addEventListener('click', generateConfigFromHistory);
-  document.getElementById('nextTradeBtn').addEventListener('click', () => {
-    openOverlay('nextModalOverlay');
-    fetchNextSignal();
-  });
-  document.getElementById('nextModalClose').addEventListener('click', () => closeOverlay('nextModalOverlay'));
-  document
-    .getElementById('nextModalCloseFooter')
-    .addEventListener('click', () => closeOverlay('nextModalOverlay'));
-  document.getElementById('nextModalRecalc').addEventListener('click', fetchNextSignal);
+  const configForm = document.getElementById('configForm');
+  const manualForm = document.getElementById('manualTradeForm');
+  const manualDirection = document.getElementById('manual_direction');
+  const manualMax = document.getElementById('manual_max_btn');
+  const syncBtn = document.getElementById('syncStateBtn');
+  const startBtn = document.getElementById('startBotBtn');
+  const stopBtn = document.getElementById('stopBotBtn');
+  const genConfigBtn = document.getElementById('generateConfigBtn');
+  const nextBtn = document.getElementById('nextTradeBtn');
+  const nextClose = document.getElementById('nextModalClose');
+  const nextCloseFooter = document.getElementById('nextModalCloseFooter');
+  const nextRecalc = document.getElementById('nextModalRecalc');
+
+  if (configForm) configForm.addEventListener('submit', saveConfig);
+  if (manualForm) manualForm.addEventListener('submit', manualTrade);
+  if (manualDirection) manualDirection.addEventListener('change', updateManualTradeForm);
+  if (manualMax) manualMax.addEventListener('click', setManualMax);
+  if (syncBtn) syncBtn.addEventListener('click', syncState);
+  if (startBtn) startBtn.addEventListener('click', startBot);
+  if (stopBtn) stopBtn.addEventListener('click', stopBot);
+  if (genConfigBtn) genConfigBtn.addEventListener('click', generateConfigFromHistory);
+  if (nextBtn)
+    nextBtn.addEventListener('click', () => {
+      openOverlay('nextModalOverlay');
+      fetchNextSignal();
+    });
+  if (nextClose) nextClose.addEventListener('click', () => closeOverlay('nextModalOverlay'));
+  if (nextCloseFooter) nextCloseFooter.addEventListener('click', () => closeOverlay('nextModalOverlay'));
+  if (nextRecalc) nextRecalc.addEventListener('click', fetchNextSignal);
 }
 
 export function getCurrentQuote() {

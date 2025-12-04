@@ -8,32 +8,32 @@ import { initLiquidation, refreshLiquidation } from './liquidationHunt.js';
 import { initListings, refreshListings } from './listings.js';
 
 async function bootstrap() {
-  initTabs();
-  initCollapsibles();
-  initOverlays();
-  initMeanReversion();
-  initBollinger();
-  initTrendFollowing();
-  initRelativeStrength();
-  initTrading();
-  initLiquidation();
-  initListings();
+  safeRun('tabs', initTabs);
+  safeRun('collapsibles', initCollapsibles);
+  safeRun('overlays', initOverlays);
+  safeRun('mean reversion init', initMeanReversion);
+  safeRun('bollinger init', initBollinger);
+  safeRun('trend init', initTrendFollowing);
+  safeRun('relative strength init', initRelativeStrength);
+  safeRun('trading init', initTrading);
+  safeRun('liquidation init', initLiquidation);
+  safeRun('listings init', initListings);
 
-  await refreshMeanReversion();
-  await refreshBollinger();
-  await refreshTrendFollowing();
-  await refreshRelativeStrength();
-  await refreshTrading();
-  await refreshLiquidation();
-  await refreshListings();
+  await safeRefresh('mean reversion', refreshMeanReversion);
+  await safeRefresh('bollinger', refreshBollinger);
+  await safeRefresh('trend', refreshTrendFollowing);
+  await safeRefresh('relative strength', refreshRelativeStrength);
+  await safeRefresh('trading', refreshTrading);
+  await safeRefresh('liquidation', refreshLiquidation);
+  await safeRefresh('listings', refreshListings);
 
   setInterval(async () => {
-    await refreshMeanReversion();
-    await refreshBollinger();
-    await refreshTrendFollowing();
-    await refreshRelativeStrength();
-    await refreshTrading();
-    await refreshLiquidation();
+    await safeRefresh('mean reversion', refreshMeanReversion);
+    await safeRefresh('bollinger', refreshBollinger);
+    await safeRefresh('trend', refreshTrendFollowing);
+    await safeRefresh('relative strength', refreshRelativeStrength);
+    await safeRefresh('trading', refreshTrading);
+    await safeRefresh('liquidation', refreshLiquidation);
   }, 10000);
 }
 
@@ -44,6 +44,22 @@ function wireOverlay(ids, overlayId) {
     .map((id) => document.getElementById(id))
     .filter(Boolean)
     .forEach((btn) => btn.addEventListener('click', () => openOverlay(overlayId)));
+}
+
+function safeRun(label, fn) {
+  try {
+    fn();
+  } catch (err) {
+    console.error(`Failed to init ${label}`, err);
+  }
+}
+
+async function safeRefresh(label, fn) {
+  try {
+    await fn();
+  } catch (err) {
+    console.error(`Failed to refresh ${label}`, err);
+  }
 }
 
 function initOverlays() {
