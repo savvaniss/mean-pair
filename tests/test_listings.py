@@ -2,6 +2,7 @@ from datetime import datetime, timedelta
 
 from database import ListingEvent, SessionLocal
 from engines.binance_listings import BinanceListingsCollector
+from engines import listing_scout
 from engines.listings_common import Listing
 from engines import listings_service
 
@@ -74,6 +75,27 @@ def test_binance_collector_uses_listing_catalog():
 def test_binance_collector_extracts_symbol_from_parentheses():
     title = "Binance Will List Renzo Restaked ETH (EZETH)"
     assert BinanceListingsCollector._extract_symbol(title) == "EZETH"
+
+
+def test_listing_scout_prefers_preferred_quote():
+    calls = []
+
+    class FakeClient:
+        def get_symbol_info(self, symbol):
+            calls.append(symbol)
+            if symbol.endswith("USDC"):
+                return {"filters": []}
+            if symbol.endswith("USDT"):
+                return None
+            return None
+
+    symbol, info = listing_scout._resolve_symbol(
+        FakeClient(), base="NEW", fallback_pair="NEWUSDT", preferred_quote="USDC"
+    )
+
+    assert symbol == "NEWUSDC"
+    assert info == {"filters": []}
+    assert calls[0] == "NEWUSDC"
 
 
 def test_run_collector_persists_and_filters():

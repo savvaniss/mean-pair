@@ -548,6 +548,54 @@
       <button class="btn btn-ghost" id="refreshListings">Refresh now</button>
     </div>
 
+    <div class="card">
+      <div class="card-header">
+        <h2>Binance quick actions</h2>
+        <span class="chip" id="scoutStatus">Scout stopped</span>
+      </div>
+      <div class="card-body">
+        <div class="form-row slim">
+          <div>
+            <label for="binanceAccount" class="label-with-tip">
+              Account
+              <span class="tooltip-icon" title="Choose which Binance keys to trade with.">?</span>
+            </label>
+            <select id="binanceAccount">
+              <option value="mr">MR keys</option>
+              <option value="boll">Bollinger keys</option>
+            </select>
+          </div>
+          <div>
+            <label for="binanceEnv" class="label-with-tip">
+              Environment
+              <span class="tooltip-icon" title="Send orders to Binance testnet or mainnet.">?</span>
+            </label>
+            <select id="binanceEnv">
+              <option value="mainnet">Mainnet</option>
+              <option value="testnet">Testnet</option>
+            </select>
+          </div>
+          <div>
+            <label for="binanceNotional" class="label-with-tip">
+              Quick-buy size (USDC)
+              <span class="tooltip-icon" title="Quote amount used for instant buys from the listings table.">?</span>
+            </label>
+            <input id="binanceNotional" type="number" value="10" min="1" step="1" />
+          </div>
+        </div>
+        <div class="button-row">
+          <button class="btn btn-primary" id="startScoutBtn">Start listing scout</button>
+          <button class="btn btn-danger" id="stopScoutBtn">Stop scout</button>
+          <button class="btn btn-ghost" id="refreshScoutBtn">Refresh scout</button>
+        </div>
+        <div class="help-text">
+          Instant buys use the size above with the chosen account. The scout watches Binance listings, auto-buys ~10 EUR worth
+          and exits after a pump.
+        </div>
+        <div id="scoutPositions" class="health-grid"></div>
+      </div>
+    </div>
+
     <div class="row">
       <div class="card" data-collapsible>
         <div class="card-header">
@@ -615,15 +663,16 @@
                 <th>Symbol</th>
                 <th>Name</th>
                 <th>Pair</th>
-                <th>Network</th>
-                <th>Source</th>
-                <th>Listed at</th>
-                <th>Link</th>
-              </tr>
-            </thead>
-            <tbody></tbody>
-          </table>
-        </div>
+              <th>Network</th>
+              <th>Source</th>
+              <th>Listed at</th>
+              <th>Link</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
       </div>
     </div>
   </div>
@@ -676,6 +725,14 @@
             <button class="btn btn-danger" id="liqDisableBtn">Stop scanner</button>
             <button class="btn btn-ghost" id="liqRescanBtn">Manual rescan</button>
             <button class="btn btn-ghost" id="liqExecuteBtn">Execute current signal</button>
+          </div>
+        </div>
+        <div class="action-column">
+          <div class="modal-subtitle">Binance listings</div>
+          <div class="button-stack">
+            <button class="btn btn-primary" id="startScoutInline">Start scout</button>
+            <button class="btn btn-danger" id="stopScoutInline">Stop scout</button>
+            <button class="btn btn-ghost" id="refreshScoutInline">Refresh status</button>
           </div>
         </div>
       </div>

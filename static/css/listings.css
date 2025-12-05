@@ -49,3 +49,12 @@
 #listingsTable a:hover {
     text-decoration: underline;
 }
+
+.actions-cell {
+    text-align: right;
+}
+
+.actions-cell .btn.small {
+    padding: 6px 10px;
+    font-size: 0.85rem;
+}
