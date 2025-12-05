@@ -155,5 +155,15 @@ def mr_symbol(base: str) -> str:
     return f"{base}{get_mr_quote()}"
 
 
+def create_user_client(api_key: str, api_secret: str, use_testnet: bool) -> Optional[Client]:
+    """Create a Binance client for user-provided credentials."""
+    if DISABLE_BINANCE_CLIENT:
+        print("[USER] Binance client disabled (DISABLE_BINANCE_CLIENT=1)")
+        return None
+    if not api_key or not api_secret:
+        raise RuntimeError("API key and secret are required for user client")
+    return Client(api_key, api_secret, testnet=use_testnet)
+
+
 # Initialise on import
 init_clients()

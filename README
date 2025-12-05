@@ -150,6 +150,21 @@ Services:
 
 ## API Endpoints
 
+### Authentication & RBAC
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/auth/register` | Register a user (first user can become admin; later admin tokens required for admin role) |
+| POST | `/auth/login` | Obtain a bearer token via OAuth2 password flow |
+| GET | `/auth/me` | Return the authenticated user |
+| GET | `/auth/admin/users` | List users (admin role required) |
+| GET | `/credentials/` | List your saved Binance API credentials |
+| POST | `/credentials/` | Upsert API credentials scoped to an engine or `all` (per environment) |
+| DELETE | `/credentials/{id}` | Remove one of your stored credentials |
+| GET | `/agents/` | List your agent runs |
+| POST | `/agents/run` | Register a new agent run after validating you have credentials for the engine |
+| PATCH | `/agents/{run_id}` | Update an agent run status |
+
 ### Mean Reversion
 
 | Method | Endpoint | Description |

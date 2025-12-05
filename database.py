@@ -1,6 +1,14 @@
 # database.py
-from sqlalchemy import create_engine, Column, Integer, Float, String, DateTime
-from sqlalchemy.orm import sessionmaker, declarative_base
+from sqlalchemy import (
+    Boolean,
+    Column,
+    DateTime,
+    Float,
+    Integer,
+    String,
+    create_engine,
+)
+from sqlalchemy.orm import declarative_base, sessionmaker
 
 # =========================
 # DATABASE SETUP (SQLite)
@@ -190,6 +198,39 @@ class ListingEvent(Base):
     exchange_type = Column(String, index=True)  # CEX/DEX
     source = Column(String, index=True)  # exchange name
     url = Column(String)
+
+
+class User(Base):
+    __tablename__ = "users"
+
+    id = Column(Integer, primary_key=True, index=True)
+    username = Column(String, unique=True, index=True, nullable=False)
+    hashed_password = Column(String, nullable=False)
+    role = Column(String, default="user", index=True)
+
+
+class ApiCredential(Base):
+    __tablename__ = "api_credentials"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, index=True, nullable=False)
+    engine = Column(String, index=True, default="all")
+    is_testnet = Column(Boolean, default=True)
+    api_key = Column(String, nullable=False)
+    api_secret = Column(String, nullable=False)
+    label = Column(String, default="")
+
+
+class AgentRun(Base):
+    __tablename__ = "agent_runs"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, index=True, nullable=False)
+    engine = Column(String, index=True, nullable=False)
+    status = Column(String, default="registered")
+    created_at = Column(DateTime, index=True)
+    updated_at = Column(DateTime, index=True)
+    is_testnet = Column(Boolean, default=True)
 
 
 Base.metadata.create_all(bind=engine)

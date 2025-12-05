@@ -17,6 +17,9 @@ from routes import relative_strength as rs_routes
 from routes import trading as trading_routes
 from routes import liquidation as liquidation_routes
 from routes import listings as listings_routes
+from routes import auth as auth_routes
+from routes import credentials as credential_routes
+from routes import agents as agent_routes
 
 
 # =========================
@@ -36,6 +39,9 @@ app.include_router(rs_routes.router)
 app.include_router(trading_routes.router)
 app.include_router(liquidation_routes.router)
 app.include_router(listings_routes.router)
+app.include_router(auth_routes.router)
+app.include_router(credential_routes.router)
+app.include_router(agent_routes.router)
 
 
 # =========================
