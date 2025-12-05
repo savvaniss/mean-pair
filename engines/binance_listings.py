@@ -31,7 +31,7 @@ class BinanceListingsCollector:
     def fetch(self, limit: int = 15) -> List[Listing]:
         """Return the most recent listing announcements."""
         url = "/bapi/composite/v1/public/cms/article/list/query"
-        params = {"type": 1, "pageSize": limit, "pageNo": 1}
+        params = {"type": 1, "catalogId": 48, "pageSize": limit, "pageNo": 1}
         resp = self.client.get(url, params=params, timeout=10.0)
 
         if resp.status_code == 403:

@@ -21,8 +21,12 @@ class FakeResponse:
 class FakeClient:
     def __init__(self, payload):
         self.payload = payload
+        self.last_url = None
+        self.last_params = None
 
     def get(self, *args, **kwargs):
+        self.last_url = args[0] if args else None
+        self.last_params = kwargs.get("params")
         return FakeResponse(self.payload)
 
     def close(self):
@@ -54,6 +58,17 @@ def test_binance_collector_parses_listing():
     assert item.symbol == "TEST"
     assert item.source == "Binance"
     assert item.url.endswith("abc-123")
+
+
+def test_binance_collector_uses_listing_catalog():
+    payload = {"data": {"articles": []}}
+    client = FakeClient(payload)
+    collector = BinanceListingsCollector(client=client)
+
+    collector.fetch(limit=5)
+
+    assert client.last_url == "/bapi/composite/v1/public/cms/article/list/query"
+    assert client.last_params == {"type": 1, "catalogId": 48, "pageSize": 5, "pageNo": 1}
 
 
 def test_binance_collector_extracts_symbol_from_parentheses():
