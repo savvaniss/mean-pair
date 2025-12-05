@@ -1,14 +1,36 @@
+import { closeOverlay, openOverlay, showToast } from './ui.js';
+
 let tableBody;
 let refreshBtn;
 let healthDiv;
+let scoutChip;
+let scoutPositions;
+let actionCenterSymbolInput;
+let actionCenterNotionalInput;
+let actionCenterAccountSelect;
+let actionCenterEnvSelect;
+let actionCenterBuyBtn;
+let listingConfigNotional;
+let listingConfigExit;
+let listingConfigForm;
 let inputs;
 let listingsInterval;
 let healthInterval;
 
 export function initListings() {
   tableBody = document.querySelector('#listingsTable tbody');
-  refreshBtn = document.querySelector('#refreshListings');
+  refreshBtn = document.querySelector('#refreshListings') || document.querySelector('#refresh');
   healthDiv = document.querySelector('#healthStatus');
+  scoutChip = document.getElementById('scoutStatus');
+  scoutPositions = document.getElementById('scoutPositions');
+  actionCenterSymbolInput = document.getElementById('actionListingSymbol');
+  actionCenterNotionalInput = document.getElementById('actionListingNotional');
+  actionCenterAccountSelect = document.getElementById('actionListingAccount');
+  actionCenterEnvSelect = document.getElementById('actionListingEnv');
+  actionCenterBuyBtn = document.getElementById('actionListingBuyBtn');
+  listingConfigNotional = document.getElementById('listingConfigNotional');
+  listingConfigExit = document.getElementById('listingConfigExit');
+  listingConfigForm = document.getElementById('listingConfigForm');
   inputs = {
     exchangeType: document.getElementById('exchangeType'),
     exchange: document.getElementById('exchange'),
@@ -18,21 +40,57 @@ export function initListings() {
     sort: document.getElementById('sort'),
   };
 
-  if (!tableBody || !refreshBtn || !healthDiv) return;
+  if (!tableBody || !healthDiv) return;
 
-  refreshBtn.addEventListener('click', () => {
+  refreshBtn?.addEventListener('click', () => {
     refreshListings();
+  });
+
+  actionCenterBuyBtn?.addEventListener('click', () => {
+    const symbol = actionCenterSymbolInput?.value?.trim();
+    if (!symbol) {
+      showToast('Enter a symbol to buy', 'warning');
+      return;
+    }
+    quickBuy(symbol, {
+      notionalInput: actionCenterNotionalInput,
+      envSelect: actionCenterEnvSelect,
+      accountSelect: actionCenterAccountSelect,
+    });
+  });
+
+  [document.getElementById('startScoutInline')].forEach((btn) =>
+    btn?.addEventListener('click', () => toggleScout(true))
+  );
+  [document.getElementById('stopScoutInline')].forEach((btn) =>
+    btn?.addEventListener('click', () => toggleScout(false))
+  );
+  [document.getElementById('refreshScoutInline')].forEach((btn) =>
+    btn?.addEventListener('click', loadScoutStatus)
+  );
+
+  listingConfigForm?.addEventListener('submit', saveListingConfig);
+  document.getElementById('openListingConfigInline')?.addEventListener('click', (event) => {
+    event.preventDefault();
+    closeOverlay('actionModalOverlay');
+    setTimeout(() => {
+      loadListingConfig();
+      openOverlay('listingConfigOverlay');
+    }, 20);
   });
 
   clearInterval(listingsInterval);
   clearInterval(healthInterval);
   listingsInterval = setInterval(fetchListings, 15000);
   healthInterval = setInterval(fetchHealth, 60000);
+
+  loadScoutStatus();
+  loadListingConfig();
 }
 
 export async function refreshListings() {
   if (!tableBody) return;
-  await Promise.all([fetchListings(), fetchHealth()]);
+  await Promise.all([fetchListings(), fetchHealth(), loadScoutStatus()]);
 }
 
 async function fetchListings() {
@@ -106,4 +164,141 @@ function renderHealth(stats) {
     `;
     healthDiv.appendChild(card);
   });
+}
+
+async function quickBuy(symbol, opts = {}) {
+  const notionalRaw = opts.notional ?? opts.notionalInput?.value ?? '10';
+  const notional = parseFloat(notionalRaw);
+  if (Number.isNaN(notional) || notional <= 0) {
+    showToast('Notional must be greater than zero', 'warning');
+    return;
+  }
+
+  const body = {
+    symbol,
+    notional,
+    account: opts.account ?? opts.accountSelect?.value ?? 'mr',
+    use_testnet: (opts.env ?? opts.envSelect?.value ?? 'mainnet') === 'testnet',
+  };
+
+  try {
+    const resp = await fetch('/api/listings/binance/buy', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    const data = await resp.json();
+    if (!resp.ok) {
+      showToast(`Buy failed: ${data.detail || resp.statusText}`, 'danger');
+      return;
+    }
+
+    showToast(
+      `Bought ${data.qty_executed.toFixed(6)} ${data.symbol} @ ${data.price_used.toFixed(6)} (${data.quote_asset})`,
+      'success'
+    );
+  } catch (err) {
+    console.error(err);
+    showToast('Request failed', 'danger');
+  }
+}
+
+async function loadScoutStatus() {
+  if (!scoutChip) return;
+  try {
+    const resp = await fetch('/api/listings/binance/scout/status');
+    if (!resp.ok) throw new Error('Failed to load scout status');
+    const data = await resp.json();
+
+    scoutChip.textContent = data.enabled
+      ? `Scout running (${data.use_testnet ? 'testnet' : 'mainnet'})`
+      : 'Scout stopped';
+    scoutChip.className = data.enabled ? 'chip chip-primary' : 'chip';
+
+    scoutPositions.innerHTML = '';
+    if (!data.positions || data.positions.length === 0) {
+      const empty = document.createElement('div');
+      empty.className = 'muted';
+      empty.textContent = 'No open scout positions yet.';
+      scoutPositions.appendChild(empty);
+    } else {
+      data.positions.forEach((p) => {
+        const card = document.createElement('div');
+        card.className = 'health-card';
+        card.innerHTML = `
+          <strong>${p.symbol}</strong><br>
+          Qty: ${p.qty.toFixed(6)}<br>
+          Entry: ${p.entry_price.toFixed(6)} → Target: ${p.target_price.toFixed(6)}
+        `;
+        scoutPositions.appendChild(card);
+      });
+    }
+  } catch (err) {
+    scoutChip.textContent = 'Scout unavailable';
+    scoutChip.className = 'chip chip-danger';
+  }
+}
+
+async function toggleScout(shouldStart) {
+  const envValue = actionCenterEnvSelect?.value || 'mainnet';
+  const use_testnet = envValue === 'testnet';
+  const url = shouldStart ? '/api/listings/binance/scout/start' : '/api/listings/binance/scout/stop';
+  try {
+    const resp = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: shouldStart ? JSON.stringify({ use_testnet }) : undefined,
+    });
+    if (!resp.ok) {
+      const data = await resp.json();
+      showToast(`Scout request failed: ${data.detail || resp.statusText}`, 'danger');
+      return;
+    }
+    showToast(shouldStart ? 'Listing scout started' : 'Listing scout stopped', 'success');
+    await loadScoutStatus();
+  } catch (err) {
+    console.error(err);
+    showToast('Scout request failed', 'danger');
+  }
+}
+
+async function loadListingConfig() {
+  if (!listingConfigNotional || !listingConfigExit) return;
+  try {
+    const resp = await fetch('/api/listings/binance/scout/config');
+    if (!resp.ok) throw new Error('Failed to load config');
+    const data = await resp.json();
+    listingConfigNotional.value = data.target_notional_eur ?? 10;
+    listingConfigExit.value = ((data.pump_profit_pct ?? 0.08) * 100).toFixed(2);
+  } catch (err) {
+    console.error(err);
+    showToast('Unable to load listing config', 'danger');
+  }
+}
+
+async function saveListingConfig(event) {
+  event?.preventDefault();
+  const notional = parseFloat(listingConfigNotional?.value || '0');
+  const exitPct = parseFloat(listingConfigExit?.value || '0') / 100;
+  if (Number.isNaN(notional) || notional <= 0 || Number.isNaN(exitPct) || exitPct <= 0) {
+    showToast('Enter positive values for buy size and exit trigger', 'warning');
+    return;
+  }
+
+  try {
+    const resp = await fetch('/api/listings/binance/scout/config', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ target_notional_eur: notional, pump_profit_pct: exitPct }),
+    });
+    const data = await resp.json();
+    if (!resp.ok) {
+      showToast(`Save failed: ${data.detail || resp.statusText}`, 'danger');
+      return;
+    }
+    showToast('Listing scout config saved', 'success');
+  } catch (err) {
+    console.error(err);
+    showToast('Save failed', 'danger');
+  }
 }

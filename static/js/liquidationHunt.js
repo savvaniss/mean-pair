@@ -192,6 +192,12 @@ function syncConfigForm(cfg) {
   document.getElementById('liqCfgNotional').value = cfg.trade_notional_usd;
   document.getElementById('liqCfgAuto').checked = cfg.auto_trade;
   document.getElementById('liqCfgTestnet').checked = cfg.use_testnet;
+
+  const summary = document.getElementById('liqConfigSummary');
+  if (summary) {
+    summary.textContent = `Watching ${cfg.symbol} every ${cfg.poll_interval_sec}s; buying $${cfg.trade_notional_usd}` +
+      ` with RR ${fmt(cfg.risk_reward)}x on ${cfg.use_testnet ? 'testnet' : 'mainnet'}`;
+  }
 }
 
 async function fetchStatus(endpoint = '/liquidation/status', options = undefined) {

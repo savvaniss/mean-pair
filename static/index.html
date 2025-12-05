@@ -2,7 +2,7 @@
 <html>
 <head>
   <meta charset="UTF-8" />
-  <title>Pair Trading Suite | Dashboard</title>
+  <title>Trading Suite</title>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" />
   <link rel="stylesheet" href="/static/css/theme.css" />
   <link rel="stylesheet" href="/static/css/listings.css" />
@@ -18,6 +18,7 @@
     </div>
     <div class="control-buttons">
       <button class="btn btn-primary" id="openActionCenter">Open action center</button>
+      <button class="btn btn-ghost" id="refreshAll">Refresh now</button>
     </div>
   </div>
 
@@ -50,9 +51,7 @@
         </div>
         <div class="card-body">
           <div id="mrConfigSummary" class="config-summary">Loading config...</div>
-          <div class="button-row">
-            <button type="button" class="btn btn-primary" id="openMrConfig">Edit mean reversion config</button>
-          </div>
+          <div class="help-text">Configure mean reversion settings from the action center.</div>
         </div>
       </div>
 
@@ -185,10 +184,7 @@
       </div>
       <div class="card-body">
         <div id="bollConfigSummary" class="config-summary">Loading saved config...</div>
-        <div class="button-row">
-          <button type="button" class="btn" id="bollGenerateConfigBtn">Generate from history</button>
-          <button type="button" class="btn btn-primary" id="openBollConfig">Edit Bollinger config</button>
-        </div>
+        <div class="help-text">Adjust Bollinger settings from the action center.</div>
       </div>
     </div>
 
@@ -275,9 +271,7 @@
           </div>
           <div class="card-body">
             <div id="trendConfigSummary" class="config-summary">Loading saved trend config...</div>
-            <div class="button-row">
-              <button type="button" class="btn btn-primary" id="openTrendConfig">Edit trend config</button>
-            </div>
+            <div class="help-text">Update trend settings from the action center.</div>
           </div>
         </div>
       </div>
@@ -322,9 +316,7 @@
           </div>
           <div class="card-body">
             <div id="rsConfigSummary" class="config-summary">Loading saved RS config...</div>
-            <div class="button-row">
-              <button type="button" class="btn btn-primary" id="openRSConfig">Edit RS config</button>
-            </div>
+            <div class="help-text">Manage RS config from the action center.</div>
           </div>
         </div>
       </div>
@@ -470,45 +462,7 @@
           <h2>Scanner Config</h2>
         </div>
         <div class="card-body">
-          <form id="liqConfigForm" class="stacked-form">
-            <label>
-              Symbol
-              <input type="text" id="liqCfgSymbol" value="BTCUSDT" />
-            </label>
-            <label>
-              Lookback candles
-              <input type="number" id="liqCfgLookback" min="30" step="10" value="200" />
-            </label>
-            <label>
-              Cluster tolerance (bps)
-              <input type="number" id="liqCfgTolerance" min="1" step="1" value="12" />
-            </label>
-            <label>
-              Wick/body ratio
-              <input type="number" id="liqCfgWickRatio" min="1" step="0.1" value="2.2" />
-            </label>
-            <label>
-              Risk:Reward multiple
-              <input type="number" id="liqCfgRR" min="1" step="0.1" value="2.5" />
-            </label>
-            <label>
-              Poll interval (sec)
-              <input type="number" id="liqCfgPoll" min="5" step="1" value="30" />
-            </label>
-            <label>
-              Auto-trade notional (USD)
-              <input type="number" id="liqCfgNotional" min="1" step="1" value="50" />
-            </label>
-            <label class="form-checkbox">
-              <input type="checkbox" id="liqCfgAuto" />
-              <span>Enable auto-trading on sweeps</span>
-            </label>
-            <label class="form-checkbox">
-              <input type="checkbox" id="liqCfgTestnet" checked />
-              <span>Use Binance testnet</span>
-            </label>
-            <button type="submit" class="btn btn-primary" style="width: 100%;">Save</button>
-          </form>
+          <div class="config-summary" id="liqConfigSummary">Configure liquidation scanning from the action center.</div>
         </div>
       </div>
     </div>
@@ -543,9 +497,19 @@
   </div>
 
   <div id="tab-listings" class="tab-content">
-    <div class="control-buttons" style="margin-bottom: 12px;">
-      <span class="title-sub" id="listingsHint">Auto-refreshes every 15s</span>
-      <button class="btn btn-ghost" id="refreshListings">Refresh now</button>
+    <div class="card">
+      <div class="card-header">
+        <h2>Binance listing scout</h2>
+        <span class="chip" id="scoutStatus">Scout stopped</span>
+      </div>
+      <div class="card-body">
+        <div class="muted">Use Configure scout to view and edit listing settings.</div>
+        <div class="help-text">
+          Listing scout controls and configuration live in the action center. Use the action center to start, stop, or buy
+          symbols, and adjust the per-listing buy size and exit trigger.
+        </div>
+        <div id="scoutPositions" class="health-grid"></div>
+      </div>
     </div>
 
     <div class="row">
@@ -615,15 +579,15 @@
                 <th>Symbol</th>
                 <th>Name</th>
                 <th>Pair</th>
-                <th>Network</th>
-                <th>Source</th>
-                <th>Listed at</th>
-                <th>Link</th>
-              </tr>
-            </thead>
-            <tbody></tbody>
-          </table>
-        </div>
+              <th>Network</th>
+              <th>Source</th>
+              <th>Listed at</th>
+              <th>Link</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
       </div>
     </div>
   </div>
@@ -676,11 +640,113 @@
             <button class="btn btn-danger" id="liqDisableBtn">Stop scanner</button>
             <button class="btn btn-ghost" id="liqRescanBtn">Manual rescan</button>
             <button class="btn btn-ghost" id="liqExecuteBtn">Execute current signal</button>
+            <button class="btn" id="openLiqConfigInline">Configure scanner</button>
+          </div>
+        </div>
+        <div class="action-column">
+          <div class="modal-subtitle">Binance listings</div>
+          <div class="muted">Use the Configure scout modal to view or change Binance listing settings.</div>
+          <label class="stacked-field">
+            Manual symbol
+            <input id="actionListingSymbol" type="text" placeholder="e.g. NEW" />
+          </label>
+          <div class="button-stack">
+            <button class="btn btn-primary" id="actionListingBuyBtn">Buy symbol now</button>
+            <button class="btn btn-primary" id="startScoutInline">Start scout</button>
+            <button class="btn btn-danger" id="stopScoutInline">Stop scout</button>
+            <button class="btn btn-ghost" id="refreshScoutInline">Refresh status</button>
+            <button class="btn" id="openListingConfigInline">Configure scout</button>
           </div>
         </div>
       </div>
       <div class="modal-footer">
         <button class="btn btn-ghost" data-close-overlay="actionModalOverlay">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="liqConfigOverlay" class="modal-overlay">
+    <div class="modal">
+      <div class="modal-header">
+        <div class="modal-header-title">Liquidation scanner config</div>
+        <button class="btn btn-ghost small" data-close-overlay="liqConfigOverlay">✕</button>
+      </div>
+      <div class="modal-body">
+        <form id="liqConfigForm" class="stacked-form">
+          <label>
+            Symbol
+            <input type="text" id="liqCfgSymbol" value="BTCUSDT" />
+          </label>
+          <label>
+            Lookback candles
+            <input type="number" id="liqCfgLookback" min="30" step="10" value="200" />
+          </label>
+          <label>
+            Cluster tolerance (bps)
+            <input type="number" id="liqCfgTolerance" min="1" step="1" value="12" />
+          </label>
+          <label>
+            Wick/body ratio
+            <input type="number" id="liqCfgWickRatio" min="1" step="0.1" value="2.2" />
+          </label>
+          <label>
+            Risk:Reward multiple
+            <input type="number" id="liqCfgRR" min="1" step="0.1" value="2.5" />
+          </label>
+          <label>
+            Poll interval (sec)
+            <input type="number" id="liqCfgPoll" min="5" step="1" value="30" />
+          </label>
+          <label>
+            Auto-trade notional (USD)
+            <input type="number" id="liqCfgNotional" min="1" step="1" value="50" />
+          </label>
+          <label class="form-checkbox">
+            <input type="checkbox" id="liqCfgAuto" />
+            <span>Enable auto-trading on sweeps</span>
+          </label>
+          <label class="form-checkbox">
+            <input type="checkbox" id="liqCfgTestnet" checked />
+            <span>Use Binance testnet</span>
+          </label>
+          <div class="button-row">
+            <button type="submit" class="btn btn-primary">Save config</button>
+            <button type="button" class="btn btn-ghost" data-close-overlay="liqConfigOverlay">Cancel</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <div id="listingConfigOverlay" class="modal-overlay">
+    <div class="modal">
+      <div class="modal-header">
+        <div class="modal-header-title">Listing scout config</div>
+        <button class="btn btn-ghost small" data-close-overlay="listingConfigOverlay">✕</button>
+      </div>
+      <div class="modal-body">
+        <form id="listingConfigForm">
+          <div class="form-row">
+            <div>
+              <label for="listingConfigNotional" class="label-with-tip">
+                Buy size per listing (EUR)
+                <span class="tooltip-icon" title="Approximate euro amount allocated to each new Binance listing when the scout triggers.">?</span>
+              </label>
+              <input id="listingConfigNotional" type="number" min="1" step="1" value="10" required />
+            </div>
+            <div>
+              <label for="listingConfigExit" class="label-with-tip">
+                Exit trigger (% gain)
+                <span class="tooltip-icon" title="Percentage gain over entry where the scout will try to sell the position.">?</span>
+              </label>
+              <input id="listingConfigExit" type="number" min="1" step="0.1" value="8" required />
+            </div>
+          </div>
+          <div class="button-row">
+            <button type="submit" class="btn btn-primary">Save config</button>
+            <button type="button" class="btn btn-ghost" data-close-overlay="listingConfigOverlay">Cancel</button>
+          </div>
+        </form>
       </div>
     </div>
   </div>
