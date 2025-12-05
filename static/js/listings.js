@@ -42,9 +42,9 @@ export function initListings() {
     sort: document.getElementById('sort'),
   };
 
-  if (!tableBody || !refreshBtn || !healthDiv) return;
+  if (!tableBody || !healthDiv) return;
 
-  refreshBtn.addEventListener('click', () => {
+  refreshBtn?.addEventListener('click', () => {
     refreshListings();
   });
 
