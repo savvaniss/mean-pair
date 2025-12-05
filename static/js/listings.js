@@ -5,12 +5,6 @@ let refreshBtn;
 let healthDiv;
 let scoutChip;
 let scoutPositions;
-let startScoutBtn;
-let stopScoutBtn;
-let refreshScoutBtn;
-let binanceAccountSelect;
-let binanceEnvSelect;
-let binanceNotionalInput;
 let actionCenterSymbolInput;
 let actionCenterNotionalInput;
 let actionCenterAccountSelect;
@@ -30,12 +24,6 @@ export function initListings() {
   healthDiv = document.querySelector('#healthStatus');
   scoutChip = document.getElementById('scoutStatus');
   scoutPositions = document.getElementById('scoutPositions');
-  startScoutBtn = document.getElementById('startScoutBtn');
-  stopScoutBtn = document.getElementById('stopScoutBtn');
-  refreshScoutBtn = document.getElementById('refreshScoutBtn');
-  binanceAccountSelect = document.getElementById('binanceAccount');
-  binanceEnvSelect = document.getElementById('binanceEnv');
-  binanceNotionalInput = document.getElementById('binanceNotional');
   actionCenterSymbolInput = document.getElementById('actionListingSymbol');
   actionCenterNotionalInput = document.getElementById('actionListingNotional');
   actionCenterAccountSelect = document.getElementById('actionListingAccount');
@@ -60,14 +48,6 @@ export function initListings() {
     refreshListings();
   });
 
-  tableBody.addEventListener('click', (event) => {
-    const btn = event.target.closest('button[data-symbol]');
-    if (btn && btn.dataset.action === 'buy-binance') {
-      const rowNotional = btn.closest('tr')?.querySelector('.row-notional');
-      quickBuy(btn.dataset.symbol, { notionalInput: rowNotional });
-    }
-  });
-
   actionCenterBuyBtn?.addEventListener('click', () => {
     const symbol = actionCenterSymbolInput?.value?.trim();
     if (!symbol) {
@@ -81,18 +61,17 @@ export function initListings() {
     });
   });
 
-  [startScoutBtn, document.getElementById('startScoutInline')].forEach((btn) =>
+  [document.getElementById('startScoutInline')].forEach((btn) =>
     btn?.addEventListener('click', () => toggleScout(true))
   );
-  [stopScoutBtn, document.getElementById('stopScoutInline')].forEach((btn) =>
+  [document.getElementById('stopScoutInline')].forEach((btn) =>
     btn?.addEventListener('click', () => toggleScout(false))
   );
-  [refreshScoutBtn, document.getElementById('refreshScoutInline')].forEach((btn) =>
+  [document.getElementById('refreshScoutInline')].forEach((btn) =>
     btn?.addEventListener('click', loadScoutStatus)
   );
 
   listingConfigForm?.addEventListener('submit', saveListingConfig);
-  document.getElementById('openListingConfig')?.addEventListener('click', loadListingConfig);
   document.getElementById('openListingConfigInline')?.addEventListener('click', loadListingConfig);
 
   clearInterval(listingsInterval);
@@ -147,12 +126,6 @@ function renderTable(listings) {
   tableBody.innerHTML = '';
   listings.forEach((item) => {
     const row = document.createElement('tr');
-    const actionCell =
-      item.source === 'Binance'
-        ? `<div class="inline-actions"><input type="number" class="row-notional" min="1" step="1" value="${
-            binanceNotionalInput?.value || 10
-          }" aria-label="Notional for ${item.symbol}" /><button class="btn btn-primary small" data-action="buy-binance" data-symbol="${item.symbol}">Buy ${item.symbol} (${item.exchange_type})</button></div>`
-        : '';
     row.innerHTML = `
       <td>${item.symbol}</td>
       <td>${item.name}</td>
@@ -161,7 +134,6 @@ function renderTable(listings) {
       <td>${item.source} (${item.exchange_type.toUpperCase()})</td>
       <td>${new Date(item.listed_at).toLocaleString()}</td>
       <td>${item.url ? `<a href="${item.url}" target="_blank">View</a>` : '-'}</td>
-      <td class="actions-cell">${actionCell || '-'}</td>
     `;
     tableBody.appendChild(row);
   });
@@ -170,7 +142,7 @@ function renderTable(listings) {
 function renderErrorRow(message) {
   tableBody.innerHTML = '';
   const row = document.createElement('tr');
-  row.innerHTML = `<td colspan="8" style="text-align:center;">${message}</td>`;
+  row.innerHTML = `<td colspan="7" style="text-align:center;">${message}</td>`;
   tableBody.appendChild(row);
 }
 
@@ -189,9 +161,8 @@ function renderHealth(stats) {
   });
 }
 
-async function quickBuy(symbol) {
 async function quickBuy(symbol, opts = {}) {
-  const notionalRaw = opts.notional ?? opts.notionalInput?.value ?? binanceNotionalInput?.value ?? '10';
+  const notionalRaw = opts.notional ?? opts.notionalInput?.value ?? '10';
   const notional = parseFloat(notionalRaw);
   if (Number.isNaN(notional) || notional <= 0) {
     showToast('Notional must be greater than zero', 'warning');
@@ -201,8 +172,8 @@ async function quickBuy(symbol, opts = {}) {
   const body = {
     symbol,
     notional,
-    account: opts.account ?? opts.accountSelect?.value ?? binanceAccountSelect?.value ?? 'mr',
-    use_testnet: (opts.env ?? opts.envSelect?.value ?? binanceEnvSelect?.value ?? 'mainnet') === 'testnet',
+    account: opts.account ?? opts.accountSelect?.value ?? 'mr',
+    use_testnet: (opts.env ?? opts.envSelect?.value ?? 'mainnet') === 'testnet',
   };
 
   try {
@@ -268,7 +239,7 @@ async function loadScoutStatus() {
 }
 
 async function toggleScout(shouldStart) {
-  const envValue = actionCenterEnvSelect?.value || binanceEnvSelect?.value || 'mainnet';
+  const envValue = actionCenterEnvSelect?.value || 'mainnet';
   const use_testnet = envValue === 'testnet';
   const url = shouldStart ? '/api/listings/binance/scout/start' : '/api/listings/binance/scout/stop';
   try {
