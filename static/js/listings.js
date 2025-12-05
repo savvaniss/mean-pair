@@ -12,7 +12,6 @@ let actionCenterEnvSelect;
 let actionCenterBuyBtn;
 let listingConfigNotional;
 let listingConfigExit;
-let listingConfigSummary;
 let listingConfigForm;
 let inputs;
 let listingsInterval;
@@ -31,7 +30,6 @@ export function initListings() {
   actionCenterBuyBtn = document.getElementById('actionListingBuyBtn');
   listingConfigNotional = document.getElementById('listingConfigNotional');
   listingConfigExit = document.getElementById('listingConfigExit');
-  listingConfigSummary = document.getElementById('listingConfigSummary');
   listingConfigForm = document.getElementById('listingConfigForm');
   inputs = {
     exchangeType: document.getElementById('exchangeType'),
@@ -72,10 +70,13 @@ export function initListings() {
   );
 
   listingConfigForm?.addEventListener('submit', saveListingConfig);
-  document.getElementById('openListingConfigInline')?.addEventListener('click', () => {
+  document.getElementById('openListingConfigInline')?.addEventListener('click', (event) => {
+    event.preventDefault();
     closeOverlay('actionModalOverlay');
-    loadListingConfig();
-    openOverlay('listingConfigOverlay');
+    setTimeout(() => {
+      loadListingConfig();
+      openOverlay('listingConfigOverlay');
+    }, 20);
   });
 
   clearInterval(listingsInterval);
@@ -214,10 +215,6 @@ async function loadScoutStatus() {
       : 'Scout stopped';
     scoutChip.className = data.enabled ? 'chip chip-primary' : 'chip';
 
-    if (listingConfigSummary) {
-      listingConfigSummary.textContent = `Buys ~€${data.target_notional_eur.toFixed(2)} and exits around ${(data.pump_profit_pct * 100).toFixed(2)}% gains`;
-    }
-
     scoutPositions.innerHTML = '';
     if (!data.positions || data.positions.length === 0) {
       const empty = document.createElement('div');
@@ -300,9 +297,6 @@ async function saveListingConfig(event) {
       return;
     }
     showToast('Listing scout config saved', 'success');
-    if (listingConfigSummary) {
-      listingConfigSummary.textContent = `Buys ~€${data.target_notional_eur.toFixed(2)} and exits around ${(data.pump_profit_pct * 100).toFixed(2)}% gains`;
-    }
   } catch (err) {
     console.error(err);
     showToast('Save failed', 'danger');
