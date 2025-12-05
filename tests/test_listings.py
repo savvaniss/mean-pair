@@ -67,8 +67,8 @@ def test_binance_collector_uses_listing_catalog():
 
     collector.fetch(limit=5)
 
-    assert client.last_url == "/bapi/composite/v1/public/cms/article/list/query"
-    assert client.last_params == {"type": 1, "catalogId": 48, "pageSize": 5, "pageNo": 1}
+    assert client.last_url == "/bapi/composite/v1/public/cms/article/catalog/list/query"
+    assert client.last_params == {"catalogId": 48, "pageSize": 5, "pageNo": 1}
 
 
 def test_binance_collector_extracts_symbol_from_parentheses():
