@@ -58,55 +58,56 @@ body {
 
 .btn {
   border: 1px solid var(--border);
-  border-radius: 999px;
+  border-radius: 10px;
   padding: 8px 16px;
   font-size: 0.9rem;
   font-weight: 600;
   cursor: pointer;
-  background: linear-gradient(140deg, rgba(17, 27, 47, 0.96), rgba(12, 19, 33, 0.96));
+  background: var(--surface-light);
   color: var(--text-main);
   display: inline-flex;
   align-items: center;
   gap: 6px;
   transition: background 0.15s, transform 0.05s, box-shadow 0.15s, border-color 0.15s, color 0.15s;
-  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.28);
+  box-shadow: 0 6px 14px rgba(0, 0, 0, 0.25);
 }
 
 .btn:hover {
   transform: translateY(-1px);
-  box-shadow: 0 12px 26px rgba(0, 0, 0, 0.32);
-  border-color: rgba(130, 214, 255, 0.32);
-  background: linear-gradient(140deg, rgba(22, 35, 60, 0.98), rgba(17, 26, 44, 0.98));
+  box-shadow: 0 10px 20px rgba(0, 0, 0, 0.3);
+  border-color: rgba(130, 214, 255, 0.2);
+  background: #1a2742;
 }
 
 .btn-primary {
-  background: linear-gradient(130deg, rgba(76, 125, 192, 0.9), rgba(73, 164, 189, 0.9));
-  border-color: rgba(130, 214, 255, 0.55);
-  color: var(--text-main);
-  box-shadow: 0 12px 28px rgba(82, 149, 217, 0.2);
+  background: var(--primary-soft);
+  border-color: rgba(130, 214, 255, 0.6);
+  color: #0b1720;
+  box-shadow: 0 10px 20px rgba(74, 163, 244, 0.28);
 }
 
 .btn-primary:hover {
-  background: linear-gradient(130deg, rgba(96, 165, 228, 0.95), rgba(90, 198, 213, 0.95));
+  background: var(--primary);
   border-color: rgba(130, 214, 255, 0.8);
+  color: #05101a;
 }
 
 .btn-ghost {
-  background: rgba(17, 27, 47, 0.6);
+  background: rgba(17, 27, 47, 0.5);
   border: 1px solid var(--border);
   color: var(--text-subtle);
 }
 
 .btn-danger {
-  background: linear-gradient(130deg, rgba(186, 93, 93, 0.9), rgba(210, 120, 120, 0.9));
+  background: #c46c6c;
   border-color: rgba(242, 168, 160, 0.65);
-  color: var(--text-main);
-  box-shadow: 0 10px 24px rgba(191, 97, 97, 0.22);
+  color: #0b1221;
+  box-shadow: 0 10px 20px rgba(191, 97, 97, 0.24);
 }
 
 .btn-danger:hover {
   border-color: rgba(242, 168, 160, 0.9);
-  background: linear-gradient(130deg, rgba(209, 123, 123, 0.95), rgba(232, 150, 150, 0.95));
+  background: #d58686;
 }
 
 .btn.small {

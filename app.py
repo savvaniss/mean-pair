@@ -9,7 +9,7 @@ from engines import bollinger as boll_engine
 from engines import trend_following as trend_engine
 from engines import liquidation_hunt as liq_engine
 from engines import relative_strength as rs_engine
-from engines import listings_service
+from engines import listing_scout, listings_service
 from routes import mean_reversion as mr_routes
 from routes import bollinger as boll_routes
 from routes import trend_following as trend_routes
@@ -63,6 +63,7 @@ def stop_threads():
         liq_engine.stop_liquidation_thread()
         rs_engine.stop_rs_thread()
     listings_service.shutdown_scheduler()
+    listing_scout.stop_scout()
 
 
 # =========================

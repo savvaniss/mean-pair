@@ -2,6 +2,7 @@ from datetime import datetime, timedelta
 
 from database import ListingEvent, SessionLocal
 from engines.binance_listings import BinanceListingsCollector
+from engines import listing_scout
 from engines.listings_common import Listing
 from engines import listings_service
 
@@ -9,6 +10,7 @@ from engines import listings_service
 class FakeResponse:
     def __init__(self, payload):
         self._payload = payload
+        self.status_code = 200
 
     def json(self):
         return self._payload
@@ -20,8 +22,12 @@ class FakeResponse:
 class FakeClient:
     def __init__(self, payload):
         self.payload = payload
+        self.last_url = None
+        self.last_params = None
 
     def get(self, *args, **kwargs):
+        self.last_url = args[0] if args else None
+        self.last_params = kwargs.get("params")
         return FakeResponse(self.payload)
 
     def close(self):
@@ -53,6 +59,43 @@ def test_binance_collector_parses_listing():
     assert item.symbol == "TEST"
     assert item.source == "Binance"
     assert item.url.endswith("abc-123")
+
+
+def test_binance_collector_uses_listing_catalog():
+    payload = {"data": {"articles": []}}
+    client = FakeClient(payload)
+    collector = BinanceListingsCollector(client=client)
+
+    collector.fetch(limit=5)
+
+    assert client.last_url == "/bapi/composite/v1/public/cms/article/catalog/list/query"
+    assert client.last_params == {"catalogId": 48, "pageSize": 5, "pageNo": 1}
+
+
+def test_binance_collector_extracts_symbol_from_parentheses():
+    title = "Binance Will List Renzo Restaked ETH (EZETH)"
+    assert BinanceListingsCollector._extract_symbol(title) == "EZETH"
+
+
+def test_listing_scout_prefers_preferred_quote():
+    calls = []
+
+    class FakeClient:
+        def get_symbol_info(self, symbol):
+            calls.append(symbol)
+            if symbol.endswith("USDC"):
+                return {"filters": []}
+            if symbol.endswith("USDT"):
+                return None
+            return None
+
+    symbol, info = listing_scout._resolve_symbol(
+        FakeClient(), base="NEW", fallback_pair="NEWUSDT", preferred_quote="USDC"
+    )
+
+    assert symbol == "NEWUSDC"
+    assert info == {"filters": []}
+    assert calls[0] == "NEWUSDC"
 
 
 def test_run_collector_persists_and_filters():
@@ -112,3 +155,28 @@ def test_listings_api_returns_data(client):
         assert page_resp.status_code == 200
     finally:
         cleanup_source("API Source")
+
+
+def test_listing_scout_config_roundtrip(client):
+    original = listing_scout.get_config()
+    try:
+        resp = client.get("/api/listings/binance/scout/config")
+        assert resp.status_code == 200
+        payload = resp.json()
+        assert "target_notional_eur" in payload
+        assert "pump_profit_pct" in payload
+
+        update = {"target_notional_eur": 25.5, "pump_profit_pct": 0.12}
+        save_resp = client.post("/api/listings/binance/scout/config", json=update)
+        assert save_resp.status_code == 200
+        saved = save_resp.json()
+        assert saved["target_notional_eur"] == update["target_notional_eur"]
+        assert saved["pump_profit_pct"] == update["pump_profit_pct"]
+
+        status = client.get("/api/listings/binance/scout/status").json()
+        assert status["target_notional_eur"] == update["target_notional_eur"]
+        assert status["pump_profit_pct"] == update["pump_profit_pct"]
+    finally:
+        listing_scout.update_config(
+            original["target_notional_eur"], original["pump_profit_pct"]
+        )

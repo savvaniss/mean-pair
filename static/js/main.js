@@ -19,6 +19,16 @@ async function bootstrap() {
   safeRun('liquidation init', initLiquidation);
   safeRun('listings init', initListings);
 
+  document.getElementById('refreshAll')?.addEventListener('click', () => {
+    void safeRefresh('mean reversion', refreshMeanReversion);
+    void safeRefresh('bollinger', refreshBollinger);
+    void safeRefresh('trend', refreshTrendFollowing);
+    void safeRefresh('relative strength', refreshRelativeStrength);
+    void safeRefresh('trading', refreshTrading);
+    void safeRefresh('liquidation', refreshLiquidation);
+    void safeRefresh('listings', refreshListings);
+  });
+
   await safeRefresh('mean reversion', refreshMeanReversion);
   await safeRefresh('bollinger', refreshBollinger);
   await safeRefresh('trend', refreshTrendFollowing);
@@ -64,10 +74,12 @@ async function safeRefresh(label, fn) {
 
 function initOverlays() {
   wireOverlay(['openActionCenter'], 'actionModalOverlay');
+  wireOverlay(['openListingConfig'], 'listingConfigOverlay');
   wireOverlay(['openMrConfig', 'openMrConfigInline'], 'mrConfigOverlay');
   wireOverlay(['openBollConfig', 'openBollConfigInline'], 'bollConfigOverlay');
   wireOverlay(['openTrendConfig', 'openTrendConfigInline'], 'trendConfigOverlay');
   wireOverlay(['openRSConfig', 'openRSConfigInline'], 'rsConfigOverlay');
+  wireOverlay(['openLiqConfigInline'], 'liqConfigOverlay');
 
   document.querySelectorAll('[data-close-overlay]').forEach((btn) => {
     const target = btn.getAttribute('data-close-overlay');
