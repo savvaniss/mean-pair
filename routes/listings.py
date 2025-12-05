@@ -3,7 +3,7 @@ from typing import List, Optional
 
 from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import HTMLResponse, RedirectResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 import config
 from engines import listing_scout, listings_service
@@ -43,6 +43,11 @@ class BinanceBuyResponse(BaseModel):
 
 class ScoutStartRequest(BaseModel):
     use_testnet: bool = config.DEFAULT_ENV == "testnet"
+
+
+class ScoutConfig(BaseModel):
+    target_notional_eur: float = Field(10.0, gt=0)
+    pump_profit_pct: float = Field(0.08, gt=0)
 
 
 @router.get("/listings", response_class=HTMLResponse)
@@ -154,3 +159,15 @@ def binance_scout_start(req: ScoutStartRequest):
 def binance_scout_stop():
     listing_scout.stop_scout()
     return {"status": "stopped"}
+
+
+@router.get("/api/listings/binance/scout/config", response_model=ScoutConfig)
+def binance_scout_config_get():
+    return listing_scout.get_config()
+
+
+@router.post("/api/listings/binance/scout/config", response_model=ScoutConfig)
+def binance_scout_config_set(req: ScoutConfig):
+    if req.target_notional_eur <= 0 or req.pump_profit_pct <= 0:
+        raise HTTPException(status_code=400, detail="config values must be positive")
+    return listing_scout.update_config(req.target_notional_eur, req.pump_profit_pct)

@@ -549,12 +549,12 @@
     </div>
 
     <div class="card">
-      <div class="card-header">
-        <h2>Binance quick actions</h2>
-        <span class="chip" id="scoutStatus">Scout stopped</span>
-      </div>
-      <div class="card-body">
-        <div class="form-row slim">
+        <div class="card-header">
+          <h2>Binance quick actions</h2>
+          <span class="chip" id="scoutStatus">Scout stopped</span>
+        </div>
+        <div class="card-body">
+          <div class="form-row slim">
           <div>
             <label for="binanceAccount" class="label-with-tip">
               Account
@@ -587,10 +587,12 @@
           <button class="btn btn-primary" id="startScoutBtn">Start listing scout</button>
           <button class="btn btn-danger" id="stopScoutBtn">Stop scout</button>
           <button class="btn btn-ghost" id="refreshScoutBtn">Refresh scout</button>
+          <button class="btn" id="openListingConfig">Configure scout</button>
         </div>
+        <div class="config-summary" id="listingConfigSummary">Loading listing config...</div>
         <div class="help-text">
-          Instant buys use the size above with the chosen account. The scout watches Binance listings, auto-buys ~10 EUR worth
-          and exits after a pump.
+          Instant buys use the size above with the chosen account. The scout watches Binance listings, auto-buys your saved
+          per-listing amount and exits after a pump.
         </div>
         <div id="scoutPositions" class="health-grid"></div>
       </div>
@@ -729,15 +731,83 @@
         </div>
         <div class="action-column">
           <div class="modal-subtitle">Binance listings</div>
+          <label class="stacked-field">
+            Manual symbol
+            <input id="actionListingSymbol" type="text" placeholder="e.g. NEW" />
+          </label>
+          <div class="form-row slim">
+            <div>
+              <label class="label-with-tip" for="actionListingAccount">
+                Account
+                <span class="tooltip-icon" title="Which Binance keys to use for instant buys from the action center.">?</span>
+              </label>
+              <select id="actionListingAccount">
+                <option value="mr">MR keys</option>
+                <option value="boll">Bollinger keys</option>
+              </select>
+            </div>
+            <div>
+              <label class="label-with-tip" for="actionListingEnv">
+                Env
+                <span class="tooltip-icon" title="Send listing scout trades to testnet or mainnet.">?</span>
+              </label>
+              <select id="actionListingEnv">
+                <option value="mainnet">Mainnet</option>
+                <option value="testnet">Testnet</option>
+              </select>
+            </div>
+            <div>
+              <label class="label-with-tip" for="actionListingNotional">
+                Buy size (USDC)
+                <span class="tooltip-icon" title="Quote amount used when clicking Buy now or per-row buys.">?</span>
+              </label>
+              <input id="actionListingNotional" type="number" min="1" step="1" value="10" />
+            </div>
+          </div>
           <div class="button-stack">
+            <button class="btn btn-primary" id="actionListingBuyBtn">Buy symbol now</button>
             <button class="btn btn-primary" id="startScoutInline">Start scout</button>
             <button class="btn btn-danger" id="stopScoutInline">Stop scout</button>
             <button class="btn btn-ghost" id="refreshScoutInline">Refresh status</button>
+            <button class="btn" id="openListingConfigInline">Configure scout</button>
           </div>
         </div>
       </div>
       <div class="modal-footer">
         <button class="btn btn-ghost" data-close-overlay="actionModalOverlay">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="listingConfigOverlay" class="modal-overlay">
+    <div class="modal">
+      <div class="modal-header">
+        <div class="modal-header-title">Listing scout config</div>
+        <button class="btn btn-ghost small" data-close-overlay="listingConfigOverlay">✕</button>
+      </div>
+      <div class="modal-body">
+        <form id="listingConfigForm">
+          <div class="form-row">
+            <div>
+              <label for="listingConfigNotional" class="label-with-tip">
+                Buy size per listing (EUR)
+                <span class="tooltip-icon" title="Approximate euro amount allocated to each new Binance listing when the scout triggers.">?</span>
+              </label>
+              <input id="listingConfigNotional" type="number" min="1" step="1" value="10" required />
+            </div>
+            <div>
+              <label for="listingConfigExit" class="label-with-tip">
+                Exit trigger (% gain)
+                <span class="tooltip-icon" title="Percentage gain over entry where the scout will try to sell the position.">?</span>
+              </label>
+              <input id="listingConfigExit" type="number" min="1" step="0.1" value="8" required />
+            </div>
+          </div>
+          <div class="button-row">
+            <button type="submit" class="btn btn-primary">Save config</button>
+            <button type="button" class="btn btn-ghost" data-close-overlay="listingConfigOverlay">Cancel</button>
+          </div>
+        </form>
       </div>
     </div>
   </div>

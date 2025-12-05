@@ -64,6 +64,7 @@ async function safeRefresh(label, fn) {
 
 function initOverlays() {
   wireOverlay(['openActionCenter'], 'actionModalOverlay');
+  wireOverlay(['openListingConfig', 'openListingConfigInline'], 'listingConfigOverlay');
   wireOverlay(['openMrConfig', 'openMrConfigInline'], 'mrConfigOverlay');
   wireOverlay(['openBollConfig', 'openBollConfigInline'], 'bollConfigOverlay');
   wireOverlay(['openTrendConfig', 'openTrendConfigInline'], 'trendConfigOverlay');

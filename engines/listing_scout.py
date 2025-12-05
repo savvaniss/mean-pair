@@ -32,14 +32,14 @@ class ListingScoutState:
     last_run: datetime | None = None
     watched: Set[str] = field(default_factory=set)
     positions: Dict[str, ScoutPosition] = field(default_factory=dict)
+    target_notional_eur: float = float(os.getenv("LISTING_SCOUT_NOTIONAL_EUR", "10"))
+    pump_profit_pct: float = float(os.getenv("LISTING_SCOUT_PUMP_PCT", "0.08"))
 
 
 state = ListingScoutState()
 scout_thread: Optional[threading.Thread] = None
 stop_event = threading.Event()
 
-TARGET_NOTIONAL_EUR = float(os.getenv("LISTING_SCOUT_NOTIONAL_EUR", "10"))
-PUMP_PROFIT_PCT = float(os.getenv("LISTING_SCOUT_PUMP_PCT", "0.08"))
 POLL_SECONDS = int(os.getenv("LISTING_SCOUT_POLL_SECONDS", "45"))
 
 
@@ -122,7 +122,7 @@ def _buy_listing(client, listing) -> None:
 
     ticker = client.get_symbol_ticker(symbol=trade_symbol)
     price = float(ticker["price"])
-    qty = TARGET_NOTIONAL_EUR / price
+    qty = state.target_notional_eur / price
     qty_adj = _adjust_quantity(info, qty)
     if qty_adj <= 0:
         logger.info("Qty too small for %s (computed=%s)", trade_symbol, qty)
@@ -135,7 +135,7 @@ def _buy_listing(client, listing) -> None:
 
     fills = order.get("fills") or []
     fill_price = float(fills[0].get("price", price)) if fills else price
-    target_price = fill_price * (1 + PUMP_PROFIT_PCT)
+    target_price = fill_price * (1 + state.pump_profit_pct)
     state.positions[trade_symbol] = ScoutPosition(
         symbol=trade_symbol,
         qty=qty_adj,
@@ -241,5 +241,20 @@ def get_status() -> dict:
         "last_run": state.last_run,
         "watched": sorted(state.watched),
         "positions": open_positions,
+        "target_notional_eur": state.target_notional_eur,
+        "pump_profit_pct": state.pump_profit_pct,
     }
+
+
+def get_config() -> dict:
+    return {
+        "target_notional_eur": state.target_notional_eur,
+        "pump_profit_pct": state.pump_profit_pct,
+    }
+
+
+def update_config(target_notional_eur: float, pump_profit_pct: float) -> dict:
+    state.target_notional_eur = target_notional_eur
+    state.pump_profit_pct = pump_profit_pct
+    return get_config()
 

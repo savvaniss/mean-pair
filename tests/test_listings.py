@@ -155,3 +155,28 @@ def test_listings_api_returns_data(client):
         assert page_resp.status_code == 200
     finally:
         cleanup_source("API Source")
+
+
+def test_listing_scout_config_roundtrip(client):
+    original = listing_scout.get_config()
+    try:
+        resp = client.get("/api/listings/binance/scout/config")
+        assert resp.status_code == 200
+        payload = resp.json()
+        assert "target_notional_eur" in payload
+        assert "pump_profit_pct" in payload
+
+        update = {"target_notional_eur": 25.5, "pump_profit_pct": 0.12}
+        save_resp = client.post("/api/listings/binance/scout/config", json=update)
+        assert save_resp.status_code == 200
+        saved = save_resp.json()
+        assert saved["target_notional_eur"] == update["target_notional_eur"]
+        assert saved["pump_profit_pct"] == update["pump_profit_pct"]
+
+        status = client.get("/api/listings/binance/scout/status").json()
+        assert status["target_notional_eur"] == update["target_notional_eur"]
+        assert status["pump_profit_pct"] == update["pump_profit_pct"]
+    finally:
+        listing_scout.update_config(
+            original["target_notional_eur"], original["pump_profit_pct"]
+        )
