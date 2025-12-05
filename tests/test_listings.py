@@ -9,6 +9,7 @@ from engines import listings_service
 class FakeResponse:
     def __init__(self, payload):
         self._payload = payload
+        self.status_code = 200
 
     def json(self):
         return self._payload
@@ -53,6 +54,11 @@ def test_binance_collector_parses_listing():
     assert item.symbol == "TEST"
     assert item.source == "Binance"
     assert item.url.endswith("abc-123")
+
+
+def test_binance_collector_extracts_symbol_from_parentheses():
+    title = "Binance Will List Renzo Restaked ETH (EZETH)"
+    assert BinanceListingsCollector._extract_symbol(title) == "EZETH"
 
 
 def test_run_collector_persists_and_filters():
