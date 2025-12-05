@@ -1,4 +1,4 @@
-import { showToast } from './ui.js';
+import { closeOverlay, openOverlay, showToast } from './ui.js';
 
 let tableBody;
 let refreshBtn;
@@ -72,7 +72,11 @@ export function initListings() {
   );
 
   listingConfigForm?.addEventListener('submit', saveListingConfig);
-  document.getElementById('openListingConfigInline')?.addEventListener('click', loadListingConfig);
+  document.getElementById('openListingConfigInline')?.addEventListener('click', () => {
+    closeOverlay('actionModalOverlay');
+    loadListingConfig();
+    openOverlay('listingConfigOverlay');
+  });
 
   clearInterval(listingsInterval);
   clearInterval(healthInterval);
