@@ -107,12 +107,13 @@ async function safeRefresh(label, fn) {
 }
 
 function initOverlays() {
-  wireOverlay(['openActionCenter'], 'actionModalOverlay');
+  wireOverlay(['openActionCenter', 'openActionCenterFreqtrade'], 'actionModalOverlay');
   wireOverlay(['openListingConfig'], 'listingConfigOverlay');
   wireOverlay(['openMrConfig', 'openMrConfigInline'], 'mrConfigOverlay');
   wireOverlay(['openBollConfig', 'openBollConfigInline'], 'bollConfigOverlay');
   wireOverlay(['openTrendConfig', 'openTrendConfigInline'], 'trendConfigOverlay');
   wireOverlay(['openRSConfig', 'openRSConfigInline'], 'rsConfigOverlay');
+  wireOverlay(['openFtConfig', 'openFtConfigInline'], 'ftConfigOverlay');
   wireOverlay(['openLiqConfigInline'], 'liqConfigOverlay');
 
   document.querySelectorAll('[data-close-overlay]').forEach((btn) => {
