@@ -2,6 +2,7 @@ const loginForm = document.getElementById('loginForm');
 const registerForm = document.getElementById('registerForm');
 const loginFeedback = document.getElementById('loginFeedback');
 const registerFeedback = document.getElementById('registerFeedback');
+const registrationDivider = document.getElementById('registrationDivider');
 const registrationDisabled = document.getElementById('registrationDisabled');
 const registerButton = document.getElementById('registerButton');
 
@@ -11,8 +12,12 @@ async function fetchConfig() {
     const data = await resp.json();
     if (!data.registration_enabled) {
       registrationDisabled.hidden = false;
-      registerButton.disabled = true;
-      registerForm.querySelectorAll('input').forEach((el) => (el.disabled = true));
+      if (registrationDivider) registrationDivider.hidden = true;
+      if (registerForm) {
+        registerForm.hidden = true;
+        registerButton.disabled = true;
+        registerForm.querySelectorAll('input').forEach((el) => (el.disabled = true));
+      }
     }
   } catch (err) {
     console.error('Unable to load auth config', err);
