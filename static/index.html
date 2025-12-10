@@ -24,17 +24,66 @@
     </div>
   </div>
 
-    <div class="tab-bar">
-      <button class="tab active" data-tab="mean">Mean Reversion (Pairs)</button>
-      <button class="tab" data-tab="boll">Single-Coin Bollinger</button>
-      <button class="tab" data-tab="trend">Trend Following (EMA)</button>
-      <button class="tab" data-tab="freqtrade">Freqtrade Adapters</button>
-      <button class="tab" data-tab="rs">Relative Strength</button>
-      <button class="tab" data-tab="amp">Amplification</button>
-      <button class="tab" data-tab="backtest">Backtesting</button>
-      <button class="tab" data-tab="trading">Trading Desk</button>
-      <button class="tab" data-tab="liquidation">Liquidation Hunt</button>
-      <button class="tab" data-tab="listings">Listings Monitor</button>
+    <div class="nav-panel">
+      <div class="nav-group">
+        <div class="nav-group-header">
+          <p class="eyebrow">Algorithms</p>
+          <h3>Live strategy boards</h3>
+          <p class="nav-note">Jump between automated systems without mixing them with tools.</p>
+        </div>
+        <div class="tab-bar nav-links">
+          <button class="tab active" data-tab="mean">
+            <span class="tab-title">Mean Reversion</span>
+            <span class="tab-sub">Pairs</span>
+          </button>
+          <button class="tab" data-tab="boll">
+            <span class="tab-title">Single-Coin Bollinger</span>
+            <span class="tab-sub">Bands</span>
+          </button>
+          <button class="tab" data-tab="trend">
+            <span class="tab-title">Trend Following</span>
+            <span class="tab-sub">EMA + ATR</span>
+          </button>
+          <button class="tab" data-tab="freqtrade">
+            <span class="tab-title">Freqtrade Adapters</span>
+            <span class="tab-sub">Bridges</span>
+          </button>
+          <button class="tab" data-tab="rs">
+            <span class="tab-title">Relative Strength</span>
+            <span class="tab-sub">Momentum</span>
+          </button>
+          <button class="tab" data-tab="amp">
+            <span class="tab-title">Amplification</span>
+            <span class="tab-sub">Compounding</span>
+          </button>
+        </div>
+      </div>
+
+      <div class="nav-group">
+        <div class="nav-group-header">
+          <p class="eyebrow">Tools & desks</p>
+          <h3>Execution + analysis</h3>
+          <p class="nav-note">Operations that support the algorithms: testing, live orders, and feeds.</p>
+        </div>
+        <div class="tab-bar nav-links">
+          <button class="tab" data-tab="backtest">
+            <span class="tab-title">Backtesting</span>
+            <span class="tab-sub">Offline replays</span>
+          </button>
+          <button class="tab" data-tab="trading">
+            <span class="tab-title">Trading Desk</span>
+            <span class="tab-sub">Manual orders</span>
+          </button>
+          <button class="tab" data-tab="liquidation">
+            <span class="tab-title">Liquidation Hunt</span>
+            <span class="tab-sub">Opportunistic</span>
+          </button>
+          <button class="tab" data-tab="listings">
+            <span class="tab-title">Listings Monitor</span>
+            <span class="tab-sub">Early signals</span>
+          </button>
+        </div>
+      </div>
     </div>
 
   <div id="tab-mean" class="tab-content active">
