@@ -20,6 +20,7 @@ from routes import trading as trading_routes
 from routes import liquidation as liquidation_routes
 from routes import listings as listings_routes
 from routes import freqtrade_algos as ft_routes
+from routes import backtesting as backtest_routes
 
 CURRENT_USER_OPTIONAL = auth.get_current_user_optional
 
@@ -44,6 +45,7 @@ app.include_router(trading_routes.router, dependencies=[auth_required])
 app.include_router(liquidation_routes.router, dependencies=[auth_required])
 app.include_router(listings_routes.router, dependencies=[auth_required])
 app.include_router(ft_routes.router, dependencies=[auth_required])
+app.include_router(backtest_routes.router, dependencies=[auth_required])
 app.include_router(auth.router)
 
 

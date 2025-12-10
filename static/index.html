@@ -30,6 +30,7 @@
       <button class="tab" data-tab="trend">Trend Following (EMA)</button>
       <button class="tab" data-tab="freqtrade">Freqtrade Adapters</button>
       <button class="tab" data-tab="rs">Relative Strength</button>
+      <button class="tab" data-tab="backtest">Backtesting</button>
       <button class="tab" data-tab="trading">Trading Desk</button>
       <button class="tab" data-tab="liquidation">Liquidation Hunt</button>
       <button class="tab" data-tab="listings">Listings Monitor</button>
@@ -499,6 +500,163 @@
             </thead>
             <tbody id="rsTradesBody"></tbody>
           </table>
+        </div>
+      </div>
+    </div>
+
+    <div id="tab-backtest" class="tab-content">
+      <div class="card" data-collapsible>
+        <div class="card-header">
+          <h2>Historical backtesting</h2>
+          <span class="toggle-icon">▼</span>
+        </div>
+        <div class="card-body">
+          <form id="backtestForm" class="stacked-form">
+            <div class="form-row">
+              <label>
+                Strategy
+                <select id="backtestStrategy"></select>
+              </label>
+              <label id="backtestSymbolRow">
+                Symbol
+                <input type="text" id="backtestSymbol" value="BTCUSDT" />
+              </label>
+              <label>
+                Interval
+                <select id="backtestInterval">
+                  <option value="1m">1m</option>
+                  <option value="5m">5m</option>
+                  <option value="15m">15m</option>
+                  <option value="1h">1h</option>
+                  <option value="4h">4h</option>
+                  <option value="1d">1d</option>
+                </select>
+              </label>
+              <label>
+                Lookback (days)
+                <input type="number" id="backtestLookback" min="1" step="1" value="30" />
+              </label>
+            </div>
+
+            <div class="form-row">
+              <label>
+                Start date
+                <input type="date" id="backtestStartDate" />
+              </label>
+              <label>
+                End date
+                <input type="date" id="backtestEndDate" />
+              </label>
+            </div>
+
+            <div class="form-row" id="backtestPairFields">
+              <label>
+                Asset A
+                <input type="text" id="backtestAssetA" value="HBAR" />
+              </label>
+              <label>
+                Asset B
+                <input type="text" id="backtestAssetB" value="DOGE" />
+              </label>
+            </div>
+
+            <div class="form-row" id="backtestBollFields">
+              <label>
+                Window size
+                <input type="number" id="backtestWindow" min="5" step="5" value="70" />
+              </label>
+              <label>
+                Std dev width
+                <input type="number" id="backtestStd" step="0.1" value="3" />
+              </label>
+            </div>
+
+            <div class="form-row" id="backtestTrendFields">
+              <label>
+                Fast EMA
+                <input type="number" id="backtestFast" min="2" step="1" value="12" />
+              </label>
+              <label>
+                Slow EMA
+                <input type="number" id="backtestSlow" min="5" step="1" value="26" />
+              </label>
+              <label>
+                ATR window
+                <input type="number" id="backtestAtrWindow" min="3" step="1" value="14" />
+              </label>
+              <label>
+                ATR stop (x)
+                <input type="number" id="backtestAtrStop" min="0.1" step="0.1" value="2.0" />
+              </label>
+            </div>
+
+            <div class="form-row" id="backtestMrFields">
+              <label>
+                Z-entry
+                <input type="number" id="backtestZEntry" step="0.1" value="3.0" />
+              </label>
+              <label>
+                Z-exit
+                <input type="number" id="backtestZExit" step="0.1" value="0.4" />
+              </label>
+            </div>
+
+            <div class="form-row" id="backtestCommonFields">
+              <label>
+                Starting balance (USD)
+                <input type="number" id="backtestStartingBalance" step="100" value="1000" />
+              </label>
+            </div>
+
+            <div class="button-row">
+              <button type="submit" class="btn btn-primary">Run backtest</button>
+              <div class="help-text">Use optional start/end dates to replay a specific month (e.g. last August) instead of the rolling lookback. Uses live Binance historical klines to replay each algorithm without placing orders.</div>
+            </div>
+          </form>
+
+          <div class="card" style="margin-top: 18px;">
+            <div class="card-header">
+              <h3>Summary</h3>
+            </div>
+            <div class="card-body" id="backtestSummary">Run a backtest to see performance.</div>
+          </div>
+
+          <div class="card" style="margin-top: 18px;">
+            <div class="card-header">
+              <h3>Trades</h3>
+            </div>
+            <div class="card-body table-wrapper">
+              <table id="backtestTrades">
+                <thead>
+                  <tr>
+                    <th>Time</th>
+                    <th>Action</th>
+                    <th>Size</th>
+                    <th>Price</th>
+                    <th>PnL</th>
+                  </tr>
+                </thead>
+                <tbody></tbody>
+              </table>
+            </div>
+          </div>
+
+          <div class="card" style="margin-top: 18px;">
+            <div class="card-header">
+              <h3>Equity trail (last 50 points)</h3>
+            </div>
+            <div class="card-body table-wrapper">
+              <table id="backtestEquity">
+                <thead>
+                  <tr>
+                    <th>Time</th>
+                    <th>Equity</th>
+                  </tr>
+                </thead>
+                <tbody></tbody>
+              </table>
+            </div>
+          </div>
         </div>
       </div>
     </div>
