@@ -10,6 +10,7 @@ from engines import bollinger as boll_engine
 from engines import trend_following as trend_engine
 from engines import liquidation_hunt as liq_engine
 from engines import relative_strength as rs_engine
+from engines import freqtrade_algos as ft_engine
 from engines import listing_scout, listings_service
 from routes import mean_reversion as mr_routes
 from routes import bollinger as boll_routes
@@ -18,6 +19,7 @@ from routes import relative_strength as rs_routes
 from routes import trading as trading_routes
 from routes import liquidation as liquidation_routes
 from routes import listings as listings_routes
+from routes import freqtrade_algos as ft_routes
 
 CURRENT_USER_OPTIONAL = auth.get_current_user_optional
 
@@ -41,6 +43,7 @@ app.include_router(rs_routes.router, dependencies=[auth_required])
 app.include_router(trading_routes.router, dependencies=[auth_required])
 app.include_router(liquidation_routes.router, dependencies=[auth_required])
 app.include_router(listings_routes.router, dependencies=[auth_required])
+app.include_router(ft_routes.router, dependencies=[auth_required])
 app.include_router(auth.router)
 
 
@@ -57,6 +60,7 @@ def start_threads():
         trend_engine.start_trend_thread()
         liq_engine.start_liquidation_thread()
         rs_engine.start_rs_thread()
+        ft_engine.start_freqtrade_thread()
     listings_service.start_scheduler()
 
 
@@ -68,6 +72,7 @@ def stop_threads():
         trend_engine.stop_trend_thread()
         liq_engine.stop_liquidation_thread()
         rs_engine.stop_rs_thread()
+        ft_engine.stop_freqtrade_thread()
     listings_service.shutdown_scheduler()
     listing_scout.stop_scout()
 

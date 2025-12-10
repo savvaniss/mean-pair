@@ -28,6 +28,7 @@
       <button class="tab active" data-tab="mean">Mean Reversion (Pairs)</button>
       <button class="tab" data-tab="boll">Single-Coin Bollinger</button>
       <button class="tab" data-tab="trend">Trend Following (EMA)</button>
+      <button class="tab" data-tab="freqtrade">Freqtrade Adapters</button>
       <button class="tab" data-tab="rs">Relative Strength</button>
       <button class="tab" data-tab="trading">Trading Desk</button>
       <button class="tab" data-tab="liquidation">Liquidation Hunt</button>
@@ -296,6 +297,129 @@
               </tr>
             </thead>
             <tbody id="trendHistoryBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <div id="tab-freqtrade" class="tab-content">
+      <div class="row">
+        <div class="card" data-collapsible>
+          <div class="card-header">
+            <h2>Freqtrade Adapters</h2>
+            <span class="toggle-icon">▼</span>
+          </div>
+          <div class="card-body" id="ftStatus">Loading...</div>
+        </div>
+
+        <div class="card" data-collapsible>
+          <div class="card-header">
+            <h2>Strategy Controls</h2>
+            <span class="toggle-icon">▼</span>
+          </div>
+          <div class="card-body">
+            <div class="form-row">
+              <div>
+                <label for="ftStrategySelect">Algorithm</label>
+                <select id="ftStrategySelect">
+                  <option value="">Select…</option>
+                  <option value="pattern_recognition">PatternRecognition (1D)</option>
+                  <option value="strategy001">Strategy001 (EMA + HA)</option>
+                </select>
+              </div>
+              <div class="button-row">
+                <button class="btn btn-primary" id="ftStartBtn">Start</button>
+                <button class="btn btn-ghost" id="ftStopBtn">Stop</button>
+              </div>
+            </div>
+            <div id="ftConfigSummary" class="config-summary">Choose an algorithm to load its config.</div>
+            <form id="ftConfigForm" class="stacked">
+              <div class="form-row">
+                <div class="form-field">
+                  <label for="ft_symbol" class="label-with-tip">Symbol<span class="tooltip-icon" title="Market symbol to trade (e.g., BTCUSDT).">?</span></label>
+                  <input id="ft_symbol" name="symbol" type="text" placeholder="BTCUSDT" />
+                </div>
+                <div class="form-field">
+                  <label for="ft_timeframe" class="label-with-tip">Timeframe<span class="tooltip-icon" title="Binance interval like 1d or 5m.">?</span></label>
+                  <input id="ft_timeframe" name="timeframe" type="text" placeholder="1d" />
+                </div>
+              </div>
+              <div class="form-row">
+                <div class="form-field">
+                  <label for="ft_poll" class="label-with-tip">Poll interval (sec)<span class="tooltip-icon" title="Seconds between indicator refresh.">?</span></label>
+                  <input id="ft_poll" name="poll_interval_sec" type="number" min="5" step="1" />
+                </div>
+                <div class="form-field">
+                  <label for="ft_max_position" class="label-with-tip">Max position (USD)<span class="tooltip-icon" title="Virtual notional for simulated fills.">?</span></label>
+                  <input id="ft_max_position" name="max_position_usd" type="number" step="1" />
+                </div>
+              </div>
+              <div class="form-row">
+                <div class="form-field">
+                  <label for="ft_buy_threshold" class="label-with-tip">Pattern threshold<span class="tooltip-icon" title="CDL High-Wave trigger (default -100)">?</span></label>
+                  <input id="ft_buy_threshold" name="buy_threshold" type="number" step="1" />
+                </div>
+                <div class="form-field checkbox-field">
+                  <input type="checkbox" id="ft_use_testnet" name="use_testnet" />
+                  <label for="ft_use_testnet">Use testnet</label>
+                </div>
+              </div>
+              <div class="button-row">
+                <button type="submit" class="btn btn-primary">Save config</button>
+                <button type="button" class="btn btn-ghost" id="openFtHelp">Docs</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      </div>
+
+      <div class="card" data-collapsible>
+        <div class="card-header">
+          <h2>Indicators & History</h2>
+          <span class="toggle-icon">▼</span>
+        </div>
+        <div class="card-body">
+          <div class="chart-row">
+            <div class="chart-col">
+              <h3>Price trail</h3>
+              <canvas id="ftChart" width="500" height="180"></canvas>
+            </div>
+            <div class="chart-col">
+              <h3>Recent snapshots</h3>
+              <table id="ftHistoryTable">
+                <thead>
+                  <tr>
+                    <th>Time</th>
+                    <th>Price</th>
+                    <th>Indicator A</th>
+                    <th>Indicator B</th>
+                  </tr>
+                </thead>
+                <tbody id="ftHistoryBody"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card" data-collapsible>
+        <div class="card-header">
+          <h2>Transactions</h2>
+          <span class="toggle-icon">▼</span>
+        </div>
+        <div class="card-body">
+          <table id="ftTradesTable">
+            <thead>
+              <tr>
+                <th>Time</th>
+                <th>Side</th>
+                <th>Price</th>
+                <th>Qty</th>
+                <th>Notional</th>
+                <th>PnL</th>
+              </tr>
+            </thead>
+            <tbody id="ftTradesBody"></tbody>
           </table>
         </div>
       </div>

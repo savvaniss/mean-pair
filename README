@@ -193,6 +193,24 @@ Services:
 
 ---
 
+## Adding New Algorithms (e.g., PatternRecognition and Strategy001)
+
+The app can host additional strategies like the two Freqtrade examples below. To wire them in, mirror the existing engines and routers:
+
+1. **Create an engine module** under `engines/` that wraps the algorithm's signal logic (e.g., talib pattern recognition or EMA/Heikin Ashi crossover). Follow the structure in `engines/bollinger.py` or `engines/trend_following.py`: maintain state objects, expose `start_*_thread()`/`stop_*_thread()` helpers, and guard exchange calls with `config.BOT_DISABLE_THREADS` / `DISABLE_BINANCE_CLIENT` flags.
+2. **Add a FastAPI router** in `routes/` that surfaces config and status endpoints for the new engine (see `routes/trend_following.py` as a template). Include endpoints to toggle `enabled`, set symbol/timeframe, and expose recent signals so the frontend can display them.
+3. **Register the strategy** in `app.py`: import the new engine and router, include the router with `auth_required`, and start/stop the background thread inside the `startup`/`shutdown` events alongside the other bots.
+4. **Persist snapshots/trades** by extending `database.py` with new SQLAlchemy models similar to `TrendSnapshot`/`TrendTrade` so you can chart signals and PnL. Reuse helpers in `engines/common.py` for price fetching, sizing, and rounding.
+5. **Update the dashboard** in `static/` if you need a dedicated view. You can copy the Bollinger chart/table widgets and point them at the new API routes.
+6. **Backfill tests** in `tests/` to validate indicator calculations and API responses. Use fixtures like `mock_binance_client` and flags such as `DISABLE_BINANCE_CLIENT=1` to keep tests offline.
+
+For the provided snippets:
+
+- *PatternRecognition* uses `talib` pattern-recognition functions on daily candles. Feed it OHLCV data (from Binance klines or your DB), calculate the chosen pattern column in `populate_indicators`, and generate `enter_long`/`exit_long` flags similar to `populate_entry_trend`.
+- *Strategy001* trades 5m EMA crossovers with Heikin Ashi candles. The engine should stream 5m prices, compute `ema20/ema50/ema100` plus HA candles, and issue market orders when the crossover/HA conditions flip.
+
+---
+
 ## Testing & CI
 
 Run all tests locally:
