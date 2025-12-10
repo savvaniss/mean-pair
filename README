@@ -1,57 +1,62 @@
-# HBAR–DOGE Mean Reversion & Bollinger Bot
+# Crypto Algorithm Suite (Mean Reversion, Bollinger, Trend, Freqtrade adapters & Backtesting)
 
 [![CI](https://github.com/savvaniss/mean-pair/actions/workflows/ci.yml/badge.svg)](https://github.com/savvaniss/mean-pair/actions/workflows/ci.yml)
 
-A modular cryptocurrency trading bot that implements **mean reversion** for the HBAR/DOGE ratio and **Bollinger Band** strategies for single trading pairs. The backend is built with FastAPI, Python, and SQLAlchemy. Docker Compose wires the app to PostgreSQL by default, while local development can still point `DATABASE_URL` at SQLite. The lightweight HTML/JavaScript dashboard lives in `static/`. A full pytest suite and GitHub Actions CI pipeline keep the project validated in development.
+A FastAPI-based trading lab that hosts several algorithms, a lightweight listings monitor, and a full historical backtester that replays public candles from Binance (with Yahoo Finance fallback). The HTML/JavaScript dashboard in `static/` lets you start or stop live loops, edit parameters, trigger manual trades, and run backtests over arbitrary date ranges.
 
 ---
 
-## Key Functionality
+## Core Algorithms
 
-### Mean Reversion Bot (HBAR ↔ DOGE)
+### Mean Reversion (HBAR ↔ DOGE ratio)
+- Trades the ratio `HBARUSDC / DOGEUSDC` with configurable `z_entry` / `z_exit`, moving-window size, and optional fixed ratio thresholds.
+- Tracks current asset, quantities, realized/unrealized PnL, and logs every trade.
+- Supports Binance testnet or mainnet via environment flags and manual trade overrides.
 
-- Trades the ratio `HBARUSDC / DOGEUSDC` to capitalize on reversion toward the rolling mean.
-- Rolling statistics and signals:
-  - Mean, standard deviation, and z-score
-  - Entry/exit thresholds (`z_entry` and `z_exit`) with optional fixed ratio thresholds
-- Maintains internal portfolio state:
-  - Current asset and quantity
-  - Realized and unrealized PnL
-- Full trade logging plus manual trade support for discretionary entries/exits.
-- Works on Binance testnet or mainnet, controlled through environment variables.
+### Single-Coin Bollinger Bands
+- Trades any symbol against USDC/USDT/BTC (e.g., `BNBUSDC`, `ETHUSDT`).
+- Configurable window, standard-deviation width, max position size, stop-loss/take-profit, and cooldown between entries.
+- Streams status, trades, and band/price history for charting.
 
-### Single-Coin Bollinger Bot
+### Trend Following
+- Simple moving-average crossover with ATR-based trailing stops.
+- Parameterized fast/slow windows and ATR multiplier per symbol/interval.
 
-- Trades any supported symbol vs USDC, USDT, or BTC (e.g., `BNBUSDC`, `ETHUSDT`).
-- Bollinger Band calculation with moving average, standard deviation, and upper/lower bands.
-- Configurable parameters: window size, band width, maximum position size, stop-loss/take-profit, cooldown interval.
-- Tracks quote balance, asset quantity, and realized/unrealized PnL.
-- Detailed trade history and a manual exit endpoint for risk control.
+### Freqtrade Adapter Examples
+- Ships lightweight adapters mirroring several Freqtrade snippets:
+  - `pattern_recognition` (talib candle patterns)
+  - `strategy001` / `strategy002` / `strategy003` (EMA, RSI, stochastic, Bollinger confluences)
+  - `supertrend` (multi-supertrend agreement)
+- Each adapter maintains position state, indicator snapshots, and trade logs for the UI.
 
-### Shared Platform Features
+### Listings Monitor
+- Collectors for Binance plus additional CEX/DEX feeds with normalized fields (exchange, network, base/quote, source URL).
+- UI table with filters for exchange type, name, network, search text, and time windows.
 
-- FastAPI service exposing JSON endpoints for both strategies.
-- Centralized configuration management in `config.py` with per-bot settings.
-- SQLAlchemy-backed state and logging handled via `database.py` (SQLite by default; PostgreSQL supported).
-- Single-page dashboard for live monitoring, manual control, and charting.
-- Listing monitor that aggregates new coin/pair launches across Binance, major CEXs, and DEX aggregators.
-- Docker and docker-compose for reproducible deployments.
+---
+
+## Historical Backtesting
+
+The `/backtest` API and dashboard tab can simulate any supported algorithm against public market data:
+- **Data sources:** Binance public klines with interval-aware pagination; automatic Yahoo Finance fallback if Binance data is missing.
+- **Date control:** Run lookbacks by days or specify exact `start_date`/`end_date` windows (e.g., "last August").
+- **Supported strategies:** mean reversion (pair), Bollinger (single symbol), trend following, and all Freqtrade adapters.
+- **Outputs:** structured trades, equity curve, final balance, return %, win rate, and max drawdown returned to the UI.
+- **Configurable bankroll:** per-run `starting_balance` for consistent PnL baselines.
 
 ---
 
 ## Dashboard
 
-The HTML/JavaScript dashboard (served from `/`) provides:
-
-- Live status for both bots, including balances, prices, and PnL
-- Mean-reversion ratio charts and Bollinger price/band charts
-- Inline configuration editor for both strategies
-- Manual trading controls and quick status toggles
-- Trade history tables for auditing decisions
+The single-page dashboard (served from `/`) includes:
+- Live strategy status cards with balances, prices, PnL, and last signals.
+- Inline configuration editors for mean reversion, Bollinger, trend, and Freqtrade adapters.
+- Manual trading controls (e.g., HBAR↔DOGE swaps, Bollinger manual exits).
+- Strategy-specific trade history tables and charts.
+- **Backtesting tab** with strategy selector, date pickers, and validation that requires the right inputs per algorithm before submitting.
+- `/listings` page that renders the listings monitor with dynamic filters and polling.
 
 Static assets live in `static/` and are served directly by FastAPI.
-
-The `/listings` page provides a live feed of new listings with filters by exchange type (CEX/DEX), exchange name, network, search, and time window. A JSON API (`/api/listings/latest`) powers the table and can be consumed programmatically.
 
 ---
 
@@ -59,41 +64,45 @@ The `/listings` page provides a live feed of new listings with filters by exchan
 
 ```
 mean-pair/
-├── app.py                   # FastAPI application setup and route registration
+├── app.py                   # FastAPI app wiring and router registration
 ├── config.py                # Default configuration and helper utilities
-├── database.py              # Database helpers and initialization (SQLAlchemy)
-├── engines/                 # Trading logic implementations
-│   ├── bollinger.py         # Bollinger Band strategy engine
-│   ├── common.py            # Shared helpers (pricing, stats, risk controls)
-│   └── mean_reversion.py    # HBAR/DOGE mean-reversion engine
-├── routes/                  # FastAPI routers
-│   ├── bollinger.py         # Bollinger API routes
-│   ├── mean_reversion.py    # Mean reversion API routes
-│   └── trading.py           # Shared trading endpoints
-├── static/                  # Front-end dashboard assets
-│   ├── css/
-│   ├── js/
-│   └── index.html
-├── tests/                   # Pytest suite covering logic and APIs
-├── .github/workflows/ci.yml # GitHub Actions CI (linting/tests)
+├── database.py              # SQLAlchemy models and database setup
+├── engines/                 # Trading/backtesting engines
+│   ├── backtester.py        # Public-candle backtester for all strategies
+│   ├── bollinger.py         # Bollinger Band live engine
+│   ├── common.py            # Shared pricing/stat helpers
+│   ├── freqtrade_algos.py   # Freqtrade adapter strategies
+│   ├── mean_reversion.py    # HBAR/DOGE ratio engine
+│   ├── trend_following.py   # Moving-average/ATR trend engine
+│   └── listings_*           # Listings collectors (Binance, CEX, DEX)
+├── routes/                  # FastAPI routers (auth, strategies, backtesting, listings)
+│   ├── backtesting.py       # `/backtest` entrypoint
+│   ├── bollinger.py         # Bollinger config/status endpoints
+│   ├── mean_reversion.py    # Mean reversion controls
+│   ├── trend_following.py   # Trend controls
+│   └── listings.py          # Listings monitor APIs
+├── static/                  # Front-end assets (dashboard, charts, backtesting UI)
+│   ├── index.html
+│   └── js/
+├── tests/                   # Pytest coverage for engines and routes
 ├── Dockerfile               # Container build for the FastAPI service
-└── docker-compose.yml       # Local stack orchestration
+└── docker-compose.yml       # Local stack orchestration (app + Postgres)
 ```
 
 ---
 
 ## Environment Variables
 
-Provided via `.env`:
+Provide via `.env` (Docker Compose injects Postgres defaults):
 
 ```
-# Mean Reversion bot keys
+# Mean Reversion keys
 BINANCE_TESTNET_API_KEY=
 BINANCE_TESTNET_API_SECRET=
 BINANCE_MAINNET_API_KEY=
 BINANCE_MAINNET_API_SECRET=
 
-# Bollinger bot keys (optional)
+# Bollinger/trend/freqtrade keys (optional)
 BINANCE_BOLL_TESTNET_API_KEY=
 BINANCE_BOLL_TESTNET_API_SECRET=
 BINANCE_BOLL_MAINNET_API_KEY=
@@ -111,7 +120,6 @@ LISTINGS_RETENTION_MINUTES=240
 AUTH_ALLOW_REGISTRATION=1
 
 # Database
-# Docker Compose injects this Postgres URL by default; override to SQLite locally if desired
 DATABASE_URL=postgresql+psycopg2://meanpair:meanpair@db:5432/meanpair
 ```
 
@@ -151,66 +159,48 @@ docker-compose up --build -d
 
 Services:
 - FastAPI app: http://localhost:8000
-- PostgreSQL database: exposed inside the Docker network at `db:5432` (default `DATABASE_URL`)
-- Nginx Proxy Manager (if enabled): http://localhost:81
+- PostgreSQL database: available inside the Docker network at `db:5432`
 
 ---
 
-## API Endpoints
+## API Endpoints (selection)
 
-### Mean Reversion
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/status` | Current MR bot status (prices, ratio, PnL) |
-| GET | `/next_signal` | Predict next MR trade action |
-| GET | `/config` | Get MR config |
-| POST | `/config` | Update MR config |
-| POST | `/start` | Start MR bot loop |
-| POST | `/stop` | Stop MR bot loop |
-| POST | `/manual_trade` | Execute manual HBAR↔DOGE trade (specify `from_asset_qty` or `notional_usd`) |
-| GET | `/trades` | List MR trades |
-
-### Bollinger
+### Strategies
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
+| GET | `/status` | Mean-reversion status (prices, ratio, PnL) |
+| GET | `/next_signal` | Next mean-reversion action preview |
+| GET | `/config` | Get mean-reversion config |
+| POST | `/config` | Update mean-reversion config |
+| POST | `/start` | Start mean-reversion loop |
+| POST | `/stop` | Stop mean-reversion loop |
+| POST | `/manual_trade` | Manual HBAR↔DOGE trade |
+| GET | `/trades` | Mean-reversion trades |
 | GET | `/boll_config` | Get Bollinger config |
 | POST | `/boll_config` | Update Bollinger config |
 | GET | `/boll_status` | Current Bollinger status |
 | GET | `/boll_history` | Band/MA/price history |
-| GET | `/boll_trades` | List Bollinger trades |
-| POST | `/bollinger_manual_sell` | Manual exit trade |
-| GET | `/symbols_grouped` | Binance symbols grouped by quote asset |
+| GET | `/boll_trades` | Bollinger trades |
+| POST | `/bollinger_manual_sell` | Manual Bollinger exit |
+| GET | `/trend_status` | Trend-following status |
+| POST | `/trend_config` | Update trend config |
+| GET | `/algo_status` | Freqtrade adapter status (per strategy) |
+| POST | `/algo_config` | Update Freqtrade adapter config |
+
+### Backtesting
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/backtest` | Simulate mean reversion, Bollinger, trend, or Freqtrade adapters over a date range with Binance/Yahoo candles |
 
 ### Listings Monitor
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| GET | `/api/listings/latest` | Latest normalized listings with filters for exchange/network/time window |
-| GET | `/api/listings/health` | Health/last run details for each collector |
-| GET | `/listings` | UI that renders the listings table and filters |
-
----
-
-## Adding New Algorithms (e.g., PatternRecognition, Strategy001/002/003, Supertrend)
-
-The app can host additional strategies like the two Freqtrade examples below. To wire them in, mirror the existing engines and routers:
-
-1. **Create an engine module** under `engines/` that wraps the algorithm's signal logic (e.g., talib pattern recognition or EMA/Heikin Ashi crossover). Follow the structure in `engines/bollinger.py` or `engines/trend_following.py`: maintain state objects, expose `start_*_thread()`/`stop_*_thread()` helpers, and guard exchange calls with `config.BOT_DISABLE_THREADS` / `DISABLE_BINANCE_CLIENT` flags.
-2. **Add a FastAPI router** in `routes/` that surfaces config and status endpoints for the new engine (see `routes/trend_following.py` as a template). Include endpoints to toggle `enabled`, set symbol/timeframe, and expose recent signals so the frontend can display them.
-3. **Register the strategy** in `app.py`: import the new engine and router, include the router with `auth_required`, and start/stop the background thread inside the `startup`/`shutdown` events alongside the other bots.
-4. **Persist snapshots/trades** by extending `database.py` with new SQLAlchemy models similar to `TrendSnapshot`/`TrendTrade` so you can chart signals and PnL. Reuse helpers in `engines/common.py` for price fetching, sizing, and rounding.
-5. **Update the dashboard** in `static/` if you need a dedicated view. You can copy the Bollinger chart/table widgets and point them at the new API routes.
-6. **Backfill tests** in `tests/` to validate indicator calculations and API responses. Use fixtures like `mock_binance_client` and flags such as `DISABLE_BINANCE_CLIENT=1` to keep tests offline.
-
-For the provided snippets:
-
-- *PatternRecognition* uses `talib` pattern-recognition functions on daily candles. Feed it OHLCV data (from Binance klines or your DB), calculate the chosen pattern column in `populate_indicators`, and generate `enter_long`/`exit_long` flags similar to `populate_entry_trend`.
-- *Strategy001* trades 5m EMA crossovers with Heikin Ashi candles. The engine should stream 5m prices, compute `ema20/ema50/ema100` plus HA candles, and issue market orders when the crossover/HA conditions flip.
-- *Strategy002* layers RSI < 30, Stochastic oversold, Bollinger lower-band bounces, and a hammer candle to time entries; SAR and Fisher RSI guide exits.
-- *Strategy003* combines MFI exhaustion with EMA/Bollinger/fast stochastic confluence to time reversals.
-- *Supertrend* looks for agreement across three supertrend lines on 1h candles; buys when all are "up" and sells when all are "down".
+| GET | `/api/listings/latest` | Latest normalized listings with filters |
+| GET | `/api/listings/health` | Collector health / last run |
+| GET | `/listings` | UI for the listings table |
 
 ---
 
@@ -222,25 +212,12 @@ Run all tests locally:
 pytest
 ```
 
-GitHub Actions builds run on every push and pull request via `.github/workflows/ci.yml`, using the following flags to disable live Binance access:
+CI runs on every push/pull request via `.github/workflows/ci.yml`, using flags to keep builds offline:
 
 ```
 DISABLE_BINANCE_CLIENT=1
 BOT_DISABLE_THREADS=1
 ```
-
-The CI badge at the top of this README reflects the latest build status.
-
----
-
-## Roadmap
-
-- Split monolithic `app.py` into modules
-- Add async DB writer
-- Add historical backtester
-- Improve Bollinger trend filters
-- Add WebSocket price streaming
-- Extend charting system in UI
 
 ---
 
