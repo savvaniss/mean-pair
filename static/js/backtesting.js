@@ -110,6 +110,7 @@ function updateVisibleFields() {
   const trendFields = document.getElementById('backtestTrendFields');
   const symbolRow = document.getElementById('backtestSymbolRow');
   const mrFields = document.getElementById('backtestMrFields');
+  const commonFields = document.getElementById('backtestCommonFields');
 
   const isPair = strategy === 'mean_reversion';
   const isBoll = strategy === 'bollinger';
@@ -119,7 +120,8 @@ function updateVisibleFields() {
   if (symbolRow) symbolRow.style.display = isPair ? 'none' : 'flex';
   if (bollFields) bollFields.style.display = isBoll ? 'flex' : 'none';
   if (trendFields) trendFields.style.display = isTrend ? 'flex' : 'none';
-  if (mrFields) mrFields.style.display = 'flex';
+  if (mrFields) mrFields.style.display = isPair ? 'flex' : 'none';
+  if (commonFields) commonFields.style.display = 'flex';
 }
 
 function renderBacktestResult(result) {
