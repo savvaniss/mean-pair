@@ -89,7 +89,7 @@
     <div class="row">
         <div class="card" data-collapsible>
           <div class="card-header">
-            <h2>Live Status</h2>
+            <h2>Mean Reversion Controls</h2>
             <span class="toggle-icon">▼</span>
           </div>
           <div class="card-body">
@@ -100,6 +100,15 @@
               <button class="btn btn-ghost" id="nextTradeBtn">Next MR trade</button>
               <button class="btn" id="openMrConfigInline">Configure MR</button>
             </div>
+          </div>
+        </div>
+
+        <div class="card" data-collapsible>
+          <div class="card-header">
+            <h2>Live Status</h2>
+            <span class="toggle-icon">▼</span>
+          </div>
+          <div class="card-body">
             <div id="status" class="status-section">Loading...</div>
           </div>
         </div>
@@ -217,7 +226,7 @@
     <div class="row">
       <div class="card" data-collapsible>
         <div class="card-header">
-          <h2>Bollinger Overview</h2>
+          <h2>Bollinger Controls</h2>
           <span class="toggle-icon">▼</span>
         </div>
         <div class="card-body">
@@ -226,6 +235,15 @@
             <button class="btn btn-danger" id="stopBollBtn">Stop Bollinger bot</button>
             <button class="btn" id="openBollConfigInline">Configure Bollinger</button>
           </div>
+        </div>
+      </div>
+
+      <div class="card" data-collapsible>
+        <div class="card-header">
+          <h2>Bollinger Overview</h2>
+          <span class="toggle-icon">▼</span>
+        </div>
+        <div class="card-body">
           <div id="bollStatus" class="status-section">Loading...</div>
           <div class="inline-metrics" id="bollPosition"></div>
         </div>
@@ -323,15 +341,24 @@
       <div class="row">
         <div class="card" data-collapsible>
           <div class="card-header">
-            <h2>Trend Status</h2>
+            <h2>Trend Controls</h2>
             <span class="toggle-icon">▼</span>
           </div>
-          <div class="card-body" id="trendStatus">
+          <div class="card-body">
             <div class="button-row">
               <button class="btn btn-primary" id="startTrendBtn">Start Trend bot</button>
               <button class="btn btn-danger" id="stopTrendBtn">Stop Trend bot</button>
               <button class="btn" id="openTrendConfigInline">Configure Trend</button>
             </div>
+          </div>
+        </div>
+
+        <div class="card" data-collapsible>
+          <div class="card-header">
+            <h2>Trend Status</h2>
+            <span class="toggle-icon">▼</span>
+          </div>
+          <div class="card-body" id="trendStatus">
             Loading...
           </div>
         </div>
@@ -496,15 +523,24 @@
       <div class="row">
         <div class="card" data-collapsible>
           <div class="card-header">
-            <h2>Relative Strength Status</h2>
+            <h2>Relative Strength Controls</h2>
             <span class="toggle-icon">▼</span>
           </div>
-          <div class="card-body" id="rsStatus">
+          <div class="card-body">
             <div class="button-row">
               <button class="btn btn-primary" id="startRSBtn">Start RS bot</button>
               <button class="btn btn-danger" id="stopRSBtn">Stop RS bot</button>
               <button class="btn" id="openRSConfigInline">Configure RS</button>
             </div>
+          </div>
+        </div>
+
+        <div class="card" data-collapsible>
+          <div class="card-header">
+            <h2>Relative Strength Status</h2>
+            <span class="toggle-icon">▼</span>
+          </div>
+          <div class="card-body" id="rsStatus">
             Loading...
           </div>
         </div>
@@ -585,7 +621,7 @@
       <div class="row">
         <div class="card" data-collapsible>
           <div class="card-header">
-            <h2>Amplification overview</h2>
+            <h2>Amplification Controls</h2>
             <span class="toggle-icon">▼</span>
           </div>
           <div class="card-body">
@@ -594,6 +630,15 @@
               <button class="btn btn-danger" id="stopAmpBtn">Stop amplification</button>
               <button class="btn" id="openAmpConfigInline">Configure amplification</button>
             </div>
+          </div>
+        </div>
+
+        <div class="card" data-collapsible>
+          <div class="card-header">
+            <h2>Amplification overview</h2>
+            <span class="toggle-icon">▼</span>
+          </div>
+          <div class="card-body">
             <div id="ampStatus" class="status-section">Loading amplification snapshot…</div>
           </div>
         </div>
