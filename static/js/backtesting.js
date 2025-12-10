@@ -32,6 +32,7 @@ export function initBacktesting() {
     { value: 'mean_reversion', label: 'Mean reversion (pair)' },
     { value: 'bollinger', label: 'Bollinger bands' },
     { value: 'trend_following', label: 'Trend following' },
+    { value: 'amplification', label: 'Amplification switcher' },
   ];
   for (const opt of [...baseOptions, ...freqtradeOptions]) {
     const el = document.createElement('option');
@@ -52,6 +53,11 @@ export function initBacktesting() {
 export async function runBacktest() {
   const strategy = document.getElementById('backtestStrategy')?.value;
   const symbol = document.getElementById('backtestSymbol')?.value?.trim();
+  const baseSymbol = document.getElementById('backtestBaseSymbol')?.value?.trim();
+  const altSymbols = (document.getElementById('backtestAltSymbols')?.value || '')
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean);
   const assetA = document.getElementById('backtestAssetA')?.value?.trim();
   const assetB = document.getElementById('backtestAssetB')?.value?.trim();
   const intervalSelect = document.getElementById('backtestInterval');
@@ -70,6 +76,8 @@ export async function runBacktest() {
   const slowWindow = Number(document.getElementById('backtestSlow')?.value || 26);
   const atrWindow = Number(document.getElementById('backtestAtrWindow')?.value || 14);
   const atrStop = Number(document.getElementById('backtestAtrStop')?.value || 2.0);
+  const momentumWindow = Number(document.getElementById('backtestMomentum')?.value || 3);
+  const minBeta = Number(document.getElementById('backtestMinBeta')?.value || 1.1);
 
   if (!strategy) {
     showToast('Please choose a strategy', 'warning');
@@ -120,6 +128,11 @@ export async function runBacktest() {
       showToast('Symbol is required for freqtrade adapter backtests.', 'warning');
       return;
     }
+  } else if (strategy === 'amplification') {
+    if (!baseSymbol || !altSymbols.length) {
+      showToast('Base symbol and at least one alt symbol are required.', 'warning');
+      return;
+    }
   }
 
   if ((startDateStr && !endDateStr) || (endDateStr && !startDateStr)) {
@@ -148,6 +161,10 @@ export async function runBacktest() {
     slow_window: slowWindow,
     atr_window: atrWindow,
     atr_stop_mult: atrStop,
+    base_symbol: baseSymbol || undefined,
+    alt_symbols: altSymbols,
+    momentum_window: momentumWindow,
+    min_beta: minBeta,
   };
 
   try {
@@ -174,6 +191,7 @@ function updateVisibleFields() {
   const pairFields = document.getElementById('backtestPairFields');
   const bollFields = document.getElementById('backtestBollFields');
   const trendFields = document.getElementById('backtestTrendFields');
+  const ampFields = document.getElementById('backtestAmpFields');
   const symbolRow = document.getElementById('backtestSymbolRow');
   const mrFields = document.getElementById('backtestMrFields');
   const commonFields = document.getElementById('backtestCommonFields');
@@ -181,12 +199,14 @@ function updateVisibleFields() {
   const isPair = strategy === 'mean_reversion';
   const isBoll = strategy === 'bollinger';
   const isTrend = strategy === 'trend_following';
+  const isAmp = strategy === 'amplification';
 
   if (pairFields) pairFields.style.display = isPair ? 'flex' : 'none';
-  if (symbolRow) symbolRow.style.display = isPair ? 'none' : 'flex';
+  if (symbolRow) symbolRow.style.display = isPair || isAmp ? 'none' : 'flex';
   if (bollFields) bollFields.style.display = isBoll ? 'flex' : 'none';
   if (trendFields) trendFields.style.display = isTrend ? 'flex' : 'none';
   if (mrFields) mrFields.style.display = isPair ? 'flex' : 'none';
+  if (ampFields) ampFields.style.display = isAmp ? 'flex' : 'none';
   if (commonFields) commonFields.style.display = 'flex';
 }
 
