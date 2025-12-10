@@ -8,7 +8,7 @@ const freqtradeOptions = [
   { value: 'supertrend', label: 'Freqtrade – Supertrend' },
 ];
 
-const supportedIntervals = ['1m', '5m', '15m', '1h', '4h', '1d'];
+const supportedIntervals = ['20s', '1m', '5m', '15m', '1h', '4h', '1d'];
 
 export function initBacktesting() {
   const strategy = document.getElementById('backtestStrategy');

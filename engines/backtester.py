@@ -50,6 +50,7 @@ class BacktestResult:
 
 
 BINANCE_INTERVAL_MS = {
+    "20s": 20_000,
     "1m": 60_000,
     "5m": 300_000,
     "15m": 900_000,
@@ -68,12 +69,37 @@ def _mr_quote() -> str:
     return testnet_quote if env != "mainnet" else mainnet_quote
 
 
+def _expand_to_20s(candles: List[Candle], start: datetime, end: datetime) -> List[Candle]:
+    expanded: List[Candle] = []
+    for candle in candles:
+        for offset in (0, 20, 40):
+            ts = candle.ts + timedelta(seconds=offset)
+            if ts < start or ts > end:
+                continue
+            expanded.append(
+                Candle(
+                    ts=ts,
+                    open=candle.open,
+                    high=candle.high,
+                    low=candle.low,
+                    close=candle.close,
+                )
+            )
+    return expanded
+
+
 def _fetch_binance_public_klines(
     symbol: str, interval: str, start: datetime, end: datetime
 ) -> List[Candle]:
     interval_ms = BINANCE_INTERVAL_MS.get(interval)
     if not interval_ms:
         raise ValueError(f"Unsupported interval {interval}")
+
+    request_interval = interval
+    request_interval_ms = interval_ms
+    if interval == "20s":
+        request_interval = "1m"
+        request_interval_ms = BINANCE_INTERVAL_MS["1m"]
 
     url = "https://api.binance.com/api/v3/klines"
     start_ms = int(start.timestamp() * 1000)
@@ -83,7 +109,7 @@ def _fetch_binance_public_klines(
     while start_ms < end_ms:
         params = {
             "symbol": symbol,
-            "interval": interval,
+            "interval": request_interval,
             "startTime": start_ms,
             "endTime": end_ms,
             "limit": 1000,
@@ -107,10 +133,12 @@ def _fetch_binance_public_klines(
             )
 
         last_open_time = data[-1][0]
-        start_ms = last_open_time + interval_ms
+        start_ms = last_open_time + request_interval_ms
         if start_ms <= last_open_time:
             break
 
+    if interval == "20s":
+        return _expand_to_20s(candles, start, end)
     return candles
 
 
@@ -120,6 +148,7 @@ def _fetch_yahoo_klines(
     import yfinance as yf
 
     interval_map = {
+        "20s": "1m",
         "1m": "1m",
         "5m": "5m",
         "15m": "15m",
@@ -150,6 +179,8 @@ def _fetch_yahoo_klines(
                 close=float(row["Close"]),
             )
         )
+    if interval == "20s":
+        return _expand_to_20s(candles, start, end)
     return candles
 
 
