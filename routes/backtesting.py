@@ -28,6 +28,8 @@ class BacktestRequest(BaseModel):
     asset_b: Optional[str] = None
     interval: str = "1h"
     lookback_days: int = 14
+    start_date: Optional[datetime] = None
+    end_date: Optional[datetime] = None
     starting_balance: float = 1000.0
     window_size: int = 70
     num_std: float = 3.0
@@ -57,6 +59,10 @@ router = APIRouter()
 @router.post("/backtest", response_model=BacktestResponse)
 def run_backtest(req: BacktestRequest):
     strategy = req.strategy.lower()
+
+    if (req.start_date and not req.end_date) or (req.end_date and not req.start_date):
+        raise HTTPException(status_code=400, detail="start_date and end_date must both be provided")
+
     try:
         if strategy == "mean_reversion":
             if not req.asset_a or not req.asset_b:
@@ -69,6 +75,8 @@ def run_backtest(req: BacktestRequest):
                 z_entry=req.z_entry,
                 z_exit=req.z_exit,
                 lookback_days=req.lookback_days,
+                start=req.start_date,
+                end=req.end_date,
                 starting_balance=req.starting_balance,
             )
         elif strategy == "bollinger":
@@ -80,6 +88,8 @@ def run_backtest(req: BacktestRequest):
                 window=req.window_size,
                 num_std=req.num_std,
                 lookback_days=req.lookback_days,
+                start=req.start_date,
+                end=req.end_date,
                 starting_balance=req.starting_balance,
             )
         elif strategy == "trend_following":
@@ -93,6 +103,8 @@ def run_backtest(req: BacktestRequest):
                 atr_window=req.atr_window,
                 atr_stop_mult=req.atr_stop_mult,
                 lookback_days=req.lookback_days,
+                start=req.start_date,
+                end=req.end_date,
                 starting_balance=req.starting_balance,
             )
         elif strategy in {
@@ -109,6 +121,8 @@ def run_backtest(req: BacktestRequest):
                 symbol=req.symbol.upper(),
                 interval=req.interval,
                 lookback_days=req.lookback_days,
+                start=req.start_date,
+                end=req.end_date,
                 starting_balance=req.starting_balance,
             )
         else:

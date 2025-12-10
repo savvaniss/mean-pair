@@ -165,6 +165,16 @@ def _fetch_klines(symbol: str, interval: str, start: datetime, end: datetime) ->
     return candles
 
 
+def _resolve_range(
+    lookback_days: int, start: Optional[datetime] = None, end: Optional[datetime] = None
+) -> Tuple[datetime, datetime]:
+    resolved_end = end or datetime.utcnow()
+    resolved_start = start or resolved_end - timedelta(days=lookback_days)
+    if resolved_start >= resolved_end:
+        raise ValueError("start must be before end")
+    return resolved_start, resolved_end
+
+
 def _compute_drawdown(equity_curve: Iterable[EquityPoint]) -> float:
     peak = 0.0
     max_dd = 0.0
@@ -194,9 +204,10 @@ def backtest_bollinger(
     num_std: float,
     lookback_days: int,
     starting_balance: float,
+    start: Optional[datetime] = None,
+    end: Optional[datetime] = None,
 ) -> BacktestResult:
-    end = datetime.utcnow()
-    start = end - timedelta(days=lookback_days)
+    start, end = _resolve_range(lookback_days, start, end)
     candles = _fetch_klines(symbol, interval, start, end)
     prices = [c.close for c in candles]
 
@@ -256,9 +267,10 @@ def backtest_trend(
     atr_stop_mult: float,
     lookback_days: int,
     starting_balance: float,
+    start: Optional[datetime] = None,
+    end: Optional[datetime] = None,
 ) -> BacktestResult:
-    end = datetime.utcnow()
-    start = end - timedelta(days=lookback_days)
+    start, end = _resolve_range(lookback_days, start, end)
     candles = _fetch_klines(symbol, interval, start, end)
     prices = [c.close for c in candles]
 
@@ -334,12 +346,13 @@ def backtest_mean_reversion(
     z_exit: float,
     lookback_days: int,
     starting_balance: float,
+    start: Optional[datetime] = None,
+    end: Optional[datetime] = None,
 ) -> BacktestResult:
     quote = _mr_quote()
     symbol_a = f"{asset_a}{quote}"
     symbol_b = f"{asset_b}{quote}"
-    end = datetime.utcnow()
-    start = end - timedelta(days=lookback_days)
+    start, end = _resolve_range(lookback_days, start, end)
     a_candles = _fetch_klines(symbol_a, interval, start, end)
     b_candles = _fetch_klines(symbol_b, interval, start, end)
     length = min(len(a_candles), len(b_candles))
@@ -450,9 +463,10 @@ def backtest_freqtrade(
     interval: str,
     lookback_days: int,
     starting_balance: float,
+    start: Optional[datetime] = None,
+    end: Optional[datetime] = None,
 ) -> BacktestResult:
-    end = datetime.utcnow()
-    start = end - timedelta(days=lookback_days)
+    start, end = _resolve_range(lookback_days, start, end)
     candles = _fetch_klines(symbol, interval, start, end)
     prices = [c.close for c in candles]
 

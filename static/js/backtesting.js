@@ -42,6 +42,8 @@ export async function runBacktest() {
   const assetB = document.getElementById('backtestAssetB')?.value;
   const interval = document.getElementById('backtestInterval')?.value || '1h';
   const lookbackDays = Number(document.getElementById('backtestLookback')?.value || 14);
+  const startDateStr = document.getElementById('backtestStartDate')?.value;
+  const endDateStr = document.getElementById('backtestEndDate')?.value;
   const startingBalance = Number(
     document.getElementById('backtestStartingBalance')?.value || 1000
   );
@@ -54,6 +56,14 @@ export async function runBacktest() {
   const atrWindow = Number(document.getElementById('backtestAtrWindow')?.value || 14);
   const atrStop = Number(document.getElementById('backtestAtrStop')?.value || 2.0);
 
+  if ((startDateStr && !endDateStr) || (endDateStr && !startDateStr)) {
+    showToast('Please set both start and end dates to run a custom window.', 'warning');
+    return;
+  }
+
+  const startDate = startDateStr ? new Date(`${startDateStr}T00:00:00Z`).toISOString() : undefined;
+  const endDate = endDateStr ? new Date(`${endDateStr}T23:59:59Z`).toISOString() : undefined;
+
   const payload = {
     strategy,
     symbol: symbol || undefined,
@@ -61,6 +71,8 @@ export async function runBacktest() {
     asset_b: assetB || undefined,
     interval,
     lookback_days: lookbackDays,
+    start_date: startDate,
+    end_date: endDate,
     starting_balance: startingBalance,
     window_size: windowSize,
     num_std: numStd,

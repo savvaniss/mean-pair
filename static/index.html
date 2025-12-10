@@ -535,6 +535,17 @@
               </label>
             </div>
 
+            <div class="form-row">
+              <label>
+                Start date
+                <input type="date" id="backtestStartDate" />
+              </label>
+              <label>
+                End date
+                <input type="date" id="backtestEndDate" />
+              </label>
+            </div>
+
             <div class="form-row" id="backtestPairFields">
               <label>
                 Asset A
@@ -593,7 +604,7 @@
 
             <div class="button-row">
               <button type="submit" class="btn btn-primary">Run backtest</button>
-              <div class="help-text">Uses live Binance historical klines to replay each algorithm without placing orders.</div>
+              <div class="help-text">Use optional start/end dates to replay a specific month (e.g. last August) instead of the rolling lookback. Uses live Binance historical klines to replay each algorithm without placing orders.</div>
             </div>
           </form>
 
