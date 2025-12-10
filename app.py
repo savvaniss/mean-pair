@@ -11,6 +11,7 @@ from engines import trend_following as trend_engine
 from engines import liquidation_hunt as liq_engine
 from engines import relative_strength as rs_engine
 from engines import freqtrade_algos as ft_engine
+from engines import amplification as amp_engine
 from engines import listing_scout, listings_service
 from routes import mean_reversion as mr_routes
 from routes import bollinger as boll_routes
@@ -21,6 +22,7 @@ from routes import liquidation as liquidation_routes
 from routes import listings as listings_routes
 from routes import freqtrade_algos as ft_routes
 from routes import backtesting as backtest_routes
+from routes import amplification as amp_routes
 
 CURRENT_USER_OPTIONAL = auth.get_current_user_optional
 
@@ -46,6 +48,7 @@ app.include_router(liquidation_routes.router, dependencies=[auth_required])
 app.include_router(listings_routes.router, dependencies=[auth_required])
 app.include_router(ft_routes.router, dependencies=[auth_required])
 app.include_router(backtest_routes.router, dependencies=[auth_required])
+app.include_router(amp_routes.router, dependencies=[auth_required])
 app.include_router(auth.router)
 
 

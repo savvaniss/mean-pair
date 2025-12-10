@@ -4,11 +4,10 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime, timedelta
-from typing import Iterable, List, Optional, Tuple
+from typing import Dict, Iterable, List, Optional, Tuple
 
 import os
 import requests
-import yfinance as yf
 from engines.common import compute_ma_std_window
 from engines import freqtrade_algos as ft
 
@@ -51,6 +50,7 @@ class BacktestResult:
 
 
 BINANCE_INTERVAL_MS = {
+    "20s": 20_000,
     "1m": 60_000,
     "5m": 300_000,
     "15m": 900_000,
@@ -69,12 +69,37 @@ def _mr_quote() -> str:
     return testnet_quote if env != "mainnet" else mainnet_quote
 
 
+def _expand_to_20s(candles: List[Candle], start: datetime, end: datetime) -> List[Candle]:
+    expanded: List[Candle] = []
+    for candle in candles:
+        for offset in (0, 20, 40):
+            ts = candle.ts + timedelta(seconds=offset)
+            if ts < start or ts > end:
+                continue
+            expanded.append(
+                Candle(
+                    ts=ts,
+                    open=candle.open,
+                    high=candle.high,
+                    low=candle.low,
+                    close=candle.close,
+                )
+            )
+    return expanded
+
+
 def _fetch_binance_public_klines(
     symbol: str, interval: str, start: datetime, end: datetime
 ) -> List[Candle]:
     interval_ms = BINANCE_INTERVAL_MS.get(interval)
     if not interval_ms:
         raise ValueError(f"Unsupported interval {interval}")
+
+    request_interval = interval
+    request_interval_ms = interval_ms
+    if interval == "20s":
+        request_interval = "1m"
+        request_interval_ms = BINANCE_INTERVAL_MS["1m"]
 
     url = "https://api.binance.com/api/v3/klines"
     start_ms = int(start.timestamp() * 1000)
@@ -84,7 +109,7 @@ def _fetch_binance_public_klines(
     while start_ms < end_ms:
         params = {
             "symbol": symbol,
-            "interval": interval,
+            "interval": request_interval,
             "startTime": start_ms,
             "endTime": end_ms,
             "limit": 1000,
@@ -108,17 +133,22 @@ def _fetch_binance_public_klines(
             )
 
         last_open_time = data[-1][0]
-        start_ms = last_open_time + interval_ms
+        start_ms = last_open_time + request_interval_ms
         if start_ms <= last_open_time:
             break
 
+    if interval == "20s":
+        return _expand_to_20s(candles, start, end)
     return candles
 
 
 def _fetch_yahoo_klines(
     symbol: str, interval: str, start: datetime, end: datetime
 ) -> List[Candle]:
+    import yfinance as yf
+
     interval_map = {
+        "20s": "1m",
         "1m": "1m",
         "5m": "5m",
         "15m": "15m",
@@ -149,6 +179,8 @@ def _fetch_yahoo_klines(
                 close=float(row["Close"]),
             )
         )
+    if interval == "20s":
+        return _expand_to_20s(candles, start, end)
     return candles
 
 
@@ -197,6 +229,13 @@ def _build_equity_curve(
         equity = cash + qty * price
         curve.append(EquityPoint(ts=prices[idx].ts, equity=equity))
     return curve
+
+
+def _align_prices(base: List[Candle], alt: List[Candle]) -> List[Tuple[datetime, float]]:
+    """Return a list of (ts, price) pairs for timestamps present in both series."""
+
+    alt_by_ts = {c.ts: c.close for c in alt}
+    return [(c.ts, alt_by_ts[c.ts]) for c in base if c.ts in alt_by_ts]
 
 
 def backtest_bollinger(
@@ -541,6 +580,169 @@ def backtest_freqtrade(
 
     return BacktestResult(
         strategy=strategy,
+        start=start,
+        end=end,
+        trades=trades,
+        equity_curve=equity_curve,
+        final_balance=final_balance,
+        return_pct=ret,
+        win_rate=len(wins) / len(trades) if trades else 0.0,
+        max_drawdown=max_dd,
+    )
+
+
+def backtest_amplification(
+    base_symbol: str,
+    symbols: List[str],
+    interval: str,
+    lookback_days: int,
+    momentum_window: int,
+    min_beta: float,
+    conversion_symbol: Optional[str],
+    switch_cooldown: int,
+    starting_balance: float,
+    start: Optional[datetime] = None,
+    end: Optional[datetime] = None,
+) -> BacktestResult:
+    """Rotate into the highest-beta altcoin when BTC momentum is positive."""
+
+    from engines import amplification  # local import to avoid circular dependency
+
+    start, end = _resolve_range(lookback_days, start, end)
+    base_candles = _fetch_klines(base_symbol, interval, start, end)
+    if not base_candles:
+        raise ValueError("No base price data available for requested window")
+
+    base_prices = [c.close for c in base_candles]
+    base_ts = [c.ts for c in base_candles]
+
+    aligned_alts: Dict[str, List[Tuple[datetime, float]]] = {}
+    stats = []
+    for sym in symbols:
+        alt_candles = _fetch_klines(sym, interval, start, end)
+        if not alt_candles:
+            continue
+        aligned = _align_prices(base_candles, alt_candles)
+        if len(aligned) < momentum_window + 1:
+            continue
+        alt_prices = [p for _, p in aligned]
+        stat = amplification.compute_stat(base_prices[-len(alt_prices) :], alt_prices)
+        stat.symbol = sym
+        stats.append(stat)
+        aligned_alts[sym] = aligned
+
+    stats.sort(key=lambda s: s.beta, reverse=True)
+    candidates = [s for s in stats if s.beta >= min_beta and s.correlation > 0]
+    if not candidates:
+        raise ValueError("No altcoins met amplification thresholds for backtest")
+
+    cash = starting_balance
+    position_sym: Optional[str] = None
+    qty = 0.0
+    trades: List[TradeResult] = []
+    equity: List[EquityPoint] = []
+
+    alt_price_maps = {sym: dict(aligned) for sym, aligned in aligned_alts.items()}
+    last_seen_prices: Dict[str, Optional[float]] = {sym: None for sym in aligned_alts}
+
+    cooldown = 0
+
+    for idx in range(len(base_prices)):
+        ts = base_ts[idx]
+        price_base = base_prices[idx]
+        holding_price = None
+        for sym, price_map in alt_price_maps.items():
+            price_at_ts = price_map.get(ts)
+            if price_at_ts is not None:
+                last_seen_prices[sym] = price_at_ts
+        if position_sym:
+            holding_price = last_seen_prices.get(position_sym)
+        equity.append(EquityPoint(ts=ts, equity=cash + (qty * holding_price if holding_price else 0.0)))
+
+        if idx < momentum_window:
+            continue
+
+        if cooldown > 0:
+            cooldown -= 1
+            continue
+
+        momentum = (price_base - base_prices[idx - momentum_window]) / base_prices[
+            idx - momentum_window
+        ]
+
+        top_candidate = None
+        preferred = None
+        if conversion_symbol:
+            preferred = next((c for c in candidates if c.symbol == conversion_symbol), None)
+            if not preferred:
+                preferred = next((c for c in stats if c.symbol == conversion_symbol), None)
+        ordered_candidates = []
+        if preferred:
+            ordered_candidates.append(preferred)
+        for cand in candidates:
+            if preferred and cand.symbol == preferred.symbol:
+                continue
+            ordered_candidates.append(cand)
+        for cand in ordered_candidates:
+            if ts in alt_price_maps.get(cand.symbol, {}):
+                top_candidate = cand
+                break
+
+        if momentum > 0 and top_candidate and position_sym != top_candidate.symbol:
+            if position_sym and holding_price:
+                cash = qty * holding_price
+                trades.append(
+                    TradeResult(ts=ts, action=f"EXIT_{position_sym}", price=holding_price, size=qty, pnl=cash - starting_balance)
+                )
+                qty = 0.0
+                position_sym = None
+            alt_price = alt_price_maps[top_candidate.symbol].get(ts)
+            if alt_price is None:
+                continue
+            if cash > 0:
+                qty = cash / alt_price
+                trades.append(
+                    TradeResult(ts=ts, action=f"BUY_{top_candidate.symbol}", price=alt_price, size=qty, pnl=0.0)
+                )
+                position_sym = top_candidate.symbol
+                cash = 0.0
+                cooldown = switch_cooldown
+        elif momentum < 0 and position_sym and holding_price:
+            cash = qty * holding_price
+            trades.append(
+                TradeResult(ts=ts, action=f"EXIT_{position_sym}", price=holding_price, size=qty, pnl=cash - starting_balance)
+            )
+            qty = 0.0
+            position_sym = None
+            cooldown = switch_cooldown
+
+    if position_sym:
+        last_ts = base_ts[-1]
+        last_price = alt_price_maps[position_sym].get(last_ts)
+        if last_price is None:
+            last_price = last_seen_prices.get(position_sym)
+        if last_price:
+            cash = qty * last_price
+            trades.append(
+                TradeResult(
+                    ts=last_ts,
+                    action=f"EXIT_{position_sym}",
+                    price=last_price,
+                    size=qty,
+                    pnl=cash - starting_balance,
+                )
+            )
+            qty = 0.0
+            position_sym = None
+
+    final_balance = cash
+    equity_curve = equity if equity else [EquityPoint(ts=start, equity=starting_balance)]
+    ret = (final_balance - starting_balance) / starting_balance if starting_balance else 0.0
+    wins = [t for t in trades if t.pnl > 0]
+    max_dd = _compute_drawdown(equity_curve)
+
+    return BacktestResult(
+        strategy="amplification",
         start=start,
         end=end,
         trades=trades,

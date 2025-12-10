@@ -8,6 +8,7 @@ import { initLiquidation, refreshLiquidation } from './liquidationHunt.js';
 import { initListings, refreshListings } from './listings.js';
 import { initFreqtradeAdapters, refreshFreqtradeAdapters } from './freqtrade.js';
 import { initBacktesting, refreshBacktesting } from './backtesting.js';
+import { initAmplification, refreshAmplification } from './amplification.js';
 
 async function bootstrap() {
   const authenticated = await initAuthDisplay();
@@ -20,6 +21,7 @@ async function bootstrap() {
   safeRun('bollinger init', initBollinger);
   safeRun('trend init', initTrendFollowing);
   safeRun('relative strength init', initRelativeStrength);
+  safeRun('amplification init', initAmplification);
   safeRun('trading init', initTrading);
   safeRun('liquidation init', initLiquidation);
   safeRun('listings init', initListings);
@@ -42,6 +44,7 @@ async function bootstrap() {
   await safeRefresh('bollinger', refreshBollinger);
   await safeRefresh('trend', refreshTrendFollowing);
   await safeRefresh('relative strength', refreshRelativeStrength);
+  await safeRefresh('amplification', refreshAmplification);
   await safeRefresh('trading', refreshTrading);
   await safeRefresh('liquidation', refreshLiquidation);
   await safeRefresh('listings', refreshListings);
@@ -53,6 +56,7 @@ async function bootstrap() {
     await safeRefresh('bollinger', refreshBollinger);
     await safeRefresh('trend', refreshTrendFollowing);
     await safeRefresh('relative strength', refreshRelativeStrength);
+    await safeRefresh('amplification', refreshAmplification);
     await safeRefresh('trading', refreshTrading);
     await safeRefresh('liquidation', refreshLiquidation);
     await safeRefresh('freqtrade adapters', refreshFreqtradeAdapters);
@@ -118,6 +122,7 @@ function initOverlays() {
   wireOverlay(['openBollConfig', 'openBollConfigInline'], 'bollConfigOverlay');
   wireOverlay(['openTrendConfig', 'openTrendConfigInline'], 'trendConfigOverlay');
   wireOverlay(['openRSConfig', 'openRSConfigInline'], 'rsConfigOverlay');
+  wireOverlay(['openAmpConfigInline'], 'ampConfigOverlay');
   wireOverlay(['openFtConfig', 'openFtConfigInline'], 'ftConfigOverlay');
   wireOverlay(['openLiqConfigInline'], 'liqConfigOverlay');
 

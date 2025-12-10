@@ -30,6 +30,7 @@
       <button class="tab" data-tab="trend">Trend Following (EMA)</button>
       <button class="tab" data-tab="freqtrade">Freqtrade Adapters</button>
       <button class="tab" data-tab="rs">Relative Strength</button>
+      <button class="tab" data-tab="amp">Amplification</button>
       <button class="tab" data-tab="backtest">Backtesting</button>
       <button class="tab" data-tab="trading">Trading Desk</button>
       <button class="tab" data-tab="liquidation">Liquidation Hunt</button>
@@ -504,6 +505,57 @@
       </div>
     </div>
 
+    <div id="tab-amp" class="tab-content">
+      <div class="row">
+        <div class="card" data-collapsible>
+          <div class="card-header">
+            <h2>Amplification overview</h2>
+            <span class="toggle-icon">▼</span>
+          </div>
+          <div class="card-body">
+            <div id="ampStatus" class="status-section">Loading amplification snapshot…</div>
+          </div>
+        </div>
+
+        <div class="card" data-collapsible>
+          <div class="card-header">
+            <h2>Amplification config</h2>
+            <span class="toggle-icon">▼</span>
+          </div>
+          <div class="card-body">
+            <div id="ampConfigSummary" class="config-summary">Configuring amplification from the action center keeps the tab lean. Open the action center to edit settings.</div>
+            <div class="button-row">
+              <button class="btn" id="openAmpConfigInline">Configure amplification</button>
+              <div class="help-text">Use the action center to start/stop the amplification engine and adjust settings.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card" data-collapsible>
+        <div class="card-header">
+          <h2>Amplification table</h2>
+          <span class="toggle-icon">▼</span>
+        </div>
+        <div class="card-body">
+          <p class="help-text">Computed from the last two months of closes for BTC vs. your selected altcoins. Beta &gt; 1 and positive correlation highlight coins that historically amplify BTC moves.</p>
+          <table id="ampTable">
+            <thead>
+              <tr>
+                <th>Symbol</th>
+                <th>Beta</th>
+                <th>Correlation</th>
+                <th>Up capture</th>
+                <th>Down capture</th>
+                <th>Samples</th>
+              </tr>
+            </thead>
+            <tbody id="ampTableBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
     <div id="tab-backtest" class="tab-content">
       <div class="card" data-collapsible>
         <div class="card-header">
@@ -587,6 +639,33 @@
               <label>
                 ATR stop (x)
                 <input type="number" id="backtestAtrStop" min="0.1" step="0.1" value="2.0" />
+              </label>
+            </div>
+
+            <div class="form-row" id="backtestAmpFields">
+              <label>
+                Base symbol
+                <input type="text" id="backtestBaseSymbol" value="BTCUSDC" />
+              </label>
+              <label>
+                Alt symbols (comma separated)
+                <input type="text" id="backtestAltSymbols" value="SOLUSDC,ETHUSDC,LINKUSDC,XRPUSDC,DOGEUSDC,HBARUSDC,ARBUSDC,AVAXUSDC" />
+              </label>
+              <label>
+                Conversion alt
+                <input type="text" id="backtestConversion" placeholder="Auto" />
+              </label>
+              <label>
+                Momentum window
+                <input type="number" id="backtestMomentum" min="1" step="1" value="3" />
+              </label>
+              <label>
+                Minimum beta
+                <input type="number" id="backtestMinBeta" min="0" step="0.05" value="1.1" />
+              </label>
+              <label>
+                Switch cooldown (bars)
+                <input type="number" id="backtestCooldown" min="0" value="0" />
               </label>
             </div>
 
@@ -1012,6 +1091,14 @@
           </div>
         </div>
         <div class="action-column">
+          <div class="modal-subtitle">Amplification</div>
+          <div class="button-stack">
+            <button class="btn btn-primary" id="startAmpBtn">Start amplification</button>
+            <button class="btn btn-danger" id="stopAmpBtn">Stop amplification</button>
+            <button class="btn" id="openAmpConfigInline">Configure amplification</button>
+          </div>
+        </div>
+        <div class="action-column">
           <div class="modal-subtitle">Liquidation hunt</div>
           <div class="button-stack">
             <button class="btn btn-primary" id="liqEnableBtn">Start Scanner bot</button>
@@ -1034,6 +1121,75 @@
       </div>
       <div class="modal-footer">
         <button class="btn btn-ghost" data-close-overlay="actionModalOverlay">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="ampConfigOverlay" class="modal-overlay">
+    <div class="modal">
+      <div class="modal-header">
+        <div class="modal-header-title">Amplification config</div>
+        <button class="btn btn-ghost small" data-close-overlay="ampConfigOverlay">✕</button>
+      </div>
+      <div class="modal-body">
+        <form id="ampConfigForm" class="stacked-form">
+          <div class="form-row">
+            <label>
+              Base symbol
+              <input id="ampBaseSymbol" type="text" value="BTCUSDC" />
+            </label>
+            <label>
+              Interval
+              <select id="ampInterval">
+                <option value="20s">20s</option>
+                <option value="1m">1m</option>
+                <option value="5m">5m</option>
+                <option value="15m">15m</option>
+                <option value="1h">1h</option>
+                <option value="4h">4h</option>
+                <option value="1d">1d</option>
+              </select>
+            </label>
+            <label>
+              Lookback days
+              <input id="ampLookback" type="number" min="5" value="60" />
+            </label>
+          </div>
+          <div class="form-row">
+            <label>
+              Alt symbols (comma separated)
+              <input id="ampSymbols" type="text" value="SOLUSDC,ETHUSDC,LINKUSDC,XRPUSDC,DOGEUSDC,HBARUSDC,ARBUSDC,AVAXUSDC" />
+            </label>
+          </div>
+          <div class="form-row">
+            <label>
+              Conversion altcoin
+              <input id="ampConversion" type="text" placeholder="Auto from suggestions" />
+            </label>
+            <label>
+              Momentum window
+              <input id="ampMomentum" type="number" min="1" value="3" />
+            </label>
+            <label>
+              Minimum beta
+              <input id="ampMinBeta" type="number" min="0" step="0.05" value="1.1" />
+            </label>
+          </div>
+          <div class="form-row">
+            <label>
+              Top suggestions
+              <input id="ampTop" type="number" min="1" value="3" />
+            </label>
+            <label>
+              Switch cooldown (bars)
+              <input id="ampCooldown" type="number" min="0" value="0" />
+            </label>
+          </div>
+          <div class="button-row">
+            <button type="submit" class="btn btn-primary">Save amplification config</button>
+            <div class="help-text">Conversion altcoin pre-fills from the latest suggestion but can be overridden manually.</div>
+          </div>
+        </form>
       </div>
     </div>
   </div>

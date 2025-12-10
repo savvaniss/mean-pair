@@ -26,6 +26,8 @@ class BacktestRequest(BaseModel):
     symbol: Optional[str] = None
     asset_a: Optional[str] = None
     asset_b: Optional[str] = None
+    base_symbol: Optional[str] = None
+    alt_symbols: Optional[List[str]] = None
     interval: str = "1h"
     lookback_days: int = 14
     start_date: Optional[datetime] = None
@@ -39,6 +41,10 @@ class BacktestRequest(BaseModel):
     slow_window: int = 26
     atr_window: int = 14
     atr_stop_mult: float = 2.0
+    momentum_window: int = 3
+    min_beta: float = 1.1
+    conversion_symbol: Optional[str] = None
+    switch_cooldown: int = 0
 
 
 class BacktestResponse(BaseModel):
@@ -66,6 +72,9 @@ def run_backtest(req: BacktestRequest):
     if req.interval not in backtester.SUPPORTED_INTERVALS:
         supported = ", ".join(backtester.SUPPORTED_INTERVALS)
         raise HTTPException(status_code=400, detail=f"interval must be one of: {supported}")
+
+    if req.switch_cooldown < 0:
+        raise HTTPException(status_code=400, detail="switch_cooldown must be non-negative")
 
     try:
         if strategy == "mean_reversion":
@@ -128,6 +137,30 @@ def run_backtest(req: BacktestRequest):
                 start=req.start_date,
                 end=req.end_date,
                 starting_balance=req.starting_balance,
+            )
+        elif strategy == "amplification":
+            symbols = req.alt_symbols or [
+                "SOLUSDC",
+                "ETHUSDC",
+                "LINKUSDC",
+                "XRPUSDC",
+                "DOGEUSDC",
+                "HBARUSDC",
+                "ARBUSDC",
+                "AVAXUSDC",
+            ]
+            result = backtester.backtest_amplification(
+                base_symbol=(req.base_symbol or "BTCUSDC").upper(),
+                symbols=[s.upper() for s in symbols],
+                interval=req.interval,
+                lookback_days=req.lookback_days,
+                momentum_window=req.momentum_window,
+                min_beta=req.min_beta,
+                conversion_symbol=(req.conversion_symbol or "").upper() or None,
+                switch_cooldown=req.switch_cooldown,
+                starting_balance=req.starting_balance,
+                start=req.start_date,
+                end=req.end_date,
             )
         else:
             raise HTTPException(status_code=400, detail=f"Unsupported strategy {req.strategy}")
