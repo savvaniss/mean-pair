@@ -63,6 +63,10 @@ def run_backtest(req: BacktestRequest):
     if (req.start_date and not req.end_date) or (req.end_date and not req.start_date):
         raise HTTPException(status_code=400, detail="start_date and end_date must both be provided")
 
+    if req.interval not in backtester.SUPPORTED_INTERVALS:
+        supported = ", ".join(backtester.SUPPORTED_INTERVALS)
+        raise HTTPException(status_code=400, detail=f"interval must be one of: {supported}")
+
     try:
         if strategy == "mean_reversion":
             if not req.asset_a or not req.asset_b:
