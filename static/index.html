@@ -1371,6 +1371,22 @@
             </div>
           </div>
 
+          <div class="config-panel info-panel">
+            <div class="panel-heading">
+              <div>
+                <div class="panel-title">Operating notes</div>
+                <div class="panel-subtitle">Quick reminders before saving mean reversion settings.</div>
+              </div>
+              <span class="chip chip-primary">Tips</span>
+            </div>
+            <ul class="muted-list">
+              <li>The bot will not trade until it has at least half of the window size (minimum 5 points) in price history for the selected pair.</li>
+              <li>Ratio thresholds override z-score entries: when enabled, z-entry/z-exit are ignored and fixed buy/sell bands drive signals.</li>
+              <li>Trades size each leg to the target notional unless “Use all available HBAR/DOGE” is checked, in which case full balances are deployed.</li>
+              <li>Use testnet while tuning entry/exit bands—live orders otherwise route through the MR account with real balances.</li>
+            </ul>
+          </div>
+
           <div class="button-row">
             <button type="submit" class="btn btn-primary">Save config</button>
             <button type="button" class="btn btn-ghost" id="generateConfigBtn">Generate from history</button>
@@ -1429,6 +1445,21 @@
               <input type="checkbox" id="ft_use_testnet" name="use_testnet" />
               <label for="ft_use_testnet">Use testnet</label>
             </div>
+          </div>
+          <div class="config-panel info-panel">
+            <div class="panel-heading">
+              <div>
+                <div class="panel-title">Operating notes</div>
+                <div class="panel-subtitle">Strategy-specific guardrails for the adapters.</div>
+              </div>
+              <span class="chip chip-primary">Tips</span>
+            </div>
+            <ul class="muted-list">
+              <li>PatternRecognition expects daily candles; keep timeframe at 1d and use the High-Wave threshold to control entries.</li>
+              <li>Strategy001–003 assume intraday candles (default 5m) to compute EMA/RSI/Stoch/MFI and Bollinger confluences.</li>
+              <li>Supertrend is tuned for 1h bars; shortening the timeframe without adjusting poll intervals can create noisy flips.</li>
+              <li>Max position caps notional per strategy unless you enable testnet to rehearse changes without risking live capital.</li>
+            </ul>
           </div>
           <div class="button-row">
             <button type="submit" class="btn btn-primary">Save config</button>
@@ -1663,6 +1694,22 @@
             </div>
           </div>
 
+          <div class="config-panel info-panel">
+            <div class="panel-heading">
+              <div>
+                <div class="panel-title">Operating notes</div>
+                <div class="panel-subtitle">Trend guardrails before deploying.</div>
+              </div>
+              <span class="chip chip-primary">Tips</span>
+            </div>
+            <ul class="muted-list">
+              <li>Entries require the fast EMA to be above the slow EMA; sells trigger on ATR stops or a fast/slow crossover back down.</li>
+              <li>The bot enforces a cooldown between trades—raise it if you see churn when price whipsaws around the EMAs.</li>
+              <li>ATR stops depend on recent volatility; give the bot enough history to populate both EMA windows and the ATR window before expecting fills.</li>
+              <li>Max position caps spending unless “Use all quote balance” is checked; testnet routing is available for dry runs.</li>
+            </ul>
+          </div>
+
           <div class="button-row">
             <button type="submit" class="btn btn-primary">Save config</button>
             <button type="button" class="btn" data-close-overlay="trendConfigOverlay">Close</button>
@@ -1757,6 +1804,22 @@
                 <span class="tooltip-icon" title="Route RS trades to Binance testnet instead of live trading.">?</span>
               </label>
             </div>
+          </div>
+
+          <div class="config-panel info-panel">
+            <div class="panel-heading">
+              <div>
+                <div class="panel-title">Operating notes</div>
+                <div class="panel-subtitle">How the RS basket builds spreads.</div>
+              </div>
+              <span class="chip chip-primary">Tips</span>
+            </div>
+            <ul class="muted-list">
+              <li>Price history must span the lookback window before rankings stabilize; let the bot warm up before expecting spreads.</li>
+              <li>Top-N and Bottom-N choose the strongest and weakest symbols; any pair whose RS gap is below the minimum is skipped.</li>
+              <li>Rebalances run on the configured interval—shorter windows trade more often but demand faster poll intervals.</li>
+              <li>Max notional applies per leg unless “Use all quote balance” is enabled; testnet routing is available for dry runs.</li>
+            </ul>
           </div>
 
           <div class="button-row">
