@@ -50,6 +50,7 @@ class BotConfig(BaseModel):
     use_ratio_thresholds: bool = False
     sell_ratio_threshold: float = 0.0
     buy_ratio_threshold: float = 0.0
+    allow_base_asset_entry: bool = False
     outlier_sigma: float = 5.0
     max_ratio_jump: float = 0.08
     asset_a: str = "HBAR"
@@ -389,7 +390,10 @@ def decide_signal(
             reason = "std_zero"
 
     asset_a, asset_b = current_pair()
-    if state.current_asset not in (asset_a, asset_b, BASE_ASSET):
+    in_active_pair = state.current_asset in (asset_a, asset_b)
+    in_base = state.current_asset == BASE_ASSET and bot_config.allow_base_asset_entry
+
+    if not (in_active_pair or in_base):
         sell_signal = False
         buy_signal = False
 
