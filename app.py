@@ -32,13 +32,15 @@ app = FastAPI(title="Mean Reversion & Bollinger Bots")
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
 # API routes
-app.include_router(mr_routes.router)
-app.include_router(boll_routes.router)
-app.include_router(trend_routes.router)
-app.include_router(rs_routes.router)
-app.include_router(trading_routes.router)
-app.include_router(liquidation_routes.router)
-app.include_router(listings_routes.router)
+auth_required = Depends(auth.get_current_user)
+
+app.include_router(mr_routes.router, dependencies=[auth_required])
+app.include_router(boll_routes.router, dependencies=[auth_required])
+app.include_router(trend_routes.router, dependencies=[auth_required])
+app.include_router(rs_routes.router, dependencies=[auth_required])
+app.include_router(trading_routes.router, dependencies=[auth_required])
+app.include_router(liquidation_routes.router, dependencies=[auth_required])
+app.include_router(listings_routes.router, dependencies=[auth_required])
 app.include_router(auth.router)
 
 
