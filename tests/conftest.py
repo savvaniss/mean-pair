@@ -3,7 +3,9 @@ import sys
 from pathlib import Path
 
 import pytest
+from fastapi import Depends, Request
 from fastapi.testclient import TestClient
+from datetime import datetime
 
 # Make sure the repo root is on PYTHONPATH so `import app` etc. works in CI
 ROOT_DIR = Path(__file__).resolve().parents[1]
@@ -29,8 +31,10 @@ os.environ.setdefault("BINANCE_MAINNET_API_SECRET", "dummy")
 os.environ.setdefault("BINANCE_BOL_MAINNET_API_KEY", "dummy")
 os.environ.setdefault("BINANCE_BOL_MAINNET_API_SECRET", "dummy")
 
-# Import FastAPI app entrypoint
+# Import FastAPI app entrypoint and auth helpers
 import app  # noqa: E402
+import auth  # noqa: E402
+from database import User, get_db  # noqa: E402
 
 # Import the new engine modules where the in-memory state lives now
 from engines import mean_reversion as mr_engine  # noqa: E402
@@ -75,4 +79,14 @@ def client():
     Test client against the FastAPI instance defined in app.py
     (which now just includes the routers).
     """
-    return TestClient(app.app)
+    def _test_user(request: Request, db=Depends(get_db)):
+        user = auth.get_current_user_optional(request, db)
+        if user:
+            return user
+        return User(username="testuser", hashed_password="", created_at=datetime.utcnow())
+
+    app.app.dependency_overrides[auth.get_current_user] = _test_user
+    try:
+        yield TestClient(app.app)
+    finally:
+        app.app.dependency_overrides.pop(auth.get_current_user, None)

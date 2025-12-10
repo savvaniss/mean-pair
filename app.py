@@ -1,9 +1,10 @@
 # app.py
-from fastapi import FastAPI
-from fastapi.responses import HTMLResponse, FileResponse
+from fastapi import Depends, FastAPI
+from fastapi.responses import HTMLResponse, FileResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
 import config
+import auth
 from engines import mean_reversion as mr_engine
 from engines import bollinger as boll_engine
 from engines import trend_following as trend_engine
@@ -18,6 +19,8 @@ from routes import trading as trading_routes
 from routes import liquidation as liquidation_routes
 from routes import listings as listings_routes
 
+CURRENT_USER_OPTIONAL = auth.get_current_user_optional
+
 
 # =========================
 # FastAPI application
@@ -29,13 +32,16 @@ app = FastAPI(title="Mean Reversion & Bollinger Bots")
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
 # API routes
-app.include_router(mr_routes.router)
-app.include_router(boll_routes.router)
-app.include_router(trend_routes.router)
-app.include_router(rs_routes.router)
-app.include_router(trading_routes.router)
-app.include_router(liquidation_routes.router)
-app.include_router(listings_routes.router)
+auth_required = Depends(auth.get_current_user)
+
+app.include_router(mr_routes.router, dependencies=[auth_required])
+app.include_router(boll_routes.router, dependencies=[auth_required])
+app.include_router(trend_routes.router, dependencies=[auth_required])
+app.include_router(rs_routes.router, dependencies=[auth_required])
+app.include_router(trading_routes.router, dependencies=[auth_required])
+app.include_router(liquidation_routes.router, dependencies=[auth_required])
+app.include_router(listings_routes.router, dependencies=[auth_required])
+app.include_router(auth.router)
 
 
 # =========================
@@ -70,5 +76,12 @@ def stop_threads():
 # Root HTML page
 # =========================
 @app.get("/", response_class=HTMLResponse)
-def index():
+def index(user=Depends(CURRENT_USER_OPTIONAL)):
+    if not user:
+        return RedirectResponse(url="/login")
     return FileResponse("static/index.html")
+
+
+@app.get("/login", response_class=HTMLResponse)
+def login_page():
+    return FileResponse("static/login.html")

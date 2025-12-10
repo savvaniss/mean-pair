@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Sign in | Trading Suite</title>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" />
+  <link rel="stylesheet" href="/static/css/theme.css" />
+  <script type="module" src="/static/js/auth.js"></script>
+</head>
+<body class="auth-page">
+  <div class="auth-card">
+    <div class="auth-header">
+      <h1>Welcome back</h1>
+      <p>Sign in to control the trading suite.</p>
+    </div>
+
+    <form id="loginForm" class="auth-form" novalidate>
+      <div class="form-field">
+        <label for="loginUsername">Username</label>
+        <input id="loginUsername" name="username" type="text" required minlength="3" autocomplete="username" />
+      </div>
+      <div class="form-field">
+        <label for="loginPassword">Password</label>
+        <input id="loginPassword" name="password" type="password" required minlength="8" autocomplete="current-password" />
+      </div>
+      <div class="form-actions">
+        <button type="submit" class="btn btn-primary">Sign in</button>
+      </div>
+      <div class="form-feedback" id="loginFeedback" role="alert"></div>
+    </form>
+
+    <div id="registrationSection">
+      <div class="divider" id="registrationDivider"><span>or</span></div>
+
+      <form id="registerForm" class="auth-form" novalidate>
+        <div class="form-field">
+          <label for="registerUsername">Username</label>
+          <input id="registerUsername" name="username" type="text" required minlength="3" maxlength="64" pattern="[A-Za-z0-9_]+" autocomplete="off" />
+          <small>Use letters, numbers or underscores.</small>
+        </div>
+        <div class="form-field">
+          <label for="registerPassword">Password</label>
+          <input id="registerPassword" name="password" type="password" required minlength="8" autocomplete="new-password" />
+          <small>Minimum 8 characters.</small>
+        </div>
+        <div class="form-field">
+          <label for="registerConfirm">Confirm password</label>
+          <input id="registerConfirm" name="confirm_password" type="password" required minlength="8" autocomplete="new-password" />
+        </div>
+        <div class="form-actions">
+          <button type="submit" class="btn btn-ghost" id="registerButton">Create account</button>
+        </div>
+        <div class="form-feedback" id="registerFeedback" role="alert"></div>
+      </form>
+    </div>
+
+    <div class="form-feedback muted" id="registrationDisabled" hidden>Registration is currently disabled by the administrator.</div>
+  </div>
+</body>
+</html>
