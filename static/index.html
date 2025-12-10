@@ -3,38 +3,82 @@
 <head>
   <meta charset="UTF-8" />
   <title>Trading Suite</title>
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" />
+  <link
+    rel="stylesheet"
+    href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Roboto:wght@300;400;500;700&display=swap"
+  />
   <link rel="stylesheet" href="/static/css/theme.css" />
   <link rel="stylesheet" href="/static/css/listings.css" />
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script type="module" src="/static/js/main.js"></script>
 </head>
 <body>
-  <div id="toastContainer" class="toast-container" aria-live="polite"></div>
-  <div class="top-bar">
-    <div class="title-block">
-      <h1>Pair Trading Suite</h1>
-      <div class="title-sub">Unified mean-reversion, Bollinger, and trend toolkit</div>
-    </div>
-    <div class="top-bar-actions">
-      <div class="user-badge" id="userBadge" aria-live="polite">Loading user…</div>
-      <button class="btn btn-ghost small" id="logoutButton">Logout</button>
-      <button class="btn btn-primary" id="openActionCenter">Open action center</button>
-      <button class="btn btn-ghost" id="refreshAll">Refresh now</button>
-    </div>
-  </div>
+  <div class="bg-blur" aria-hidden="true"></div>
+  <div class="bg-blur alt" aria-hidden="true"></div>
+  <div class="app-shell">
+    <div id="toastContainer" class="toast-container" aria-live="polite"></div>
 
-    <div class="tab-bar">
-      <button class="tab active" data-tab="mean">Mean Reversion (Pairs)</button>
-      <button class="tab" data-tab="boll">Single-Coin Bollinger</button>
-      <button class="tab" data-tab="trend">Trend Following (EMA)</button>
-      <button class="tab" data-tab="freqtrade">Freqtrade Adapters</button>
-      <button class="tab" data-tab="rs">Relative Strength</button>
-      <button class="tab" data-tab="amp">Amplification</button>
-      <button class="tab" data-tab="backtest">Backtesting</button>
-      <button class="tab" data-tab="trading">Trading Desk</button>
-      <button class="tab" data-tab="liquidation">Liquidation Hunt</button>
-      <button class="tab" data-tab="listings">Listings Monitor</button>
+    <header class="hero">
+      <div class="hero-copy">
+        <p class="eyebrow">Unified trading control</p>
+        <div class="hero-title-row">
+          <h1>Pair Trading Suite</h1>
+          <span class="pill live-pill">Live</span>
+        </div>
+        <p class="lede">Orchestrate mean reversion, Bollinger, trend, and discretionary trades from a single modern cockpit.</p>
+        <div class="hero-actions">
+          <button class="btn btn-primary" id="openActionCenter">Open action center</button>
+          <button class="btn btn-ghost" id="refreshAll">Refresh everything</button>
+          <button class="btn btn-ghost small" id="openMrConfigInline">Pair config</button>
+          <button class="btn btn-ghost small" id="openTrendConfigInline">Trend config</button>
+        </div>
+      </div>
+      <div class="hero-panel">
+        <div class="panel-row">
+          <div class="user-badge prominent" id="userBadge" aria-live="polite">Loading user…</div>
+          <button class="btn btn-ghost small" id="logoutButton">Logout</button>
+        </div>
+        <div class="stat-grid">
+          <div class="stat-card">
+            <span class="label">Automation</span>
+            <strong>Mean Reversion</strong>
+            <p>Manage pairs, triggers, and health with instant overrides.</p>
+          </div>
+          <div class="stat-card">
+            <span class="label">Discretionary</span>
+            <strong>Trading Desk</strong>
+            <p>Fast manual tickets, balance insight, and curated symbol lists.</p>
+          </div>
+          <div class="stat-card">
+            <span class="label">Research</span>
+            <strong>Backtesting</strong>
+            <p>Replay Bollinger, EMA, or pairs with configurable spreads.</p>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <div class="nav-surface">
+      <div class="tab-bar">
+        <button class="tab active" data-tab="mean">Mean Reversion (Pairs)</button>
+        <button class="tab" data-tab="boll">Single-Coin Bollinger</button>
+        <button class="tab" data-tab="trend">Trend Following (EMA)</button>
+        <button class="tab" data-tab="freqtrade">Freqtrade Adapters</button>
+        <button class="tab" data-tab="rs">Relative Strength</button>
+        <button class="tab" data-tab="amp">Amplification</button>
+        <button class="tab" data-tab="backtest">Backtesting</button>
+        <button class="tab" data-tab="trading">Trading Desk</button>
+        <button class="tab" data-tab="liquidation">Liquidation Hunt</button>
+        <button class="tab" data-tab="listings">Listings Monitor</button>
+      </div>
+      <div class="secondary-actions">
+        <div class="pill muted">Signals auto-refresh every 10s</div>
+        <button class="btn btn-ghost small" id="openActionCenterFreqtrade">Freqtrade config</button>
+        <button class="btn btn-ghost small" id="openBollConfigInline">Bollinger config</button>
+        <button class="btn btn-ghost small" id="openRSConfigInline">RS config</button>
+        <button class="btn btn-ghost small" id="openAmpConfigInline">Amp config</button>
+        <button class="btn btn-ghost small" id="openLiqConfigInline">Liquidation config</button>
+      </div>
     </div>
 
   <div id="tab-mean" class="tab-content active">
@@ -1782,6 +1826,7 @@
         <button class="btn btn-ghost small" id="nextModalCloseFooter">Close</button>
       </div>
     </div>
+  </div>
   </div>
 </body>
 </html>
