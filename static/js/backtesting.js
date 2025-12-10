@@ -265,7 +265,7 @@ function formatDate(ts) {
 }
 
 export async function refreshBacktesting() {
-  // no-op placeholder to align with refreshAll wiring
+  // placeholder until backtesting has active refreshable data
   return Promise.resolve();
 }
 
