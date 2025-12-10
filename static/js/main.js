@@ -8,6 +8,9 @@ import { initLiquidation, refreshLiquidation } from './liquidationHunt.js';
 import { initListings, refreshListings } from './listings.js';
 
 async function bootstrap() {
+  const authenticated = await initAuthDisplay();
+  if (!authenticated) return;
+
   safeRun('tabs', initTabs);
   safeRun('collapsibles', initCollapsibles);
   safeRun('overlays', initOverlays);
@@ -48,6 +51,32 @@ async function bootstrap() {
 }
 
 document.addEventListener('DOMContentLoaded', bootstrap);
+
+async function initAuthDisplay() {
+  const badge = document.getElementById('userBadge');
+  const logoutBtn = document.getElementById('logoutButton');
+  try {
+    const resp = await fetch('/api/auth/me');
+    if (resp.status === 401) {
+      window.location.href = '/login';
+      return false;
+    }
+    const data = await resp.json();
+    if (badge) {
+      badge.textContent = `Signed in as ${data.username}`;
+    }
+    logoutBtn?.addEventListener('click', async () => {
+      try {
+        await fetch('/api/auth/logout', { method: 'POST' });
+      } finally {
+        window.location.href = '/login';
+      }
+    });
+  } catch (err) {
+    console.error('Unable to verify session', err);
+  }
+  return true;
+}
 
 function wireOverlay(ids, overlayId) {
   ids

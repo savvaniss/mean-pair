@@ -48,6 +48,7 @@ BOT_DISABLE_THREADS = os.getenv("BOT_DISABLE_THREADS", "0") == "1"
 LISTINGS_DISABLE_SCHEDULER = os.getenv("LISTINGS_DISABLE_SCHEDULER", "0") == "1"
 LISTINGS_REFRESH_SECONDS = int(os.getenv("LISTINGS_REFRESH_SECONDS", "60"))
 LISTINGS_RETENTION_MINUTES = int(os.getenv("LISTINGS_RETENTION_MINUTES", "240"))
+AUTH_ALLOW_REGISTRATION = os.getenv("AUTH_ALLOW_REGISTRATION", "1") == "1"
 
 # Global env flags (tracked per bot)
 USE_TESTNET: bool = DEFAULT_ENV == "testnet"  # legacy default / manual trading

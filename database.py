@@ -1,6 +1,6 @@
 # database.py
 from sqlalchemy import create_engine, Column, Integer, Float, String, DateTime
-from sqlalchemy.orm import sessionmaker, declarative_base
+from sqlalchemy.orm import sessionmaker, declarative_base, Session
 
 # =========================
 # DATABASE SETUP (SQLite)
@@ -10,6 +10,14 @@ DATABASE_URL = "sqlite:///./mean_reversion.db"
 engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
 SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False)
 Base = declarative_base()
+
+
+def get_db() -> Session:
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
 
 
 # =========================
@@ -190,6 +198,15 @@ class ListingEvent(Base):
     exchange_type = Column(String, index=True)  # CEX/DEX
     source = Column(String, index=True)  # exchange name
     url = Column(String)
+
+
+class User(Base):
+    __tablename__ = "users"
+
+    id = Column(Integer, primary_key=True, index=True)
+    username = Column(String, unique=True, index=True)
+    hashed_password = Column(String)
+    created_at = Column(DateTime)
 
 
 Base.metadata.create_all(bind=engine)
