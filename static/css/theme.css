@@ -611,6 +611,7 @@ canvas {
   flex: 1 1 360px;
 }
 
+.config-grid,
 .bollinger-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
@@ -620,6 +621,7 @@ canvas {
 }
 
 @media (min-width: 1200px) {
+  .config-grid,
   .bollinger-grid {
     grid-template-columns: repeat(2, minmax(420px, 1fr));
   }
