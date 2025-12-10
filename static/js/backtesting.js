@@ -61,6 +61,11 @@ export async function runBacktest() {
     return;
   }
 
+  if (Number.isNaN(lookbackDays) || lookbackDays <= 0) {
+    showToast('Lookback days must be greater than 0.', 'warning');
+    return;
+  }
+
   const isFreqtrade = freqtradeOptions.some((opt) => opt.value === strategy);
 
   if (strategy === 'mean_reversion') {
@@ -92,7 +97,7 @@ export async function runBacktest() {
     }
   } else if (isFreqtrade) {
     if (!symbol) {
-      showToast('Symbol is required for Freqtrade backtests.', 'warning');
+      showToast('Symbol is required for freqtrade adapter backtests.', 'warning');
       return;
     }
   }
