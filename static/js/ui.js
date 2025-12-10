@@ -17,24 +17,39 @@ export function initTabs() {
   const tabs = document.querySelectorAll('.tab');
   const contents = document.querySelectorAll('.tab-content');
 
-  tabs.forEach((tab) => {
-    tab.addEventListener('click', () => {
-      const target = tab.dataset.tab;
-      tabs.forEach((t) => t.classList.remove('active'));
-      contents.forEach((c) => c.classList.remove('active'));
-      tab.classList.add('active');
-      document.getElementById(`tab-${target}`).classList.add('active');
+  const syncTabControls = (target) => {
+    const switcher = document.getElementById('tabControlSwitcher');
+    if (!switcher) return;
+
+    let hasMatch = false;
+    switcher.querySelectorAll('[data-tab-controls]').forEach((group) => {
+      const isMatch = group.dataset.tabControls === target;
+      group.classList.toggle('active', isMatch);
+      if (isMatch) hasMatch = true;
     });
+
+    switcher.classList.toggle('visible', hasMatch);
+  };
+
+  const activateTab = (target) => {
+    tabs.forEach((t) => t.classList.toggle('active', t.dataset.tab === target));
+    contents.forEach((c) => c.classList.toggle('active', c.id === `tab-${target}`));
+    syncTabControls(target);
+  };
+
+  tabs.forEach((tab) => {
+    tab.addEventListener('click', () => activateTab(tab.dataset.tab));
   });
 
   const params = new URLSearchParams(window.location.search);
   const requestedTab = params.get('tab') || window.location.hash.replace('#', '');
   const defaultTab = requestedTab
     ? Array.from(tabs).find((tab) => tab.dataset.tab === requestedTab)
-    : null;
+    : document.querySelector('.tab.active');
 
-  if (defaultTab) {
-    defaultTab.click();
+  const targetTab = defaultTab?.dataset.tab || tabs[0]?.dataset.tab;
+  if (targetTab) {
+    activateTab(targetTab);
   }
 }
 

@@ -28,18 +28,6 @@ async function bootstrap() {
   safeRun('freqtrade adapters init', initFreqtradeAdapters);
   safeRun('backtesting init', initBacktesting);
 
-  document.getElementById('refreshAll')?.addEventListener('click', () => {
-    void safeRefresh('mean reversion', refreshMeanReversion);
-    void safeRefresh('bollinger', refreshBollinger);
-    void safeRefresh('trend', refreshTrendFollowing);
-    void safeRefresh('relative strength', refreshRelativeStrength);
-    void safeRefresh('trading', refreshTrading);
-    void safeRefresh('liquidation', refreshLiquidation);
-    void safeRefresh('listings', refreshListings);
-    void safeRefresh('freqtrade adapters', refreshFreqtradeAdapters);
-    void safeRefresh('backtesting', refreshBacktesting);
-  });
-
   await safeRefresh('mean reversion', refreshMeanReversion);
   await safeRefresh('bollinger', refreshBollinger);
   await safeRefresh('trend', refreshTrendFollowing);
@@ -116,15 +104,14 @@ async function safeRefresh(label, fn) {
 }
 
 function initOverlays() {
-  wireOverlay(['openActionCenter', 'openActionCenterFreqtrade'], 'actionModalOverlay');
-  wireOverlay(['openListingConfig'], 'listingConfigOverlay');
-  wireOverlay(['openMrConfig', 'openMrConfigInline'], 'mrConfigOverlay');
-  wireOverlay(['openBollConfig', 'openBollConfigInline'], 'bollConfigOverlay');
-  wireOverlay(['openTrendConfig', 'openTrendConfigInline'], 'trendConfigOverlay');
-  wireOverlay(['openRSConfig', 'openRSConfigInline'], 'rsConfigOverlay');
+  wireOverlay(['openListingConfigInline'], 'listingConfigOverlay');
+  wireOverlay(['openMrConfigInline'], 'mrConfigOverlay');
+  wireOverlay(['openBollConfigInline'], 'bollConfigOverlay');
+  wireOverlay(['openTrendConfigInline'], 'trendConfigOverlay');
+  wireOverlay(['openRSConfigInline'], 'rsConfigOverlay');
   wireOverlay(['openAmpConfigInline'], 'ampConfigOverlay');
-  wireOverlay(['openFtConfig', 'openFtConfigInline'], 'ftConfigOverlay');
-  wireOverlay(['openLiqConfigInline'], 'liqConfigOverlay');
+  wireOverlay(['openFtConfig'], 'ftConfigOverlay');
+  wireOverlay(['openLiqConfigInlineSecondary'], 'liqConfigOverlay');
 
   document.querySelectorAll('[data-close-overlay]').forEach((btn) => {
     const target = btn.getAttribute('data-close-overlay');
