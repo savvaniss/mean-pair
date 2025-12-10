@@ -17,6 +17,38 @@
       <div class="title-sub">Unified mean-reversion, Bollinger, and trend toolkit</div>
     </div>
     <div class="top-bar-actions">
+      <div id="tabControlSwitcher" class="tab-control-switcher">
+        <div class="tab-control-group" data-tab-controls="mean">
+          <button class="btn btn-primary" id="startBotBtn">Start bot</button>
+          <button class="btn btn-danger" id="stopBotBtn">Stop bot</button>
+          <button class="btn" id="openMrConfigInline">Configure</button>
+        </div>
+        <div class="tab-control-group" data-tab-controls="boll">
+          <button class="btn btn-primary" id="startBollBtn">Start bot</button>
+          <button class="btn btn-danger" id="stopBollBtn">Stop bot</button>
+          <button class="btn" id="openBollConfigInline">Configure</button>
+        </div>
+        <div class="tab-control-group" data-tab-controls="trend">
+          <button class="btn btn-primary" id="startTrendBtn">Start bot</button>
+          <button class="btn btn-danger" id="stopTrendBtn">Stop bot</button>
+          <button class="btn" id="openTrendConfigInline">Configure</button>
+        </div>
+        <div class="tab-control-group" data-tab-controls="freqtrade">
+          <button class="btn btn-primary" id="ftStartBtn">Start bot</button>
+          <button class="btn btn-danger" id="ftStopBtn">Stop bot</button>
+          <button class="btn" id="openFtConfig">Configure</button>
+        </div>
+        <div class="tab-control-group" data-tab-controls="rs">
+          <button class="btn btn-primary" id="startRSBtn">Start bot</button>
+          <button class="btn btn-danger" id="stopRSBtn">Stop bot</button>
+          <button class="btn" id="openRSConfigInline">Configure</button>
+        </div>
+        <div class="tab-control-group" data-tab-controls="amp">
+          <button class="btn btn-primary" id="startAmpBtn">Start bot</button>
+          <button class="btn btn-danger" id="stopAmpBtn">Stop bot</button>
+          <button class="btn" id="openAmpConfigInline">Configure</button>
+        </div>
+      </div>
       <div class="user-badge" id="userBadge" aria-live="polite">Loading user…</div>
       <button class="btn btn-ghost small" id="logoutButton">Logout</button>
       <button class="btn btn-ghost" id="refreshAll">Refresh now</button>
@@ -89,22 +121,6 @@
     <div class="row">
         <div class="card" data-collapsible>
           <div class="card-header">
-            <h2>Mean Reversion Controls</h2>
-            <span class="toggle-icon">▼</span>
-          </div>
-          <div class="card-body">
-            <div class="button-row">
-              <button class="btn btn-primary" id="startBotBtn">Start MR bot</button>
-              <button class="btn btn-danger" id="stopBotBtn">Stop MR bot</button>
-              <button class="btn btn-ghost" id="syncStateBtn">Sync MR balances</button>
-              <button class="btn btn-ghost" id="nextTradeBtn">Next MR trade</button>
-              <button class="btn" id="openMrConfigInline">Configure MR</button>
-            </div>
-          </div>
-        </div>
-
-        <div class="card" data-collapsible>
-          <div class="card-header">
             <h2>Live Status</h2>
             <span class="toggle-icon">▼</span>
           </div>
@@ -120,7 +136,7 @@
         </div>
         <div class="card-body">
           <div id="mrConfigSummary" class="config-summary">Loading config...</div>
-          <div class="help-text">Use Configure MR to adjust settings and save changes.</div>
+          <div class="help-text">Use Configure to adjust settings and save changes.</div>
         </div>
       </div>
 
@@ -226,20 +242,6 @@
     <div class="row">
       <div class="card" data-collapsible>
         <div class="card-header">
-          <h2>Bollinger Controls</h2>
-          <span class="toggle-icon">▼</span>
-        </div>
-        <div class="card-body">
-          <div class="button-row">
-            <button class="btn btn-primary" id="startBollBtn">Start Bollinger bot</button>
-            <button class="btn btn-danger" id="stopBollBtn">Stop Bollinger bot</button>
-            <button class="btn" id="openBollConfigInline">Configure Bollinger</button>
-          </div>
-        </div>
-      </div>
-
-      <div class="card" data-collapsible>
-        <div class="card-header">
           <h2>Bollinger Overview</h2>
           <span class="toggle-icon">▼</span>
         </div>
@@ -267,7 +269,7 @@
         </div>
         <div class="card-body">
           <div id="bollConfigSummary" class="config-summary">Loading saved config...</div>
-          <div class="help-text">Adjust Bollinger settings from Configure Bollinger above.</div>
+          <div class="help-text">Adjust Bollinger settings from Configure above.</div>
         </div>
       </div>
 
@@ -341,20 +343,6 @@
       <div class="row">
         <div class="card" data-collapsible>
           <div class="card-header">
-            <h2>Trend Controls</h2>
-            <span class="toggle-icon">▼</span>
-          </div>
-          <div class="card-body">
-            <div class="button-row">
-              <button class="btn btn-primary" id="startTrendBtn">Start Trend bot</button>
-              <button class="btn btn-danger" id="stopTrendBtn">Stop Trend bot</button>
-              <button class="btn" id="openTrendConfigInline">Configure Trend</button>
-            </div>
-          </div>
-        </div>
-
-        <div class="card" data-collapsible>
-          <div class="card-header">
             <h2>Trend Status</h2>
             <span class="toggle-icon">▼</span>
           </div>
@@ -370,7 +358,7 @@
           </div>
           <div class="card-body">
             <div id="trendConfigSummary" class="config-summary">Loading saved trend config...</div>
-            <div class="help-text">Update trend settings from Configure Trend.</div>
+            <div class="help-text">Update trend settings from Configure above.</div>
           </div>
         </div>
       </div>
@@ -455,9 +443,6 @@
           <div class="card-body">
             <div id="ftConfigSummary" class="config-summary">Choose an algorithm to load its config.</div>
             <div class="button-row">
-              <button class="btn btn-primary" id="ftStartBtn">Start adapter</button>
-              <button class="btn btn-danger" id="ftStopBtn">Stop adapter</button>
-              <button class="btn" id="openFtConfig">Open freqtrade config</button>
               <button class="btn btn-ghost" id="openFtHelp">Docs</button>
             </div>
             <div class="help-text">Manage freqtrade adapters directly from these controls.</div>
@@ -523,20 +508,6 @@
       <div class="row">
         <div class="card" data-collapsible>
           <div class="card-header">
-            <h2>Relative Strength Controls</h2>
-            <span class="toggle-icon">▼</span>
-          </div>
-          <div class="card-body">
-            <div class="button-row">
-              <button class="btn btn-primary" id="startRSBtn">Start RS bot</button>
-              <button class="btn btn-danger" id="stopRSBtn">Stop RS bot</button>
-              <button class="btn" id="openRSConfigInline">Configure RS</button>
-            </div>
-          </div>
-        </div>
-
-        <div class="card" data-collapsible>
-          <div class="card-header">
             <h2>Relative Strength Status</h2>
             <span class="toggle-icon">▼</span>
           </div>
@@ -552,7 +523,7 @@
           </div>
           <div class="card-body">
             <div id="rsConfigSummary" class="config-summary">Loading saved RS config...</div>
-            <div class="help-text">Manage RS config from Configure RS.</div>
+            <div class="help-text">Manage RS config from Configure above.</div>
           </div>
         </div>
       </div>
@@ -621,20 +592,6 @@
       <div class="row">
         <div class="card" data-collapsible>
           <div class="card-header">
-            <h2>Amplification Controls</h2>
-            <span class="toggle-icon">▼</span>
-          </div>
-          <div class="card-body">
-            <div class="button-row">
-              <button class="btn btn-primary" id="startAmpBtn">Start amplification</button>
-              <button class="btn btn-danger" id="stopAmpBtn">Stop amplification</button>
-              <button class="btn" id="openAmpConfigInline">Configure amplification</button>
-            </div>
-          </div>
-        </div>
-
-        <div class="card" data-collapsible>
-          <div class="card-header">
             <h2>Amplification overview</h2>
             <span class="toggle-icon">▼</span>
           </div>
@@ -650,7 +607,7 @@
           </div>
           <div class="card-body">
             <div id="ampConfigSummary" class="config-summary">Configuring amplification here keeps the tab lean while surfacing the latest snapshot.</div>
-            <div class="help-text">Use Configure amplification to edit settings without leaving the tab.</div>
+            <div class="help-text">Use Configure to edit settings without leaving the tab.</div>
           </div>
         </div>
       </div>

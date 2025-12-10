@@ -36,6 +36,27 @@ body {
   flex-wrap: wrap;
 }
 
+.tab-control-switcher {
+  display: none;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.tab-control-group {
+  display: none;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.tab-control-group.active {
+  display: flex;
+}
+
+.tab-control-switcher.visible {
+  display: flex;
+}
+
 .title-block h1 {
   margin: 0;
   font-size: 1.6rem;

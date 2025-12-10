@@ -764,11 +764,9 @@ export function initMeanReversion() {
   const manualForm = document.getElementById('manualTradeForm');
   const manualDirection = document.getElementById('manual_direction');
   const manualMax = document.getElementById('manual_max_btn');
-  const syncBtn = document.getElementById('syncStateBtn');
   const startBtn = document.getElementById('startBotBtn');
   const stopBtn = document.getElementById('stopBotBtn');
   const genConfigBtn = document.getElementById('generateConfigBtn');
-  const nextBtn = document.getElementById('nextTradeBtn');
   const nextClose = document.getElementById('nextModalClose');
   const nextCloseFooter = document.getElementById('nextModalCloseFooter');
   const nextRecalc = document.getElementById('nextModalRecalc');
@@ -777,15 +775,9 @@ export function initMeanReversion() {
   if (manualForm) manualForm.addEventListener('submit', manualTrade);
   if (manualDirection) manualDirection.addEventListener('change', updateManualTradeForm);
   if (manualMax) manualMax.addEventListener('click', setManualMax);
-  if (syncBtn) syncBtn.addEventListener('click', syncState);
   if (startBtn) startBtn.addEventListener('click', startBot);
   if (stopBtn) stopBtn.addEventListener('click', stopBot);
   if (genConfigBtn) genConfigBtn.addEventListener('click', generateConfigFromHistory);
-  if (nextBtn)
-    nextBtn.addEventListener('click', () => {
-      openOverlay('nextModalOverlay');
-      fetchNextSignal();
-    });
   if (nextClose) nextClose.addEventListener('click', () => closeOverlay('nextModalOverlay'));
   if (nextCloseFooter) nextCloseFooter.addEventListener('click', () => closeOverlay('nextModalOverlay'));
   if (nextRecalc) nextRecalc.addEventListener('click', fetchNextSignal);
