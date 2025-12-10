@@ -567,6 +567,8 @@ def backtest_amplification(
     lookback_days: int,
     momentum_window: int,
     min_beta: float,
+    conversion_symbol: Optional[str],
+    switch_cooldown: int,
     starting_balance: float,
     start: Optional[datetime] = None,
     end: Optional[datetime] = None,
@@ -611,6 +613,8 @@ def backtest_amplification(
 
     alt_price_maps = {sym: dict(aligned) for sym, aligned in aligned_alts.items()}
 
+    cooldown = 0
+
     for idx in range(len(base_prices)):
         ts = base_ts[idx]
         price_base = base_prices[idx]
@@ -622,12 +626,28 @@ def backtest_amplification(
         if idx < momentum_window:
             continue
 
+        if cooldown > 0:
+            cooldown -= 1
+            continue
+
         momentum = (price_base - base_prices[idx - momentum_window]) / base_prices[
             idx - momentum_window
         ]
 
         top_candidate = None
+        preferred = None
+        if conversion_symbol:
+            preferred = next((c for c in candidates if c.symbol == conversion_symbol), None)
+            if not preferred:
+                preferred = next((c for c in stats if c.symbol == conversion_symbol), None)
+        ordered_candidates = []
+        if preferred:
+            ordered_candidates.append(preferred)
         for cand in candidates:
+            if preferred and cand.symbol == preferred.symbol:
+                continue
+            ordered_candidates.append(cand)
+        for cand in ordered_candidates:
             if ts in alt_price_maps.get(cand.symbol, {}):
                 top_candidate = cand
                 break
@@ -648,6 +668,7 @@ def backtest_amplification(
                 )
                 position_sym = top_candidate.symbol
                 cash = 0.0
+                cooldown = switch_cooldown
         elif momentum < 0 and position_sym and holding_price:
             cash = qty * holding_price
             trades.append(
@@ -655,6 +676,7 @@ def backtest_amplification(
             )
             qty = 0.0
             position_sym = None
+            cooldown = switch_cooldown
 
     if position_sym:
         last_ts = base_ts[-1]

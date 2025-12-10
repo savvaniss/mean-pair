@@ -29,14 +29,26 @@ class AmplificationStat:
 
 
 class AmplificationConfig(BaseModel):
-    base_symbol: str = "BTCUSDT"
-    symbols: List[str] = ["ETHUSDT", "SOLUSDT", "ADAUSDT", "XRPUSDT"]
+    base_symbol: str = "BTCUSDC"
+    symbols: List[str] = [
+        "SOLUSDC",
+        "ETHUSDC",
+        "LINKUSDC",
+        "XRPUSDC",
+        "DOGEUSDC",
+        "HBARUSDC",
+        "ARBUSDC",
+        "AVAXUSDC",
+    ]
     lookback_days: int = 60
     interval: str = "1d"
     min_beta: float = 1.1
     min_correlation: float = 0.2
     suggest_top_n: int = 3
     momentum_window: int = 3
+    conversion_symbol: Optional[str] = None
+    switch_cooldown: int = 0
+    enabled: bool = False
 
     @field_validator("interval")
     def validate_interval(cls, v: str) -> str:  # noqa: D417 - short validator
@@ -51,20 +63,61 @@ class AmplificationConfig(BaseModel):
             raise ValueError("At least one altcoin symbol is required")
         return cleaned
 
+    @field_validator("conversion_symbol")
+    def validate_conversion(cls, v: Optional[str]) -> Optional[str]:  # noqa: D417
+        return v.upper() if v else None
+
+    @field_validator("switch_cooldown")
+    def validate_cooldown(cls, v: int) -> int:  # noqa: D417
+        if v < 0:
+            raise ValueError("switch_cooldown must be non-negative")
+        return v
+
 
 config = AmplificationConfig()
+latest_summary: Optional[Dict] = None
 
 
 def set_config(data: Dict) -> AmplificationConfig:
     """Replace the in-memory config with the supplied payload."""
 
     global config
-    config = AmplificationConfig(**{**config.model_dump(), **data})
+    updated = AmplificationConfig(**{**config.model_dump(), **data})
+    if updated.conversion_symbol and updated.conversion_symbol not in updated.symbols:
+        updated.symbols.append(updated.conversion_symbol)
+    config = updated
     return config
 
 
 def get_config() -> AmplificationConfig:
     return config
+
+
+def start_engine() -> Dict:
+    config.enabled = True
+    return get_status()
+
+
+def stop_engine() -> Dict:
+    config.enabled = False
+    return get_status()
+
+
+def get_status() -> Dict:
+    summary = latest_summary or {}
+    return {
+        "enabled": config.enabled,
+        "base_symbol": config.base_symbol,
+        "interval": config.interval,
+        "lookback_days": config.lookback_days,
+        "conversion_symbol": config.conversion_symbol,
+        "switch_cooldown": config.switch_cooldown,
+        "momentum_window": config.momentum_window,
+        "min_beta": config.min_beta,
+        "suggest_top_n": config.suggest_top_n,
+        "latest_suggestions": summary.get("suggestions", []),
+        "last_generated_at": summary.get("generated_at"),
+    }
 
 
 def _percent_returns(series: List[float]) -> List[float]:
@@ -194,7 +247,13 @@ def summarize_amplification() -> Dict:
         if r.beta >= config.min_beta and r.correlation >= config.min_correlation
     ][: config.suggest_top_n]
 
-    return {
+    if not config.conversion_symbol or config.conversion_symbol not in config.symbols:
+        if suggestions:
+            config.conversion_symbol = suggestions[0]
+        elif config.symbols:
+            config.conversion_symbol = config.symbols[0]
+
+    summary = {
         "base": config.base_symbol,
         "interval": config.interval,
         "lookback_days": config.lookback_days,
@@ -211,4 +270,9 @@ def summarize_amplification() -> Dict:
             for r in rows
         ],
         "suggestions": suggestions,
+        "conversion_symbol": config.conversion_symbol,
+        "switch_cooldown": config.switch_cooldown,
     }
+    global latest_summary
+    latest_summary = summary
+    return summary

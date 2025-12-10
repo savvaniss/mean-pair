@@ -58,6 +58,7 @@ export async function runBacktest() {
     .split(',')
     .map((s) => s.trim())
     .filter(Boolean);
+  const conversionSymbol = document.getElementById('backtestConversion')?.value?.trim();
   const assetA = document.getElementById('backtestAssetA')?.value?.trim();
   const assetB = document.getElementById('backtestAssetB')?.value?.trim();
   const intervalSelect = document.getElementById('backtestInterval');
@@ -78,6 +79,7 @@ export async function runBacktest() {
   const atrStop = Number(document.getElementById('backtestAtrStop')?.value || 2.0);
   const momentumWindow = Number(document.getElementById('backtestMomentum')?.value || 3);
   const minBeta = Number(document.getElementById('backtestMinBeta')?.value || 1.1);
+  const switchCooldown = Number(document.getElementById('backtestCooldown')?.value || 0);
 
   if (!strategy) {
     showToast('Please choose a strategy', 'warning');
@@ -165,6 +167,8 @@ export async function runBacktest() {
     alt_symbols: altSymbols,
     momentum_window: momentumWindow,
     min_beta: minBeta,
+    conversion_symbol: conversionSymbol || undefined,
+    switch_cooldown: switchCooldown,
   };
 
   try {

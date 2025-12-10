@@ -26,3 +26,18 @@ def amplification_summary():
         return amplification.summarize_amplification()
     except Exception as exc:  # pragma: no cover - surfacing fetch issues
         raise HTTPException(status_code=400, detail=str(exc))
+
+
+@router.get("/amplification/status")
+def amplification_status():
+    return amplification.get_status()
+
+
+@router.post("/amplification/start")
+def amplification_start():
+    return amplification.start_engine()
+
+
+@router.post("/amplification/stop")
+def amplification_stop():
+    return amplification.stop_engine()

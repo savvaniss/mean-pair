@@ -122,6 +122,7 @@ function initOverlays() {
   wireOverlay(['openBollConfig', 'openBollConfigInline'], 'bollConfigOverlay');
   wireOverlay(['openTrendConfig', 'openTrendConfigInline'], 'trendConfigOverlay');
   wireOverlay(['openRSConfig', 'openRSConfigInline'], 'rsConfigOverlay');
+  wireOverlay(['openAmpConfigInline'], 'ampConfigOverlay');
   wireOverlay(['openFtConfig', 'openFtConfigInline'], 'ftConfigOverlay');
   wireOverlay(['openLiqConfigInline'], 'liqConfigOverlay');
 
