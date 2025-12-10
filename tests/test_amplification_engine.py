@@ -93,3 +93,39 @@ def test_backtest_respects_conversion_and_cooldown(monkeypatch):
     exits = [t for t in result.trades if t.action.startswith("EXIT")]
     assert exits
     assert exits[-1].ts == result.trades[-1].ts
+
+
+def test_backtest_handles_gaps_with_open_position(monkeypatch):
+    base_prices = [100, 102, 103, 101]
+    alt_prices = [100, 104, 103]  # missing the final candle, moves in same directions as base
+
+    series = {
+        "BTCUSDC": base_prices,
+        "ALT1USDC": alt_prices,
+    }
+
+    def fake_fetch(symbol, interval, start, end):
+        prices = series.get(symbol)
+        if not prices:
+            return []
+        return _candles(prices)
+
+    monkeypatch.setattr(backtester, "_fetch_klines", fake_fetch)
+
+    result = backtester.backtest_amplification(
+        base_symbol="BTCUSDC",
+        symbols=["ALT1USDC"],
+        interval="1d",
+        lookback_days=30,
+        momentum_window=1,
+        min_beta=0.5,
+        conversion_symbol=None,
+        switch_cooldown=0,
+        starting_balance=1000.0,
+    )
+
+    # Should buy when momentum turns positive and exit on the first negative momentum
+    assert any(t.action.startswith("BUY_ALT1USDC") for t in result.trades)
+    assert any(t.action.startswith("EXIT_ALT1USDC") for t in result.trades)
+    # Final balance should use the last seen alt price, not zero
+    assert result.final_balance > 0

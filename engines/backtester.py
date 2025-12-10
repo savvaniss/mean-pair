@@ -643,6 +643,7 @@ def backtest_amplification(
     equity: List[EquityPoint] = []
 
     alt_price_maps = {sym: dict(aligned) for sym, aligned in aligned_alts.items()}
+    last_seen_prices: Dict[str, Optional[float]] = {sym: None for sym in aligned_alts}
 
     cooldown = 0
 
@@ -650,8 +651,12 @@ def backtest_amplification(
         ts = base_ts[idx]
         price_base = base_prices[idx]
         holding_price = None
+        for sym, price_map in alt_price_maps.items():
+            price_at_ts = price_map.get(ts)
+            if price_at_ts is not None:
+                last_seen_prices[sym] = price_at_ts
         if position_sym:
-            holding_price = alt_price_maps.get(position_sym, {}).get(ts)
+            holding_price = last_seen_prices.get(position_sym)
         equity.append(EquityPoint(ts=ts, equity=cash + (qty * holding_price if holding_price else 0.0)))
 
         if idx < momentum_window:
@@ -691,7 +696,9 @@ def backtest_amplification(
                 )
                 qty = 0.0
                 position_sym = None
-            alt_price = alt_price_maps[top_candidate.symbol][ts]
+            alt_price = alt_price_maps[top_candidate.symbol].get(ts)
+            if alt_price is None:
+                continue
             if cash > 0:
                 qty = cash / alt_price
                 trades.append(
@@ -712,6 +719,8 @@ def backtest_amplification(
     if position_sym:
         last_ts = base_ts[-1]
         last_price = alt_price_maps[position_sym].get(last_ts)
+        if last_price is None:
+            last_price = last_seen_prices.get(position_sym)
         if last_price:
             cash = qty * last_price
             trades.append(
