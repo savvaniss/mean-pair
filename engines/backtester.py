@@ -59,6 +59,8 @@ BINANCE_INTERVAL_MS = {
     "1d": 86_400_000,
 }
 
+SUPPORTED_INTERVALS = tuple(BINANCE_INTERVAL_MS.keys())
+
 
 def _mr_quote() -> str:
     env = os.getenv("BINANCE_DEFAULT_ENV", "testnet").lower()

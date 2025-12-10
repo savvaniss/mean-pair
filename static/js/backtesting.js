@@ -8,10 +8,24 @@ const freqtradeOptions = [
   { value: 'supertrend', label: 'Freqtrade – Supertrend' },
 ];
 
+const supportedIntervals = ['1m', '5m', '15m', '1h', '4h', '1d'];
+
 export function initBacktesting() {
   const strategy = document.getElementById('backtestStrategy');
   const form = document.getElementById('backtestForm');
+  const intervalSelect = document.getElementById('backtestInterval');
   if (!strategy || !form) return;
+
+  if (intervalSelect) {
+    intervalSelect.innerHTML = '';
+    supportedIntervals.forEach((intv) => {
+      const option = document.createElement('option');
+      option.value = intv;
+      option.textContent = intv;
+      intervalSelect.appendChild(option);
+    });
+    intervalSelect.value = '1h';
+  }
 
   // Populate strategy dropdown dynamically to keep labels centralized
   const baseOptions = [
@@ -40,7 +54,8 @@ export async function runBacktest() {
   const symbol = document.getElementById('backtestSymbol')?.value?.trim();
   const assetA = document.getElementById('backtestAssetA')?.value?.trim();
   const assetB = document.getElementById('backtestAssetB')?.value?.trim();
-  const interval = document.getElementById('backtestInterval')?.value || '1h';
+  const intervalSelect = document.getElementById('backtestInterval');
+  const interval = intervalSelect?.value || '1h';
   const lookbackDays = Number(document.getElementById('backtestLookback')?.value || 14);
   const startDateStr = document.getElementById('backtestStartDate')?.value;
   const endDateStr = document.getElementById('backtestEndDate')?.value;
@@ -67,6 +82,11 @@ export async function runBacktest() {
   }
 
   const isFreqtrade = freqtradeOptions.some((opt) => opt.value === strategy);
+
+  if (!supportedIntervals.includes(interval)) {
+    showToast(`Interval must be one of: ${supportedIntervals.join(', ')}`, 'warning');
+    return;
+  }
 
   if (strategy === 'mean_reversion') {
     if (!assetA || !assetB) {
