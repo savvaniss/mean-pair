@@ -72,11 +72,8 @@ export function initListings() {
   listingConfigForm?.addEventListener('submit', saveListingConfig);
   document.getElementById('openListingConfigInline')?.addEventListener('click', (event) => {
     event.preventDefault();
-    closeOverlay('actionModalOverlay');
-    setTimeout(() => {
-      loadListingConfig();
-      openOverlay('listingConfigOverlay');
-    }, 20);
+    loadListingConfig();
+    openOverlay('listingConfigOverlay');
   });
 
   clearInterval(listingsInterval);

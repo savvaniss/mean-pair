@@ -19,7 +19,6 @@
     <div class="top-bar-actions">
       <div class="user-badge" id="userBadge" aria-live="polite">Loading user…</div>
       <button class="btn btn-ghost small" id="logoutButton">Logout</button>
-      <button class="btn btn-primary" id="openActionCenter">Open action center</button>
       <button class="btn btn-ghost" id="refreshAll">Refresh now</button>
     </div>
   </div>
@@ -88,15 +87,22 @@
 
   <div id="tab-mean" class="tab-content active">
     <div class="row">
-      <div class="card" data-collapsible>
-        <div class="card-header">
-          <h2>Live Status</h2>
-          <span class="toggle-icon">▼</span>
+        <div class="card" data-collapsible>
+          <div class="card-header">
+            <h2>Live Status</h2>
+            <span class="toggle-icon">▼</span>
+          </div>
+          <div class="card-body">
+            <div class="button-row">
+              <button class="btn btn-primary" id="startBotBtn">Start MR bot</button>
+              <button class="btn btn-danger" id="stopBotBtn">Stop MR bot</button>
+              <button class="btn btn-ghost" id="syncStateBtn">Sync MR balances</button>
+              <button class="btn btn-ghost" id="nextTradeBtn">Next MR trade</button>
+              <button class="btn" id="openMrConfigInline">Configure MR</button>
+            </div>
+            <div id="status" class="status-section">Loading...</div>
+          </div>
         </div>
-        <div class="card-body">
-          <div id="status" class="status-section">Loading...</div>
-        </div>
-      </div>
 
       <div class="card" data-collapsible>
         <div class="card-header">
@@ -105,7 +111,7 @@
         </div>
         <div class="card-body">
           <div id="mrConfigSummary" class="config-summary">Loading config...</div>
-          <div class="help-text">Configure mean reversion settings from the action center.</div>
+          <div class="help-text">Use Configure MR to adjust settings and save changes.</div>
         </div>
       </div>
 
@@ -215,6 +221,11 @@
           <span class="toggle-icon">▼</span>
         </div>
         <div class="card-body">
+          <div class="button-row">
+            <button class="btn btn-primary" id="startBollBtn">Start Bollinger bot</button>
+            <button class="btn btn-danger" id="stopBollBtn">Stop Bollinger bot</button>
+            <button class="btn" id="openBollConfigInline">Configure Bollinger</button>
+          </div>
           <div id="bollStatus" class="status-section">Loading...</div>
           <div class="inline-metrics" id="bollPosition"></div>
         </div>
@@ -231,16 +242,16 @@
       </div>
     </div>
 
-    <div class="card" data-collapsible>
-      <div class="card-header">
-        <h2>Bollinger Setup</h2>
-        <span class="toggle-icon">▼</span>
+      <div class="card" data-collapsible>
+        <div class="card-header">
+          <h2>Bollinger Setup</h2>
+          <span class="toggle-icon">▼</span>
+        </div>
+        <div class="card-body">
+          <div id="bollConfigSummary" class="config-summary">Loading saved config...</div>
+          <div class="help-text">Adjust Bollinger settings from Configure Bollinger above.</div>
+        </div>
       </div>
-      <div class="card-body">
-        <div id="bollConfigSummary" class="config-summary">Loading saved config...</div>
-        <div class="help-text">Adjust Bollinger settings from the action center.</div>
-      </div>
-    </div>
 
     <div class="card" data-collapsible>
       <div class="card-header">
@@ -315,7 +326,14 @@
             <h2>Trend Status</h2>
             <span class="toggle-icon">▼</span>
           </div>
-          <div class="card-body" id="trendStatus">Loading...</div>
+          <div class="card-body" id="trendStatus">
+            <div class="button-row">
+              <button class="btn btn-primary" id="startTrendBtn">Start Trend bot</button>
+              <button class="btn btn-danger" id="stopTrendBtn">Stop Trend bot</button>
+              <button class="btn" id="openTrendConfigInline">Configure Trend</button>
+            </div>
+            Loading...
+          </div>
         </div>
 
         <div class="card" data-collapsible>
@@ -325,7 +343,7 @@
           </div>
           <div class="card-body">
             <div id="trendConfigSummary" class="config-summary">Loading saved trend config...</div>
-            <div class="help-text">Update trend settings from the action center.</div>
+            <div class="help-text">Update trend settings from Configure Trend.</div>
           </div>
         </div>
       </div>
@@ -410,10 +428,12 @@
           <div class="card-body">
             <div id="ftConfigSummary" class="config-summary">Choose an algorithm to load its config.</div>
             <div class="button-row">
+              <button class="btn btn-primary" id="ftStartBtn">Start adapter</button>
+              <button class="btn btn-danger" id="ftStopBtn">Stop adapter</button>
               <button class="btn" id="openFtConfig">Open freqtrade config</button>
-              <button class="btn btn-ghost" id="openActionCenterFreqtrade">Open action center</button>
+              <button class="btn btn-ghost" id="openFtHelp">Docs</button>
             </div>
-            <div class="help-text">Manage freqtrade algorithms, configuration, and start/stop actions from the action center.</div>
+            <div class="help-text">Manage freqtrade adapters directly from these controls.</div>
           </div>
         </div>
       </div>
@@ -479,7 +499,14 @@
             <h2>Relative Strength Status</h2>
             <span class="toggle-icon">▼</span>
           </div>
-          <div class="card-body" id="rsStatus">Loading...</div>
+          <div class="card-body" id="rsStatus">
+            <div class="button-row">
+              <button class="btn btn-primary" id="startRSBtn">Start RS bot</button>
+              <button class="btn btn-danger" id="stopRSBtn">Stop RS bot</button>
+              <button class="btn" id="openRSConfigInline">Configure RS</button>
+            </div>
+            Loading...
+          </div>
         </div>
 
         <div class="card" data-collapsible>
@@ -489,7 +516,7 @@
           </div>
           <div class="card-body">
             <div id="rsConfigSummary" class="config-summary">Loading saved RS config...</div>
-            <div class="help-text">Manage RS config from the action center.</div>
+            <div class="help-text">Manage RS config from Configure RS.</div>
           </div>
         </div>
       </div>
@@ -562,6 +589,11 @@
             <span class="toggle-icon">▼</span>
           </div>
           <div class="card-body">
+            <div class="button-row">
+              <button class="btn btn-primary" id="startAmpBtn">Start amplification</button>
+              <button class="btn btn-danger" id="stopAmpBtn">Stop amplification</button>
+              <button class="btn" id="openAmpConfigInline">Configure amplification</button>
+            </div>
             <div id="ampStatus" class="status-section">Loading amplification snapshot…</div>
           </div>
         </div>
@@ -572,11 +604,8 @@
             <span class="toggle-icon">▼</span>
           </div>
           <div class="card-body">
-            <div id="ampConfigSummary" class="config-summary">Configuring amplification from the action center keeps the tab lean. Open the action center to edit settings.</div>
-            <div class="button-row">
-              <button class="btn" id="openAmpConfigInline">Configure amplification</button>
-              <div class="help-text">Use the action center to start/stop the amplification engine and adjust settings.</div>
-            </div>
+            <div id="ampConfigSummary" class="config-summary">Configuring amplification here keeps the tab lean while surfacing the latest snapshot.</div>
+            <div class="help-text">Use Configure amplification to edit settings without leaving the tab.</div>
           </div>
         </div>
       </div>
@@ -924,17 +953,19 @@
       </div>
 
       <div class="card" style="flex: 1;">
-        <div class="card-header">
-          <h2>Scanner Config</h2>
-        </div>
-        <div class="card-body">
-          <div class="config-summary" id="liqConfigSummary">Configure liquidation scanning from the action center.</div>
+          <div class="card-header">
+            <h2>Scanner Config</h2>
+          </div>
+          <div class="card-body">
+          <div class="config-summary" id="liqConfigSummary">Configure liquidation scanning inline without leaving this tab.</div>
           <div class="pill-row" id="liqEnvRow">
             <span class="chip chip-primary" id="liqEnvChip">Environment: -</span>
             <span class="chip" id="liqAutoChip">Auto-trading: -</span>
             <span class="chip chip-muted" id="liqCadenceChip">Polling cadence: -</span>
           </div>
           <div class="button-row">
+            <button class="btn btn-primary" id="liqEnableBtn">Start Scanner bot</button>
+            <button class="btn btn-danger" id="liqDisableBtn">Stop Scanner bot</button>
             <button class="btn btn-primary" id="liqInlineRescan">Manual rescan</button>
             <button class="btn btn-ghost" id="liqInlineExecute">Execute signal</button>
             <button class="btn" id="openLiqConfigInlineSecondary">Edit config</button>
@@ -1000,11 +1031,15 @@
         <span class="chip" id="scoutStatus">Scout stopped</span>
       </div>
       <div class="card-body">
-        <div class="muted">Use Configure scout to view and edit listing settings.</div>
-        <div class="help-text">
-          Listing scout controls and configuration live in the action center. Use the action center to start, stop, or buy
-          symbols, and adjust the per-listing buy size and exit trigger.
+        <div class="button-row">
+          <button class="btn btn-primary" id="startScoutInline">Start scout</button>
+          <button class="btn btn-danger" id="stopScoutInline">Stop scout</button>
+          <button class="btn btn-ghost" id="refreshScoutInline">Refresh status</button>
+          <button class="btn" id="actionListingBuyBtn">Buy symbol now</button>
+          <button class="btn" id="openListingConfigInline">Configure scout</button>
         </div>
+        <div class="muted">Use Configure scout to view and edit listing settings.</div>
+        <div class="help-text">Manage listing scout actions directly from this card.</div>
         <div id="scoutPositions" class="health-grid"></div>
       </div>
     </div>
@@ -1085,91 +1120,6 @@
           <tbody></tbody>
         </table>
       </div>
-      </div>
-    </div>
-  </div>
-
-  <div id="actionModalOverlay" class="modal-overlay">
-    <div class="modal wide">
-      <div class="modal-header">
-        <div class="modal-header-title">Action center</div>
-        <button class="btn btn-ghost small" data-close-overlay="actionModalOverlay">✕</button>
-      </div>
-      <div class="modal-body action-grid">
-        <div class="action-column">
-          <div class="modal-subtitle">Mean reversion</div>
-          <div class="button-stack">
-            <button class="btn btn-primary" id="startBotBtn">Start MR bot</button>
-            <button class="btn btn-danger" id="stopBotBtn">Stop MR bot</button>
-            <button class="btn btn-ghost" id="syncStateBtn">Sync MR balances</button>
-            <button class="btn btn-ghost" id="nextTradeBtn">Next MR trade</button>
-            <button class="btn" id="openMrConfigInline">Configure MR</button>
-          </div>
-        </div>
-        <div class="action-column">
-          <div class="modal-subtitle">Bollinger</div>
-          <div class="button-stack">
-            <button class="btn btn-primary" id="startBollBtn">Start Bollinger bot</button>
-            <button class="btn btn-danger" id="stopBollBtn">Stop Bollinger bot</button>
-            <button class="btn" id="openBollConfigInline">Configure Bollinger</button>
-          </div>
-        </div>
-        <div class="action-column">
-          <div class="modal-subtitle">Trend following</div>
-          <div class="button-stack">
-            <button class="btn btn-primary" id="startTrendBtn">Start Trend bot</button>
-            <button class="btn btn-danger" id="stopTrendBtn">Stop Trend bot</button>
-            <button class="btn" id="openTrendConfigInline">Configure Trend</button>
-          </div>
-        </div>
-        <div class="action-column">
-          <div class="modal-subtitle">Freqtrade adapters</div>
-          <div class="button-stack">
-            <button class="btn btn-primary" id="ftStartBtn">Start adapter</button>
-            <button class="btn btn-danger" id="ftStopBtn">Stop adapter</button>
-            <button class="btn" id="openFtConfigInline">Configure freqtrade</button>
-            <button class="btn btn-ghost" id="openFtHelp">Docs</button>
-          </div>
-        </div>
-        <div class="action-column">
-          <div class="modal-subtitle">Relative strength</div>
-          <div class="button-stack">
-            <button class="btn btn-primary" id="startRSBtn">Start RS bot</button>
-            <button class="btn btn-danger" id="stopRSBtn">Stop RS bot</button>
-            <button class="btn" id="openRSConfigInline">Configure RS</button>
-          </div>
-        </div>
-        <div class="action-column">
-          <div class="modal-subtitle">Amplification</div>
-          <div class="button-stack">
-            <button class="btn btn-primary" id="startAmpBtn">Start amplification</button>
-            <button class="btn btn-danger" id="stopAmpBtn">Stop amplification</button>
-            <button class="btn" id="openAmpConfigInline">Configure amplification</button>
-          </div>
-        </div>
-        <div class="action-column">
-          <div class="modal-subtitle">Liquidation hunt</div>
-          <div class="button-stack">
-            <button class="btn btn-primary" id="liqEnableBtn">Start Scanner bot</button>
-            <button class="btn btn-danger" id="liqDisableBtn">Stop Scanner ot</button>
-            <button class="btn btn-ghost" id="liqRescanBtn">Manual rescan</button>
-            <button class="btn btn-ghost" id="liqExecuteBtn">Execute current signal</button>
-            <button class="btn" id="openLiqConfigInline">Configure scanner</button>
-          </div>
-        </div>
-        <div class="action-column">
-          <div class="modal-subtitle">Binance listings</div>
-          <div class="button-stack">
-            <button class="btn btn-primary" id="startScoutInline">Start scout</button>
-            <button class="btn btn-danger" id="stopScoutInline">Stop scout</button>
-            <button class="btn btn-ghost" id="refreshScoutInline">Refresh status</button>
-            <button class="btn" id="actionListingBuyBtn">Buy symbol now</button>
-            <button class="btn" id="openListingConfigInline">Configure scout</button>
-          </div>
-        </div>
-      </div>
-      <div class="modal-footer">
-        <button class="btn btn-ghost" data-close-overlay="actionModalOverlay">Close</button>
       </div>
     </div>
   </div>

@@ -116,15 +116,14 @@ async function safeRefresh(label, fn) {
 }
 
 function initOverlays() {
-  wireOverlay(['openActionCenter', 'openActionCenterFreqtrade'], 'actionModalOverlay');
-  wireOverlay(['openListingConfig'], 'listingConfigOverlay');
-  wireOverlay(['openMrConfig', 'openMrConfigInline'], 'mrConfigOverlay');
-  wireOverlay(['openBollConfig', 'openBollConfigInline'], 'bollConfigOverlay');
-  wireOverlay(['openTrendConfig', 'openTrendConfigInline'], 'trendConfigOverlay');
-  wireOverlay(['openRSConfig', 'openRSConfigInline'], 'rsConfigOverlay');
+  wireOverlay(['openListingConfigInline'], 'listingConfigOverlay');
+  wireOverlay(['openMrConfigInline'], 'mrConfigOverlay');
+  wireOverlay(['openBollConfigInline'], 'bollConfigOverlay');
+  wireOverlay(['openTrendConfigInline'], 'trendConfigOverlay');
+  wireOverlay(['openRSConfigInline'], 'rsConfigOverlay');
   wireOverlay(['openAmpConfigInline'], 'ampConfigOverlay');
-  wireOverlay(['openFtConfig', 'openFtConfigInline'], 'ftConfigOverlay');
-  wireOverlay(['openLiqConfigInline'], 'liqConfigOverlay');
+  wireOverlay(['openFtConfig'], 'ftConfigOverlay');
+  wireOverlay(['openLiqConfigInlineSecondary'], 'liqConfigOverlay');
 
   document.querySelectorAll('[data-close-overlay]').forEach((btn) => {
     const target = btn.getAttribute('data-close-overlay');
