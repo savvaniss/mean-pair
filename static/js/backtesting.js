@@ -37,9 +37,9 @@ export function initBacktesting() {
 
 export async function runBacktest() {
   const strategy = document.getElementById('backtestStrategy')?.value;
-  const symbol = document.getElementById('backtestSymbol')?.value;
-  const assetA = document.getElementById('backtestAssetA')?.value;
-  const assetB = document.getElementById('backtestAssetB')?.value;
+  const symbol = document.getElementById('backtestSymbol')?.value?.trim();
+  const assetA = document.getElementById('backtestAssetA')?.value?.trim();
+  const assetB = document.getElementById('backtestAssetB')?.value?.trim();
   const interval = document.getElementById('backtestInterval')?.value || '1h';
   const lookbackDays = Number(document.getElementById('backtestLookback')?.value || 14);
   const startDateStr = document.getElementById('backtestStartDate')?.value;
@@ -55,6 +55,47 @@ export async function runBacktest() {
   const slowWindow = Number(document.getElementById('backtestSlow')?.value || 26);
   const atrWindow = Number(document.getElementById('backtestAtrWindow')?.value || 14);
   const atrStop = Number(document.getElementById('backtestAtrStop')?.value || 2.0);
+
+  if (!strategy) {
+    showToast('Please choose a strategy', 'warning');
+    return;
+  }
+
+  const isFreqtrade = freqtradeOptions.some((opt) => opt.value === strategy);
+
+  if (strategy === 'mean_reversion') {
+    if (!assetA || !assetB) {
+      showToast('Asset A and Asset B are required for mean reversion backtests.', 'warning');
+      return;
+    }
+    if (windowSize <= 0) {
+      showToast('Window size must be greater than 0 for mean reversion.', 'warning');
+      return;
+    }
+  } else if (strategy === 'bollinger') {
+    if (!symbol) {
+      showToast('Symbol is required for Bollinger backtests.', 'warning');
+      return;
+    }
+    if (windowSize <= 0 || numStd <= 0) {
+      showToast('Provide a valid window size and standard deviation for Bollinger.', 'warning');
+      return;
+    }
+  } else if (strategy === 'trend_following') {
+    if (!symbol) {
+      showToast('Symbol is required for trend-following backtests.', 'warning');
+      return;
+    }
+    if (fastWindow <= 0 || slowWindow <= 0) {
+      showToast('Fast and slow EMA windows must be greater than 0.', 'warning');
+      return;
+    }
+  } else if (isFreqtrade) {
+    if (!symbol) {
+      showToast('Symbol is required for Freqtrade backtests.', 'warning');
+      return;
+    }
+  }
 
   if ((startDateStr && !endDateStr) || (endDateStr && !startDateStr)) {
     showToast('Please set both start and end dates to run a custom window.', 'warning');
