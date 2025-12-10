@@ -76,6 +76,14 @@ def parse_symbol_assets(symbol: str):
     return info["baseAsset"], info["quoteAsset"]
 
 
+def _min_notional(symbol: str) -> float:
+    info = get_symbol_info(symbol)
+    min_notional_filter = next(
+        (f for f in info.get("filters", []) if f.get("filterType") == "MIN_NOTIONAL"), None
+    )
+    return float(min_notional_filter.get("minNotional", 0.0)) if min_notional_filter else 0.0
+
+
 def get_free_balance(asset: str) -> float:
     acc = config.boll_client.get_account()
     for bal in acc["balances"]:
@@ -193,26 +201,35 @@ def trend_loop():
 
             if action == "BUY":
                 quote_bal = get_free_balance(quote_asset)
-                spendable = quote_bal if trend_config.use_all_balance else trend_config.max_position_usd
-                if spendable > 0:
+                budget = quote_bal if trend_config.use_all_balance else min(
+                    trend_config.max_position_usd, quote_bal
+                )
+                spendable = min(budget * 0.98, trend_config.max_position_usd)
+                min_notional = _min_notional(symbol)
+                if spendable >= min_notional:
                     qty = spendable / price
                     qty = adjust_quantity(symbol, qty)
-                    if qty > 0:
+                    if qty > 0 and qty * price >= min_notional:
                         order = place_market_order(symbol, "BUY", qty)
                         if order:
                             filled_quote = float(order.get("cummulativeQuoteQty", qty * price))
                             filled_qty = float(order.get("executedQty", qty))
                             notional = filled_quote if filled_quote > 0 else qty * price
+                            if notional < min_notional:
+                                session.commit()
+                                time.sleep(trend_config.poll_interval_sec)
+                                continue
+                            avg_price = notional / filled_qty if filled_qty > 0 else price
                             state.position = "LONG"
                             state.qty_asset = filled_qty
-                            state.entry_price = price
+                            state.entry_price = avg_price
                             state.unrealized_pnl_usd = 0.0
                             tr = TrendTrade(
                                 ts=ts,
                                 symbol=symbol,
                                 side="BUY",
                                 qty=filled_qty,
-                                price=price,
+                                price=avg_price,
                                 notional=notional,
                                 pnl_usd=0.0,
                                 is_testnet=1 if trend_config.use_testnet else 0,
@@ -221,18 +238,23 @@ def trend_loop():
                             tf_last_trade_ts = now_ts
 
             elif action == "SELL" and state.qty_asset > 0:
-                qty = adjust_quantity(symbol, state.qty_asset)
-                if qty > 0:
+                free_base = get_free_balance(base_asset)
+                qty_req = min(state.qty_asset, free_base)
+                qty = adjust_quantity(symbol, qty_req)
+                min_notional = _min_notional(symbol)
+                if qty > 0 and qty * price >= min_notional:
                     order = place_market_order(symbol, "SELL", qty)
                     if order:
                         filled_quote = float(order.get("cummulativeQuoteQty", qty * price))
-                        pnl = filled_quote - state.entry_price * qty
+                        filled_qty = float(order.get("executedQty", qty))
+                        avg_price = filled_quote / filled_qty if filled_qty > 0 else price
+                        pnl = filled_quote - state.entry_price * filled_qty
                         tr = TrendTrade(
                             ts=ts,
                             symbol=symbol,
                             side="SELL",
-                            qty=qty,
-                            price=price,
+                            qty=filled_qty,
+                            price=avg_price,
                             notional=filled_quote,
                             pnl_usd=pnl,
                             is_testnet=1 if trend_config.use_testnet else 0,

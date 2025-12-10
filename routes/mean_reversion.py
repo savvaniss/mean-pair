@@ -208,29 +208,29 @@ def manual_trade(req: ManualTradeRequest):
                 detail="Trade failed (quantity too small or Binance error)",
             )
 
-        from_asset, to_asset, qty_from, qty_to, ratio = res
-
-        start_value = qty_from * price_from
-        end_value = qty_to * price_to
+        start_price = res.get("sell_price", price_from)
+        end_price = res.get("buy_price", price_to)
+        start_value = res["qty_from"] * start_price
+        end_value = res["qty_to"] * end_price
         fee_quote = (start_value + end_value) * mr.TRADE_FEE_RATE
         pnl_usd = end_value - start_value - fee_quote
 
         tr = Trade(
             ts=ts,
-            side=f"{from_asset}->{to_asset} (manual)",
-            from_asset=from_asset,
-            to_asset=to_asset,
-            qty_from=qty_from,
-            qty_to=qty_to,
-            price=ratio,
+            side=f"{res['from_asset']}->{res['to_asset']} (manual)",
+            from_asset=res["from_asset"],
+            to_asset=res["to_asset"],
+            qty_from=res["qty_from"],
+            qty_to=res["qty_to"],
+            price=res["ratio"],
             fee=fee_quote,
             pnl_usd=pnl_usd,
             is_testnet=int(mr.bot_config.use_testnet),
         )
         session.add(tr)
 
-        state.current_asset = to_asset
-        state.current_qty = qty_to
+        state.current_asset = res["to_asset"]
+        state.current_qty = res["qty_to"]
         state.realized_pnl_usd += pnl_usd
 
         session.commit()

@@ -219,7 +219,10 @@ def boll_loop():
                 if action == "BUY":
                     quote_bal = get_free_balance_boll(quote_asset)
                     if quote_bal > 0:
-                        spendable = min(quote_bal * 0.98, boll_config.max_position_usd)
+                        budget = quote_bal if boll_config.use_all_balance else min(
+                            boll_config.max_position_usd, quote_bal
+                        )
+                        spendable = min(budget * 0.98, boll_config.max_position_usd)
                         min_notional = _min_notional(symbol)
                         if spendable >= min_notional:
                             qty = spendable / price
@@ -230,16 +233,21 @@ def boll_loop():
                                     filled_quote = float(order.get("cummulativeQuoteQty", qty * price))
                                     filled_qty = float(order.get("executedQty", qty))
                                     notional_filled = filled_quote if filled_quote > 0 else qty * price
+                                    if notional_filled < min_notional:
+                                        print(
+                                            f"Bollinger: filled notional {notional_filled} below MIN_NOTIONAL for {symbol}"
+                                        )
+                                    avg_price = notional_filled / filled_qty if filled_qty > 0 else price
                                     state.position = "LONG"
                                     state.qty_asset = filled_qty
-                                    state.entry_price = price
+                                    state.entry_price = avg_price
                                     state.unrealized_pnl_usd = 0.0
                                     tr = BollTrade(
                                         ts=ts,
                                         symbol=symbol,
                                         side="BUY",
                                         qty=filled_qty,
-                                        price=price,
+                                        price=avg_price,
                                         notional=notional_filled,
                                         pnl_usd=0.0,
                                         is_testnet=int(config.BOLL_USE_TESTNET),
@@ -282,7 +290,10 @@ def boll_loop():
                             if order:
                                 filled_qty = float(order.get("executedQty", qty))
                                 notional_filled = float(order.get("cummulativeQuoteQty", qty * price))
-                                pnl = (price - state.entry_price) * filled_qty
+                                avg_price = (
+                                    notional_filled / filled_qty if filled_qty > 0 else price
+                                )
+                                pnl = notional_filled - state.entry_price * filled_qty
                                 state.realized_pnl_usd += pnl
                                 state.qty_asset = max(0.0, state.qty_asset - filled_qty)
                                 if state.qty_asset < 1e-12:
@@ -295,7 +306,7 @@ def boll_loop():
                                     symbol=symbol,
                                     side="SELL",
                                     qty=filled_qty,
-                                    price=price,
+                                    price=avg_price,
                                     notional=notional_filled,
                                     pnl_usd=pnl,
                                     is_testnet=int(config.BOLL_USE_TESTNET),
