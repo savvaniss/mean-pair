@@ -4,6 +4,9 @@ const statusEl = () => document.getElementById('trendStatus');
 const configForm = () => document.getElementById('trendConfigForm');
 const historyBody = () => document.getElementById('trendHistoryBody');
 const historyStatus = () => document.getElementById('trendHistoryStatus');
+const tradesBody = () => document.getElementById('trendTradesBody');
+const tradesStatus = () => document.getElementById('trendTradesStatus');
+let trendChart = null;
 let lastTrendPrice = null;
 
 export function initTrendFollowing() {
@@ -233,14 +236,72 @@ async function loadHistory() {
   const rows = await resp.json();
   const body = historyBody();
   const status = historyStatus();
+  const chartInfo = document.getElementById('trendChartInfo');
   if (!body || !status) return;
 
   body.innerHTML = '';
   if (!rows.length) {
     status.textContent = 'No trend snapshots yet';
+    if (chartInfo) chartInfo.textContent = '';
+    if (trendChart) {
+      trendChart.data.labels = [];
+      trendChart.data.datasets.forEach((d) => (d.data = []));
+      trendChart.update();
+    }
     return;
   }
   status.textContent = '';
+
+  const labels = rows.map((r) => new Date(r.ts).toLocaleTimeString());
+  const prices = rows.map((r) => r.price);
+  const fast = rows.map((r) => r.fast_ema);
+  const slow = rows.map((r) => r.slow_ema);
+  const atr = rows.map((r) => r.atr);
+
+  const latest = rows[rows.length - 1];
+  if (chartInfo && latest) {
+    chartInfo.textContent = `Latest → Price ${latest.price.toFixed(4)} | Fast ${latest.fast_ema.toFixed(4)} | Slow ${latest.slow_ema.toFixed(4)} | ATR ${latest.atr.toFixed(4)}`;
+  }
+
+  if (!trendChart) {
+    const ctx = document.getElementById('trendChart')?.getContext('2d');
+    if (ctx) {
+      trendChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels,
+          datasets: [
+            { label: 'Price', data: prices, borderWidth: 2, borderColor: '#4bc0c0', fill: false },
+            { label: 'Fast EMA', data: fast, borderWidth: 1.5, borderColor: '#90caf9', fill: false },
+            { label: 'Slow EMA', data: slow, borderWidth: 1.5, borderColor: '#f48fb1', fill: false },
+            { label: 'ATR', data: atr, borderWidth: 1, borderColor: '#ffb74d', fill: false, yAxisID: 'y1' },
+          ],
+        },
+        options: {
+          interaction: { mode: 'index', intersect: false },
+          plugins: { legend: { labels: { color: '#eee' } } },
+          scales: {
+            x: { ticks: { color: '#ccc' }, grid: { color: '#333' } },
+            y: { ticks: { color: '#ccc' }, grid: { color: '#333' }, title: { display: true, text: 'Price / EMA', color: '#ccc' } },
+            y1: {
+              position: 'right',
+              ticks: { color: '#ccc' },
+              grid: { drawOnChartArea: false },
+              title: { display: true, text: 'ATR', color: '#ccc' },
+            },
+          },
+        },
+      });
+    }
+  } else {
+    trendChart.data.labels = labels;
+    trendChart.data.datasets[0].data = prices;
+    trendChart.data.datasets[1].data = fast;
+    trendChart.data.datasets[2].data = slow;
+    trendChart.data.datasets[3].data = atr;
+    trendChart.update();
+  }
+
   for (const row of rows) {
     const tr = document.createElement('tr');
     tr.innerHTML = `
@@ -253,6 +314,40 @@ async function loadHistory() {
   }
 }
 
+async function loadTrades() {
+  const body = tradesBody();
+  const status = tradesStatus();
+  if (!body || !status) return;
+
+  const resp = await fetch('/trend_trades?limit=100');
+  if (!resp.ok) {
+    status.textContent = 'Unable to load trades';
+    return;
+  }
+
+  const rows = await resp.json();
+  body.innerHTML = '';
+  if (!rows.length) {
+    status.textContent = 'No trades yet';
+    return;
+  }
+
+  status.textContent = '';
+  rows.forEach((t) => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${new Date(t.ts).toLocaleString()}</td>
+      <td>${t.symbol}</td>
+      <td>${t.side}</td>
+      <td>${t.qty.toFixed(5)}</td>
+      <td>${t.price.toFixed(5)}</td>
+      <td>${t.notional.toFixed(2)}</td>
+      <td>${t.pnl_usd.toFixed(2)}</td>
+      <td>${t.is_testnet ? 'Testnet' : 'Mainnet'}</td>`;
+    body.appendChild(tr);
+  });
+}
+
 export async function refreshTrendFollowing() {
-  await Promise.all([loadConfig(), loadStatus(), loadHistory()]);
+  await Promise.all([loadConfig(), loadStatus(), loadHistory(), loadTrades()]);
 }

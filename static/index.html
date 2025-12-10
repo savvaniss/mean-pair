@@ -207,6 +207,30 @@
 
     <div class="card" data-collapsible>
       <div class="card-header">
+        <h2>Bollinger Trades (latest 100)</h2>
+        <span class="toggle-icon">▼</span>
+      </div>
+      <div class="card-body">
+        <table id="bollTradesTable">
+          <thead>
+            <tr>
+              <th>Time</th>
+              <th>Symbol</th>
+              <th>Side</th>
+              <th>Qty</th>
+              <th>Price</th>
+              <th>Notional</th>
+              <th>PnL (<span class="quote-label">USDT</span>)</th>
+              <th>Env</th>
+            </tr>
+          </thead>
+          <tbody id="bollTradesBody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="card" data-collapsible>
+      <div class="card-header">
         <h2>Saved Coin History</h2>
         <span class="toggle-icon">▼</span>
       </div>
@@ -229,30 +253,6 @@
           </table>
         </div>
         <p id="bollHistoryStatus" class="help-text"></p>
-      </div>
-    </div>
-
-    <div class="card" data-collapsible>
-      <div class="card-header">
-        <h2>Bollinger Trades (latest 100)</h2>
-        <span class="toggle-icon">▼</span>
-      </div>
-      <div class="card-body">
-        <table id="bollTradesTable">
-          <thead>
-            <tr>
-              <th>Time</th>
-              <th>Symbol</th>
-              <th>Side</th>
-              <th>Qty</th>
-              <th>Price</th>
-              <th>Notional</th>
-              <th>PnL (<span class="quote-label">USDT</span>)</th>
-              <th>Env</th>
-            </tr>
-          </thead>
-          <tbody id="bollTradesBody"></tbody>
-        </table>
       </div>
     </div>
     </div>
@@ -281,6 +281,20 @@
 
       <div class="card" data-collapsible>
         <div class="card-header">
+          <h2>Trend Chart</h2>
+          <span class="toggle-icon">▼</span>
+        </div>
+        <div class="card-body">
+          <div class="help-text">
+            Price versus EMA signals with ATR context. Hover to inspect recent crossovers and stop levels.
+          </div>
+          <canvas id="trendChart" height="180"></canvas>
+          <p id="trendChartInfo"></p>
+        </div>
+      </div>
+
+      <div class="card" data-collapsible>
+        <div class="card-header">
           <h2>Trend History</h2>
           <span class="toggle-icon">▼</span>
         </div>
@@ -297,6 +311,31 @@
               </tr>
             </thead>
             <tbody id="trendHistoryBody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="card" data-collapsible>
+        <div class="card-header">
+          <h2>Trend Trades (latest 100)</h2>
+          <span class="toggle-icon">▼</span>
+        </div>
+        <div class="card-body">
+          <p id="trendTradesStatus">Loading...</p>
+          <table id="trendTradesTable">
+            <thead>
+              <tr>
+                <th>Time</th>
+                <th>Symbol</th>
+                <th>Side</th>
+                <th>Qty</th>
+                <th>Price</th>
+                <th>Notional</th>
+                <th>PnL (<span class="quote-label">USDT</span>)</th>
+                <th>Env</th>
+              </tr>
+            </thead>
+            <tbody id="trendTradesBody"></tbody>
           </table>
         </div>
       </div>
@@ -406,6 +445,20 @@
 
       <div class="card" data-collapsible>
         <div class="card-header">
+          <h2>Relative Strength Graph</h2>
+          <span class="toggle-icon">▼</span>
+        </div>
+        <div class="card-body">
+          <div class="help-text">
+            RS score trend for each configured symbol. Use it to spot momentum shifts and divergence between assets.
+          </div>
+          <canvas id="rsChart" height="180"></canvas>
+          <p id="rsChartInfo"></p>
+        </div>
+      </div>
+
+      <div class="card" data-collapsible>
+        <div class="card-header">
           <h2>RS Snapshots</h2>
           <span class="toggle-icon">▼</span>
         </div>
@@ -421,6 +474,30 @@
               </tr>
             </thead>
             <tbody id="rsHistoryBody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="card" data-collapsible>
+        <div class="card-header">
+          <h2>RS Trades & Rebalances</h2>
+          <span class="toggle-icon">▼</span>
+        </div>
+        <div class="card-body">
+          <div class="help-text">Rebalance events are logged whenever a new spread is deployed using available quote balance.</div>
+          <p id="rsTradesStatus">Loading...</p>
+          <table id="rsTradesTable">
+            <thead>
+              <tr>
+                <th>Time</th>
+                <th>Long</th>
+                <th>Short</th>
+                <th>RS gap</th>
+                <th>Notional (USD)</th>
+                <th>Env</th>
+              </tr>
+            </thead>
+            <tbody id="rsTradesBody"></tbody>
           </table>
         </div>
       </div>

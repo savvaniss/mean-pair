@@ -6,7 +6,7 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 import config
-from database import SessionLocal, RSSnapshot, RSState
+from database import SessionLocal, RSSnapshot, RSState, RSTrade
 from engines import relative_strength as eng
 
 router = APIRouter()
@@ -43,6 +43,15 @@ class RSHistoryPoint(BaseModel):
     symbol: str
     price: float
     rs: float
+
+
+class RSTradeRow(BaseModel):
+    ts: str
+    long_symbol: str
+    short_symbol: str
+    rs_gap: float
+    notional: float
+    is_testnet: bool
 
 
 class RSConfigModel(eng.RSConfig):
@@ -160,6 +169,31 @@ def rs_history(limit: int = 200):
                 rs=row.rs,
             )
             for row in reversed(rows)
+        ]
+    finally:
+        session.close()
+
+
+@router.get("/rs_trades", response_model=List[RSTradeRow])
+def rs_trades(limit: int = 100):
+    session = SessionLocal()
+    try:
+        trades = (
+            session.query(RSTrade)
+            .order_by(RSTrade.ts.desc())
+            .limit(limit)
+            .all()
+        )
+        return [
+            RSTradeRow(
+                ts=row.ts.isoformat(),
+                long_symbol=row.long_symbol,
+                short_symbol=row.short_symbol,
+                rs_gap=row.rs_gap,
+                notional=row.notional,
+                is_testnet=bool(row.is_testnet),
+            )
+            for row in trades
         ]
     finally:
         session.close()

@@ -4,6 +4,9 @@ const statusEl = () => document.getElementById('rsStatus');
 const configForm = () => document.getElementById('rsConfigForm');
 const historyBody = () => document.getElementById('rsHistoryBody');
 const historyStatus = () => document.getElementById('rsHistoryStatus');
+const tradesBody = () => document.getElementById('rsTradesBody');
+const tradesStatus = () => document.getElementById('rsTradesStatus');
+let rsChart = null;
 
 export function initRelativeStrength() {
   const form = configForm();
@@ -214,14 +217,79 @@ async function loadHistory() {
   const rows = await resp.json();
   const body = historyBody();
   const status = historyStatus();
+  const chartInfo = document.getElementById('rsChartInfo');
   if (!body || !status) return;
 
   body.innerHTML = '';
   if (!rows.length) {
     status.textContent = 'No RS snapshots yet';
+    if (chartInfo) chartInfo.textContent = '';
+    if (rsChart) {
+      rsChart.data.labels = [];
+      rsChart.data.datasets.forEach((d) => (d.data = []));
+      rsChart.update();
+    }
     return;
   }
   status.textContent = '';
+
+  const timestamps = Array.from(new Set(rows.map((r) => r.ts))).sort(
+    (a, b) => new Date(a).getTime() - new Date(b).getTime()
+  );
+  const labels = timestamps.map((ts) => new Date(ts).toLocaleTimeString());
+  const symbols = Array.from(new Set(rows.map((r) => r.symbol)));
+  const colorPalette = ['#4bc0c0', '#90caf9', '#f48fb1', '#ffb74d', '#66bb6a', '#ba68c8'];
+
+  const valueMap = new Map();
+  rows.forEach((r) => {
+    const key = `${r.symbol}-${r.ts}`;
+    valueMap.set(key, r.rs);
+  });
+
+  const datasets = symbols.map((sym, idx) => {
+    const data = timestamps.map((ts) => valueMap.get(`${sym}-${ts}`) ?? null);
+    return {
+      label: sym,
+      data,
+      borderWidth: 1.5,
+      borderColor: colorPalette[idx % colorPalette.length],
+      fill: false,
+    };
+  });
+
+  const latestBySymbol = symbols
+    .map((sym) => {
+      const lastRow = [...rows].reverse().find((r) => r.symbol === sym);
+      return lastRow ? `${sym}: RS ${lastRow.rs.toFixed(3)} @ ${lastRow.price.toFixed(4)}` : null;
+    })
+    .filter(Boolean)
+    .join(' | ');
+  if (chartInfo) {
+    chartInfo.textContent = latestBySymbol;
+  }
+
+  if (!rsChart) {
+    const ctx = document.getElementById('rsChart')?.getContext('2d');
+    if (ctx) {
+      rsChart = new Chart(ctx, {
+        type: 'line',
+        data: { labels, datasets },
+        options: {
+          interaction: { mode: 'index', intersect: false },
+          plugins: { legend: { labels: { color: '#eee' } } },
+          scales: {
+            x: { ticks: { color: '#ccc' }, grid: { color: '#333' } },
+            y: { ticks: { color: '#ccc' }, grid: { color: '#333' }, title: { display: true, text: 'RS score', color: '#ccc' } },
+          },
+        },
+      });
+    }
+  } else {
+    rsChart.data.labels = labels;
+    rsChart.data.datasets = datasets;
+    rsChart.update();
+  }
+
   for (const row of rows) {
     const tr = document.createElement('tr');
     tr.innerHTML = `
@@ -234,5 +302,37 @@ async function loadHistory() {
 }
 
 export async function refreshRelativeStrength() {
-  await Promise.all([loadConfig(), loadStatus(), loadHistory()]);
+  await Promise.all([loadConfig(), loadStatus(), loadHistory(), loadTrades()]);
+}
+
+async function loadTrades() {
+  const body = tradesBody();
+  const status = tradesStatus();
+  if (!body || !status) return;
+
+  const resp = await fetch('/rs_trades?limit=100');
+  if (!resp.ok) {
+    status.textContent = 'Unable to load RS trade history';
+    return;
+  }
+
+  const rows = await resp.json();
+  body.innerHTML = '';
+  if (!rows.length) {
+    status.textContent = 'No rebalance trades yet';
+    return;
+  }
+
+  status.textContent = '';
+  rows.forEach((r) => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${new Date(r.ts).toLocaleString()}</td>
+      <td>${r.long_symbol}</td>
+      <td>${r.short_symbol}</td>
+      <td>${r.rs_gap.toFixed(3)}</td>
+      <td>${r.notional.toFixed(2)}</td>
+      <td>${r.is_testnet ? 'Testnet' : 'Mainnet'}</td>`;
+    body.appendChild(tr);
+  });
 }

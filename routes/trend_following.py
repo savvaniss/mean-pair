@@ -6,7 +6,7 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 import config
-from database import SessionLocal, TrendSnapshot, TrendState
+from database import SessionLocal, TrendSnapshot, TrendState, TrendTrade
 from engines import trend_following as eng
 
 router = APIRouter()
@@ -35,6 +35,17 @@ class TrendHistoryPoint(BaseModel):
     fast_ema: float
     slow_ema: float
     atr: float
+
+
+class TrendTradeRow(BaseModel):
+    ts: str
+    symbol: str
+    side: str
+    qty: float
+    price: float
+    notional: float
+    pnl_usd: float
+    is_testnet: bool
 
 
 class TrendConfigModel(eng.TrendConfig):
@@ -170,6 +181,33 @@ def trend_history(limit: int = 200):
                 atr=row.atr,
             )
             for row in reversed(rows)
+        ]
+    finally:
+        session.close()
+
+
+@router.get("/trend_trades", response_model=List[TrendTradeRow])
+def trend_trades(limit: int = 100):
+    session = SessionLocal()
+    try:
+        trades = (
+            session.query(TrendTrade)
+            .order_by(TrendTrade.ts.desc())
+            .limit(limit)
+            .all()
+        )
+        return [
+            TrendTradeRow(
+                ts=t.ts.isoformat(),
+                symbol=t.symbol,
+                side=t.side,
+                qty=t.qty,
+                price=t.price,
+                notional=t.notional,
+                pnl_usd=t.pnl_usd,
+                is_testnet=bool(t.is_testnet),
+            )
+            for t in trades
         ]
     finally:
         session.close()
