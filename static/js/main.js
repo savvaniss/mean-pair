@@ -6,6 +6,7 @@ import { initRelativeStrength, refreshRelativeStrength } from './relativeStrengt
 import { initTrading, refreshTrading } from './trading.js';
 import { initLiquidation, refreshLiquidation } from './liquidationHunt.js';
 import { initListings, refreshListings } from './listings.js';
+import { initFreqtradeAdapters, refreshFreqtradeAdapters } from './freqtrade.js';
 
 async function bootstrap() {
   const authenticated = await initAuthDisplay();
@@ -21,6 +22,7 @@ async function bootstrap() {
   safeRun('trading init', initTrading);
   safeRun('liquidation init', initLiquidation);
   safeRun('listings init', initListings);
+  safeRun('freqtrade adapters init', initFreqtradeAdapters);
 
   document.getElementById('refreshAll')?.addEventListener('click', () => {
     void safeRefresh('mean reversion', refreshMeanReversion);
@@ -30,6 +32,7 @@ async function bootstrap() {
     void safeRefresh('trading', refreshTrading);
     void safeRefresh('liquidation', refreshLiquidation);
     void safeRefresh('listings', refreshListings);
+    void safeRefresh('freqtrade adapters', refreshFreqtradeAdapters);
   });
 
   await safeRefresh('mean reversion', refreshMeanReversion);
@@ -39,6 +42,7 @@ async function bootstrap() {
   await safeRefresh('trading', refreshTrading);
   await safeRefresh('liquidation', refreshLiquidation);
   await safeRefresh('listings', refreshListings);
+  await safeRefresh('freqtrade adapters', refreshFreqtradeAdapters);
 
   setInterval(async () => {
     await safeRefresh('mean reversion', refreshMeanReversion);
@@ -47,6 +51,7 @@ async function bootstrap() {
     await safeRefresh('relative strength', refreshRelativeStrength);
     await safeRefresh('trading', refreshTrading);
     await safeRefresh('liquidation', refreshLiquidation);
+    await safeRefresh('freqtrade adapters', refreshFreqtradeAdapters);
   }, 10000);
 }
 
@@ -102,12 +107,13 @@ async function safeRefresh(label, fn) {
 }
 
 function initOverlays() {
-  wireOverlay(['openActionCenter'], 'actionModalOverlay');
+  wireOverlay(['openActionCenter', 'openActionCenterFreqtrade'], 'actionModalOverlay');
   wireOverlay(['openListingConfig'], 'listingConfigOverlay');
   wireOverlay(['openMrConfig', 'openMrConfigInline'], 'mrConfigOverlay');
   wireOverlay(['openBollConfig', 'openBollConfigInline'], 'bollConfigOverlay');
   wireOverlay(['openTrendConfig', 'openTrendConfigInline'], 'trendConfigOverlay');
   wireOverlay(['openRSConfig', 'openRSConfigInline'], 'rsConfigOverlay');
+  wireOverlay(['openFtConfig', 'openFtConfigInline'], 'ftConfigOverlay');
   wireOverlay(['openLiqConfigInline'], 'liqConfigOverlay');
 
   document.querySelectorAll('[data-close-overlay]').forEach((btn) => {

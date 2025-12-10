@@ -193,6 +193,33 @@ class RSSnapshot(Base):
     rs = Column(Float)
 
 
+class AlgoSnapshot(Base):
+    __tablename__ = "algo_snapshots"
+    id = Column(Integer, primary_key=True, index=True)
+    ts = Column(DateTime, index=True)
+    strategy = Column(String, index=True)
+    symbol = Column(String, index=True)
+    price = Column(Float)
+    indicator_a = Column(Float)
+    indicator_b = Column(Float)
+    indicator_c = Column(Float)
+    indicator_d = Column(Float)
+
+
+class AlgoTrade(Base):
+    __tablename__ = "algo_trades"
+    id = Column(Integer, primary_key=True, index=True)
+    ts = Column(DateTime, index=True)
+    strategy = Column(String, index=True)
+    symbol = Column(String, index=True)
+    side = Column(String)  # "BUY" or "SELL"
+    qty = Column(Float)
+    price = Column(Float)
+    notional = Column(Float)
+    pnl_usd = Column(Float)
+    is_testnet = Column(Integer)
+
+
 class PairHealth(Base):
     __tablename__ = "pair_health"
     id = Column(Integer, primary_key=True, index=True)
