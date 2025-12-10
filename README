@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/savvaniss/mean-pair/actions/workflows/ci.yml/badge.svg)](https://github.com/savvaniss/mean-pair/actions/workflows/ci.yml)
 
-A modular cryptocurrency trading bot that implements **mean reversion** for the HBAR/DOGE ratio and **Bollinger Band** strategies for single trading pairs. The backend is built with FastAPI, Python, and SQLite, and the lightweight HTML/JavaScript dashboard lives in `static/`. A full pytest suite and GitHub Actions CI pipeline keep the project validated in development.
+A modular cryptocurrency trading bot that implements **mean reversion** for the HBAR/DOGE ratio and **Bollinger Band** strategies for single trading pairs. The backend is built with FastAPI, Python, and SQLAlchemy. Docker Compose wires the app to PostgreSQL by default, while local development can still point `DATABASE_URL` at SQLite. The lightweight HTML/JavaScript dashboard lives in `static/`. A full pytest suite and GitHub Actions CI pipeline keep the project validated in development.
 
 ---
 
@@ -32,7 +32,7 @@ A modular cryptocurrency trading bot that implements **mean reversion** for the 
 
 - FastAPI service exposing JSON endpoints for both strategies.
 - Centralized configuration management in `config.py` with per-bot settings.
-- SQLite-backed state and logging handled via `database.py`.
+- SQLAlchemy-backed state and logging handled via `database.py` (SQLite by default; PostgreSQL supported).
 - Single-page dashboard for live monitoring, manual control, and charting.
 - Listing monitor that aggregates new coin/pair launches across Binance, major CEXs, and DEX aggregators.
 - Docker and docker-compose for reproducible deployments.
@@ -61,7 +61,7 @@ The `/listings` page provides a live feed of new listings with filters by exchan
 mean-pair/
 ├── app.py                   # FastAPI application setup and route registration
 ├── config.py                # Default configuration and helper utilities
-├── database.py              # SQLite helpers and database initialization
+├── database.py              # Database helpers and initialization (SQLAlchemy)
 ├── engines/                 # Trading logic implementations
 │   ├── bollinger.py         # Bollinger Band strategy engine
 │   ├── common.py            # Shared helpers (pricing, stats, risk controls)
@@ -109,6 +109,10 @@ LISTINGS_DISABLE_SCHEDULER=0
 LISTINGS_REFRESH_SECONDS=60
 LISTINGS_RETENTION_MINUTES=240
 AUTH_ALLOW_REGISTRATION=1
+
+# Database
+# Docker Compose injects this Postgres URL by default; override to SQLite locally if desired
+DATABASE_URL=postgresql+psycopg2://meanpair:meanpair@db:5432/meanpair
 ```
 
 Set `AUTH_ALLOW_REGISTRATION=0` to disable self-service sign-up and restrict access to pre-created accounts only.
@@ -147,6 +151,7 @@ docker-compose up --build -d
 
 Services:
 - FastAPI app: http://localhost:8000
+- PostgreSQL database: exposed inside the Docker network at `db:5432` (default `DATABASE_URL`)
 - Nginx Proxy Manager (if enabled): http://localhost:81
 
 ---

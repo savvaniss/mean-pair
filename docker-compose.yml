@@ -9,10 +9,28 @@ services:
     restart: unless-stopped
     env_file:
       - .env
+    environment:
+      # Override via .env if you prefer an external DB
+      DATABASE_URL: ${DATABASE_URL:-postgresql+psycopg2://meanpair:meanpair@db:5432/meanpair}
     # ⬇ Direct access on server IP: http://SERVER_IP:8000
     ports:
       - "8000:8000"
     # ⬇ Also reachable from Nginx Proxy Manager on the same Docker network
+    networks:
+      - proxy_net
+    depends_on:
+      - db
+
+  db:
+    image: postgres:16
+    container_name: mean-pair-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: meanpair
+      POSTGRES_USER: meanpair
+      POSTGRES_PASSWORD: meanpair
+    volumes:
+      - db_data:/var/lib/postgresql/data
     networks:
       - proxy_net
 
@@ -33,3 +51,4 @@ services:
 volumes:
   npm_data:
   npm_letsencrypt:
+  db_data:
