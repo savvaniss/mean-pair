@@ -50,6 +50,7 @@ class BotConfig(BaseModel):
     use_ratio_thresholds: bool = False
     sell_ratio_threshold: float = 0.0
     buy_ratio_threshold: float = 0.0
+    allow_base_asset_entry: bool = False
     outlier_sigma: float = 5.0
     max_ratio_jump: float = 0.08
     asset_a: str = "HBAR"
@@ -389,7 +390,10 @@ def decide_signal(
             reason = "std_zero"
 
     asset_a, asset_b = current_pair()
-    if state.current_asset not in (asset_a, asset_b):
+    in_active_pair = state.current_asset in (asset_a, asset_b)
+    in_base = state.current_asset == BASE_ASSET and bot_config.allow_base_asset_entry
+
+    if not (in_active_pair or in_base):
         sell_signal = False
         buy_signal = False
 
@@ -598,6 +602,18 @@ def _compute_quote_from_order(order, qty_base: float, price_base: float) -> floa
     return qty_base * price_base
 
 
+def _compute_avg_price(order, qty_base: float, fallback_price: float) -> float:
+    """Return the average fill price using order data when available."""
+    try:
+        executed_qty = float(order.get("executedQty", qty_base))
+        cq = float(order.get("cummulativeQuoteQty", executed_qty * fallback_price))
+        if executed_qty > 0 and cq > 0:
+            return cq / executed_qty
+    except Exception:
+        pass
+    return fallback_price
+
+
 def execute_mr_trade(
     direction: str,
     notional_usd: float,
@@ -663,8 +679,10 @@ def execute_mr_trade(
         print("[MR] execute_mr_trade: sell order failed")
         return None
 
+    qty_from_filled = float(order_sell.get("executedQty", qty_from))
     # Use actual filled quote, not naive qty*price
-    quote_received = _compute_quote_from_order(order_sell, qty_from, price_from)
+    quote_received = _compute_quote_from_order(order_sell, qty_from_filled, price_from)
+    sell_fill_price = _compute_avg_price(order_sell, qty_from_filled, price_from)
 
     # 2) BUY to_asset using the quote we actually got
     qty_to_raw = quote_received / price_to
@@ -682,11 +700,56 @@ def execute_mr_trade(
     order_buy = place_market_order_mr(sym_to, "BUY", qty_to)
     if not order_buy:
         print("[MR] execute_mr_trade: buy order failed")
+        # Try to revert back to the original asset using received quote
+        revert_qty_raw = quote_received / price_from
+        revert_qty = adjust_quantity(sym_from, revert_qty_raw)
+        if revert_qty > 0 and not _violates_min_notional(sym_from, revert_qty, price_from):
+            place_market_order_mr(sym_from, "BUY", revert_qty)
         return None
 
+    qty_to_filled = float(order_buy.get("executedQty", qty_to))
+    buy_fill_price = _compute_avg_price(order_buy, qty_to_filled, price_to)
+
     # Strategy uses pair ratio as its "price"
-    ratio = price_from / price_to
-    return from_asset, to_asset, qty_from, qty_to, ratio
+    ratio = sell_fill_price / buy_fill_price if buy_fill_price > 0 else price_from / price_to
+    return {
+        "from_asset": from_asset,
+        "to_asset": to_asset,
+        "qty_from": qty_from_filled,
+        "qty_to": qty_to_filled,
+        "sell_price": sell_fill_price,
+        "buy_price": buy_fill_price,
+        "ratio": ratio,
+    }
+
+
+def _enter_from_base(target_asset: str, target_price: float):
+    """Bootstrap into a leg when we currently hold only the base quote asset."""
+
+    sym = mr_symbol(target_asset)
+    quote_bal = get_free_balance_mr(BASE_ASSET)
+    if quote_bal <= 0:
+        return None
+
+    spendable = quote_bal if bot_config.use_all_balance else min(
+        bot_config.trade_notional_usd, quote_bal
+    )
+    qty_raw = spendable / target_price
+    qty = adjust_quantity(sym, qty_raw)
+    if qty <= 0 or _violates_min_notional(sym, qty, target_price):
+        return None
+
+    order = place_market_order_mr(sym, "BUY", qty)
+    if not order:
+        return None
+
+    filled_qty = float(order.get("executedQty", qty))
+    fill_price = _compute_avg_price(order, filled_qty, target_price)
+    return {
+        "to_asset": target_asset,
+        "qty_to": filled_qty,
+        "price": fill_price,
+    }
 
 
 def record_trade_stat(
@@ -780,20 +843,20 @@ def bot_loop():
                                 bot_config.use_all_balance,
                             )
                             if res:
-                                from_asset, to_asset, qty_from, qty_to, trade_ratio = res
-                                start_price = price_a if from_asset == bot_config.asset_a else price_b
-                                end_price = price_b if to_asset == bot_config.asset_b else price_a
-                                start_value = qty_from * start_price
-                                end_value = qty_to * end_price
+                                trade_ratio = res["ratio"]
+                                start_price = res.get("sell_price", price_a)
+                                end_price = res.get("buy_price", price_b)
+                                start_value = res["qty_from"] * start_price
+                                end_value = res["qty_to"] * end_price
                                 fee_quote = (start_value + end_value) * TRADE_FEE_RATE
                                 pnl_usd = end_value - start_value - fee_quote
                                 tr = Trade(
                                     ts=ts,
                                     side=sell_dir,
-                                    from_asset=from_asset,
-                                    to_asset=to_asset,
-                                    qty_from=qty_from,
-                                    qty_to=qty_to,
+                                    from_asset=res["from_asset"],
+                                    to_asset=res["to_asset"],
+                                    qty_from=res["qty_from"],
+                                    qty_to=res["qty_to"],
                                     price=trade_ratio,
                                     fee=fee_quote,
                                     pnl_usd=pnl_usd,
@@ -801,9 +864,31 @@ def bot_loop():
                                 )
                                 session.add(tr)
                                 record_trade_stat(session, ts, z, trade_ratio, pnl_usd)
-                                state.current_asset = to_asset
-                                state.current_qty = qty_to
+                                state.current_asset = res["to_asset"]
+                                state.current_qty = res["qty_to"]
                                 state.realized_pnl_usd += pnl_usd
+
+                        elif sell_signal and state.current_asset == BASE_ASSET:
+                            entry = _enter_from_base(bot_config.asset_b, price_b)
+                            if entry:
+                                cost = entry["qty_to"] * entry["price"]
+                                fee_quote = cost * TRADE_FEE_RATE
+                                tr = Trade(
+                                    ts=ts,
+                                    side=f"{BASE_ASSET}->{bot_config.asset_b}",
+                                    from_asset=BASE_ASSET,
+                                    to_asset=bot_config.asset_b,
+                                    qty_from=cost,
+                                    qty_to=entry["qty_to"],
+                                    price=entry["price"],
+                                    fee=fee_quote,
+                                    pnl_usd=-fee_quote,
+                                    is_testnet=int(bot_config.use_testnet),
+                                )
+                                session.add(tr)
+                                state.current_asset = entry["to_asset"]
+                                state.current_qty = entry["qty_to"]
+                                state.realized_pnl_usd -= fee_quote
 
                         elif buy_signal and state.current_asset == bot_config.asset_b:
                             res = execute_mr_trade(
@@ -812,20 +897,20 @@ def bot_loop():
                                 bot_config.use_all_balance,
                             )
                             if res:
-                                from_asset, to_asset, qty_from, qty_to, trade_ratio = res
-                                start_price = price_b if from_asset == bot_config.asset_b else price_a
-                                end_price = price_a if to_asset == bot_config.asset_a else price_b
-                                start_value = qty_from * start_price
-                                end_value = qty_to * end_price
+                                trade_ratio = res["ratio"]
+                                start_price = res.get("sell_price", price_b)
+                                end_price = res.get("buy_price", price_a)
+                                start_value = res["qty_from"] * start_price
+                                end_value = res["qty_to"] * end_price
                                 fee_quote = (start_value + end_value) * TRADE_FEE_RATE
                                 pnl_usd = end_value - start_value - fee_quote
                                 tr = Trade(
                                     ts=ts,
                                     side=buy_dir,
-                                    from_asset=from_asset,
-                                    to_asset=to_asset,
-                                    qty_from=qty_from,
-                                    qty_to=qty_to,
+                                    from_asset=res["from_asset"],
+                                    to_asset=res["to_asset"],
+                                    qty_from=res["qty_from"],
+                                    qty_to=res["qty_to"],
                                     price=trade_ratio,
                                     fee=fee_quote,
                                     pnl_usd=pnl_usd,
@@ -833,9 +918,31 @@ def bot_loop():
                                 )
                                 session.add(tr)
                                 record_trade_stat(session, ts, z, trade_ratio, pnl_usd)
-                                state.current_asset = to_asset
-                                state.current_qty = qty_to
+                                state.current_asset = res["to_asset"]
+                                state.current_qty = res["qty_to"]
                                 state.realized_pnl_usd += pnl_usd
+
+                        elif buy_signal and state.current_asset == BASE_ASSET:
+                            entry = _enter_from_base(bot_config.asset_a, price_a)
+                            if entry:
+                                cost = entry["qty_to"] * entry["price"]
+                                fee_quote = cost * TRADE_FEE_RATE
+                                tr = Trade(
+                                    ts=ts,
+                                    side=f"{BASE_ASSET}->{bot_config.asset_a}",
+                                    from_asset=BASE_ASSET,
+                                    to_asset=bot_config.asset_a,
+                                    qty_from=cost,
+                                    qty_to=entry["qty_to"],
+                                    price=entry["price"],
+                                    fee=fee_quote,
+                                    pnl_usd=-fee_quote,
+                                    is_testnet=int(bot_config.use_testnet),
+                                )
+                                session.add(tr)
+                                state.current_asset = entry["to_asset"]
+                                state.current_qty = entry["qty_to"]
+                                state.realized_pnl_usd -= fee_quote
 
                     session.commit()
 
