@@ -3,6 +3,7 @@ uvicorn[standard]
 python-binance
 pydantic
 SQLAlchemy
+psycopg2-binary
 python-dotenv
 pytest
 pytest-cov

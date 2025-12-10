@@ -1,13 +1,31 @@
 # database.py
-from sqlalchemy import create_engine, Column, Integer, Float, String, DateTime
-from sqlalchemy.orm import sessionmaker, declarative_base, Session
+import os
+
+from sqlalchemy import Column, DateTime, Float, Integer, String, create_engine
+from sqlalchemy.orm import Session, declarative_base, sessionmaker
 
 # =========================
-# DATABASE SETUP (SQLite)
+# DATABASE SETUP
 # =========================
 
-DATABASE_URL = "sqlite:///./mean_reversion.db"
-engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
+# Supports SQLite and PostgreSQL via SQLAlchemy URLs.
+# Example:
+#   postgres: postgresql+psycopg2://user:pass@host:5432/dbname
+#
+# In docker-compose, the `DATABASE_URL` is injected and points at the bundled
+# Postgres service (`db`). For local development, you can override it to
+# SQLite (e.g. `sqlite:///./mean_reversion.db`).
+DATABASE_URL = os.getenv(
+    "DATABASE_URL", "postgresql+psycopg2://meanpair:meanpair@db:5432/meanpair"
+)
+
+connect_args = {"check_same_thread": False} if DATABASE_URL.startswith("sqlite") else {}
+
+engine = create_engine(
+    DATABASE_URL,
+    connect_args=connect_args,
+    pool_pre_ping=True,
+)
 SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False)
 Base = declarative_base()
 

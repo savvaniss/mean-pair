@@ -23,6 +23,9 @@ os.environ.setdefault("BOT_DISABLE_THREADS", "1")
 os.environ.setdefault("DISABLE_BINANCE_CLIENT", "1")
 os.environ.setdefault("LISTINGS_DISABLE_SCHEDULER", "1")
 
+# Keep tests on lightweight SQLite even though docker-compose defaults to Postgres
+os.environ.setdefault("DATABASE_URL", "sqlite:///./mean_reversion.db")
+
 # Provide dummy API keys so create_*_client won't explode on import
 os.environ.setdefault("BINANCE_TESTNET_API_KEY", "dummy")
 os.environ.setdefault("BINANCE_TESTNET_API_SECRET", "dummy")
