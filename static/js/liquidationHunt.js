@@ -1,4 +1,4 @@
-import { showToast } from './ui.js';
+import { openOverlay, showToast } from './ui.js';
 
 let heatmapCtx = null;
 let heatmapChart = null;
@@ -8,6 +8,18 @@ function fmt(v) {
   if (v === null || v === undefined) return '-';
   if (typeof v === 'number') return v.toFixed(2);
   return v;
+}
+
+function pct(value, basis) {
+  if (!basis || !isFinite(value)) return '-';
+  return `${((value / basis) * 100).toFixed(2)}%`;
+}
+
+function setText(id, value) {
+  const el = document.getElementById(id);
+  if (el) {
+    el.textContent = value;
+  }
 }
 
 function renderHeatmap(data) {
@@ -87,9 +99,44 @@ function renderLastExecution(execution) {
   chip.textContent = `${execution.side} ${fmt(execution.qty_executed)} @ ${fmt(execution.price_used)} (${execution.reason})`;
 }
 
+function renderRiskMath(signal) {
+  const stopDistance = Math.abs(signal.entry - signal.stop_loss);
+  const targetDistance = Math.abs(signal.take_profit - signal.entry);
+  const liveRR = stopDistance > 0 ? (targetDistance / stopDistance).toFixed(2) : '-';
+
+  setText('liqStopDistance', `${fmt(stopDistance)} (${pct(stopDistance, signal.entry)})`);
+  setText('liqTargetDistance', `${fmt(targetDistance)} (${pct(targetDistance, signal.entry)})`);
+  setText('liqLiveRR', liveRR);
+}
+
+function renderPoolSplit(heatmap = { long: [], short: [] }, clusterCount = 0) {
+  const row = document.getElementById('liqPoolSplit');
+  const countLabel = document.getElementById('liqClusterCount');
+  if (!row) return;
+  const longCount = heatmap.long?.length || 0;
+  const shortCount = heatmap.short?.length || 0;
+  const strongest = [...(heatmap.long || []), ...(heatmap.short || [])].sort((a, b) => b.strength - a.strength)[0];
+  const strongestText = strongest
+    ? `Strongest @ ${fmt(strongest.price)} (${(strongest.strength * 100).toFixed(0)}% intensity)`
+    : 'No pools mapped yet';
+
+  row.innerHTML = `
+    <span class="chip chip-primary">Long pools: ${longCount}</span>
+    <span class="chip chip-danger">Short pools: ${shortCount}</span>
+    <span class="chip chip-muted">${strongestText}</span>
+  `;
+
+  if (countLabel) {
+    countLabel.textContent = `${clusterCount} pools`;
+  }
+}
+
 function renderSignal(res) {
   const chip = document.getElementById('liqSignalChip');
   const summary = document.getElementById('liqSignalSummary');
+  const actionable = document.getElementById('liqActionableSummary');
+  const nextStep = document.getElementById('liqNextStep');
+  const playbook = document.getElementById('liqPlaybook');
   const clusterCount = document.getElementById('liqClusterCount');
   if (!chip || !summary || !clusterCount) return;
 
@@ -120,9 +167,19 @@ function renderSignal(res) {
       <div class="status-line">Watching clusters for next sweep...</div>
       <div class="status-line">We need a wick through liquidity plus a reclaim to light up an entry.</div>
     `;
+    if (actionable) {
+      actionable.textContent = `Scanner is standing by on ${res.symbol || cfg.symbol} with ${res.cluster_count} pools mapped.`;
+    }
+    if (nextStep) {
+      nextStep.textContent = `Next step: wait for a wick ≥ ${fmt(cfg.wick_body_ratio)}x the candle body that sweeps a cluster.`;
+    }
+    if (playbook) {
+      playbook.textContent = 'No signal detected yet. Once a sweep prints, you will see a narrated setup here.';
+    }
     ['liqSweepLevel', 'liqConfidenceLabel', 'liqEntryLabel', 'liqStopLabel', 'liqTargetLabel'].forEach(
       (id) => (document.getElementById(id).textContent = '-')
     );
+    ['liqStopDistance', 'liqTargetDistance', 'liqLiveRR'].forEach((id) => setText(id, '-'));
     return;
   }
 
@@ -130,6 +187,19 @@ function renderSignal(res) {
   chip.textContent = `${sig.direction} setup`;
   chip.className = sig.direction === 'LONG' ? 'chip chip-success' : 'chip chip-danger';
   const reclaimText = sig.reclaim_confirmed ? 'reclaimed' : 'waiting reclaim';
+  if (actionable) {
+    actionable.textContent = `${sig.direction} sweep through ${fmt(sig.sweep_level)} with ${(sig.confidence * 100).toFixed(0)}% confidence.`;
+  }
+  if (nextStep) {
+    nextStep.textContent = sig.reclaim_confirmed
+      ? 'Reclaim confirmed — you can trade or let auto-trading handle it.'
+      : 'Waiting for candle to close back inside the swept level to confirm the reclaim.';
+  }
+  if (playbook) {
+    playbook.textContent = `Price swept liquidity at ${fmt(sig.sweep_level)} and printed a ${sig.direction} setup. Entry ${fmt(
+      sig.entry
+    )}, stop ${fmt(sig.stop_loss)}, target ${fmt(sig.take_profit)}.`;
+  }
   summary.innerHTML = `
     <div class="status-chip-row">
       ${envChip}
@@ -176,6 +246,7 @@ function renderSignal(res) {
   document.getElementById('liqEntryLabel').textContent = fmt(sig.entry);
   document.getElementById('liqStopLabel').textContent = fmt(sig.stop_loss);
   document.getElementById('liqTargetLabel').textContent = fmt(sig.take_profit);
+  renderRiskMath(sig);
 }
 
 function syncConfigForm(cfg) {
@@ -198,6 +269,16 @@ function syncConfigForm(cfg) {
     summary.textContent = `Watching ${cfg.symbol} every ${cfg.poll_interval_sec}s; buying $${cfg.trade_notional_usd}` +
       ` with RR ${fmt(cfg.risk_reward)}x on ${cfg.use_testnet ? 'testnet' : 'mainnet'}`;
   }
+
+  const envChip = document.getElementById('liqEnvChip');
+  const autoChip = document.getElementById('liqAutoChip');
+  const cadenceChip = document.getElementById('liqCadenceChip');
+  if (envChip) envChip.textContent = `Environment: ${cfg.use_testnet ? 'Testnet' : 'Mainnet'}`;
+  if (autoChip) {
+    autoChip.textContent = cfg.auto_trade ? 'Auto-trading: Enabled' : 'Auto-trading: Off';
+    autoChip.className = `chip ${cfg.auto_trade ? 'chip-success' : 'chip-muted'}`;
+  }
+  if (cadenceChip) cadenceChip.textContent = `Polling cadence: every ${cfg.poll_interval_sec}s`;
 }
 
 async function fetchStatus(endpoint = '/liquidation/status', options = undefined) {
@@ -212,6 +293,7 @@ async function refreshStatus() {
   try {
     const res = await fetchStatus();
     renderSignal(res);
+    renderPoolSplit(res.heatmap, res.cluster_count);
     renderHeatmap(res.heatmap);
     renderTable(res.recent_candles || []);
     renderLastExecution(res.last_execution);
@@ -225,6 +307,7 @@ async function manualRescan() {
   try {
     const res = await fetchStatus('/liquidation/scan', { method: 'POST' });
     renderSignal(res);
+    renderPoolSplit(res.heatmap, res.cluster_count);
     renderHeatmap(res.heatmap);
     renderTable(res.recent_candles || []);
     renderLastExecution(res.last_execution);
@@ -262,6 +345,22 @@ async function toggleEnabled(enabled) {
   }
 }
 
+async function toggleAutoTradeSetting() {
+  const nextState = !(lastConfig?.auto_trade);
+  try {
+    await fetch('/liquidation/config', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ auto_trade: nextState }),
+    });
+    showToast(nextState ? 'Auto-trading enabled for liquidation hunts' : 'Auto-trading disabled', 'info');
+    await refreshStatus();
+  } catch (err) {
+    console.error(err);
+    showToast('Unable to toggle auto-trading', 'danger');
+  }
+}
+
 function wireButtons() {
   const rescanBtn = document.getElementById('liqRescanBtn');
   if (rescanBtn) rescanBtn.addEventListener('click', manualRescan);
@@ -274,6 +373,13 @@ function wireButtons() {
 
   const stopBtn = document.getElementById('liqDisableBtn');
   if (stopBtn) stopBtn.addEventListener('click', () => toggleEnabled(false));
+
+  document.getElementById('liqInlineRescan')?.addEventListener('click', manualRescan);
+  document.getElementById('liqInlineExecute')?.addEventListener('click', triggerExecute);
+  document.getElementById('liqAutoToggleBtn')?.addEventListener('click', toggleAutoTradeSetting);
+  document
+    .getElementById('openLiqConfigInlineSecondary')
+    ?.addEventListener('click', () => openOverlay('liqConfigOverlay'));
 }
 
 function wireConfigForm() {

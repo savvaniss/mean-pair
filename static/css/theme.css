@@ -210,9 +210,25 @@ body {
   font-size: 0.9rem;
 }
 
+.status-highlight {
+  background: rgba(130, 214, 255, 0.08);
+  border: 1px solid rgba(130, 214, 255, 0.25);
+  border-radius: 10px;
+  padding: 10px 12px;
+  margin-bottom: 10px;
+  color: var(--text-main);
+}
+
 .status-line {
   margin: 4px 0;
   color: var(--text-subtle);
+}
+
+.hint-list {
+  margin: 10px 0 0;
+  padding-left: 18px;
+  color: var(--text-subtle);
+  line-height: 1.4;
 }
 
 .status-chip-row {
@@ -275,6 +291,11 @@ body {
   margin-top: 6px;
 }
 
+.metric-grid.compact {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px 12px;
+}
+
 .metric-label {
   font-size: 0.75rem;
   color: var(--text-muted);
@@ -283,6 +304,11 @@ body {
 .metric-value {
   font-size: 0.95rem;
   font-weight: 600;
+}
+
+.metric-sub {
+  font-size: 0.75rem;
+  color: var(--text-muted);
 }
 
 .price-pill {
@@ -330,6 +356,13 @@ label {
   font-size: 0.8rem;
   color: var(--text-muted);
   margin-bottom: 2px;
+}
+
+.button-row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin: 8px 0 4px;
 }
 
 label.label-with-tip {
