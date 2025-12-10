@@ -51,7 +51,10 @@ export function initFreqtradeAdapters() {
   }
   if (helpBtn) {
     helpBtn.addEventListener('click', () => {
-      showToast('PatternRecognition: wait for CDL High-Wave (-100). Strategy001: EMA20>EMA50 with green HA candle.', 'info');
+      showToast(
+        'PatternRecognition: wait for CDL High-Wave (-100). Strategy001: EMA20>EMA50 with green HA candle. Strategy002: RSI/Stoch+Bollinger hammer. Strategy003: MFI/EMA/Boll confluence. Supertrend: 3-line up/down agreement.',
+        'info'
+      );
     });
   }
 }
@@ -163,6 +166,8 @@ async function loadHistory() {
             <td>${row.price.toFixed(4)}</td>
             <td>${row.indicator_a.toFixed(4)}</td>
             <td>${row.indicator_b.toFixed(4)}</td>
+            <td>${row.indicator_c.toFixed(4)}</td>
+            <td>${row.indicator_d.toFixed(4)}</td>
           </tr>
         `
       )

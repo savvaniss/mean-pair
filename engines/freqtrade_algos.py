@@ -21,6 +21,9 @@ from database import AlgoSnapshot, AlgoTrade, SessionLocal
 # Strategy identifiers exposed to the frontend
 PATTERN_RECOGNITION = "pattern_recognition"
 STRATEGY_001 = "strategy001"
+STRATEGY_002 = "strategy002"
+STRATEGY_003 = "strategy003"
+SUPERTREND = "supertrend"
 
 
 class AlgoConfig(BaseModel):
@@ -32,6 +35,21 @@ class AlgoConfig(BaseModel):
     use_testnet: bool = config.BOLL_USE_TESTNET
     # PatternRecognition specific
     buy_threshold: int = -100
+
+
+class SupertrendConfig(AlgoConfig):
+    buy_m1: int = 4
+    buy_m2: int = 7
+    buy_m3: int = 1
+    buy_p1: int = 8
+    buy_p2: int = 9
+    buy_p3: int = 8
+    sell_m1: int = 1
+    sell_m2: int = 3
+    sell_m3: int = 6
+    sell_p1: int = 16
+    sell_p2: int = 18
+    sell_p3: int = 18
 
 
 class AlgoState(BaseModel):
@@ -50,17 +68,35 @@ algo_configs: Dict[str, AlgoConfig] = {
     STRATEGY_001: AlgoConfig(
         symbol="ETHUSDT", timeframe="5m", poll_interval_sec=45, max_position_usd=50.0
     ),
+    STRATEGY_002: AlgoConfig(
+        symbol="ETHUSDT", timeframe="5m", poll_interval_sec=45, max_position_usd=50.0
+    ),
+    STRATEGY_003: AlgoConfig(
+        symbol="BTCUSDT", timeframe="5m", poll_interval_sec=45, max_position_usd=60.0
+    ),
+    SUPERTREND: SupertrendConfig(
+        symbol="BTCUSDT", timeframe="1h", poll_interval_sec=120, max_position_usd=80.0
+    ),
 }
 
 algo_states: Dict[str, AlgoState] = {
     PATTERN_RECOGNITION: AlgoState(),
     STRATEGY_001: AlgoState(),
+    STRATEGY_002: AlgoState(),
+    STRATEGY_003: AlgoState(),
+    SUPERTREND: AlgoState(),
 }
 
 ft_lock = threading.Lock()
 ft_thread: Optional[threading.Thread] = None
 ft_stop_flag = False
-next_runs: Dict[str, float] = {PATTERN_RECOGNITION: 0.0, STRATEGY_001: 0.0}
+next_runs: Dict[str, float] = {
+    PATTERN_RECOGNITION: 0.0,
+    STRATEGY_001: 0.0,
+    STRATEGY_002: 0.0,
+    STRATEGY_003: 0.0,
+    SUPERTREND: 0.0,
+}
 
 
 def _get_client():
@@ -76,6 +112,111 @@ def _ema(values: List[float], window: int) -> float:
     for price in values[-window + 1 :]:
         ema = price * k + ema * (1 - k)
     return ema
+
+
+def _sma(values: List[float], window: int) -> float:
+    if not values:
+        return 0.0
+    window = max(1, min(window, len(values)))
+    return sum(values[-window:]) / window
+
+
+def _rsi(values: List[float], period: int = 14) -> float:
+    if len(values) < period + 1:
+        return 50.0
+    gains = []
+    losses = []
+    for i in range(-period, 0):
+        delta = values[i] - values[i - 1]
+        if delta >= 0:
+            gains.append(delta)
+        else:
+            losses.append(abs(delta))
+    avg_gain = sum(gains) / period if gains else 0.0
+    avg_loss = sum(losses) / period if losses else 0.0
+    if avg_loss == 0:
+        return 100.0
+    rs = avg_gain / avg_loss
+    return 100 - (100 / (1 + rs))
+
+
+def _stochastic(highs: List[float], lows: List[float], closes: List[float], period: int = 14):
+    if len(closes) < period:
+        return 50.0, 50.0
+    high_n = max(highs[-period:])
+    low_n = min(lows[-period:])
+    k = 0.0 if high_n == low_n else (closes[-1] - low_n) / (high_n - low_n) * 100
+    prev_ks = [
+        (closes[i] - min(lows[i - period + 1 : i + 1]))
+        / (max(highs[i - period + 1 : i + 1]) - min(lows[i - period + 1 : i + 1]) or 1)
+        * 100
+        for i in range(len(closes) - period, len(closes))
+    ]
+    d = sum(prev_ks[-3:]) / min(3, len(prev_ks)) if prev_ks else k
+    return k, d
+
+
+def _typical_price(open_p: float, high: float, low: float, close: float) -> float:
+    return (high + low + close) / 3
+
+
+def _bollinger(prices: List[float], window: int = 20, stds: int = 2):
+    if len(prices) < window:
+        return 0.0, 0.0, 0.0
+    slice_ = prices[-window:]
+    mean = sum(slice_) / window
+    variance = sum((p - mean) ** 2 for p in slice_) / window
+    std = math.sqrt(variance)
+    upper = mean + stds * std
+    lower = mean - stds * std
+    return mean, upper, lower
+
+
+def _inverse_fisher_rsi(rsi: float) -> float:
+    scaled = 0.1 * (rsi - 50)
+    exp_val = math.exp(2 * scaled)
+    return (exp_val - 1) / (exp_val + 1)
+
+
+def _mfi(highs: List[float], lows: List[float], closes: List[float], volumes: List[float], period: int = 14) -> float:
+    if len(closes) < period:
+        return 50.0
+    typical_prices = [_typical_price(0, h, l, c) for h, l, c in zip(highs[-period:], lows[-period:], closes[-period:])]
+    raw_money = [tp * volumes[-period + idx] for idx, tp in enumerate(typical_prices)]
+    positive = []
+    negative = []
+    for i in range(1, len(raw_money)):
+        if typical_prices[i] > typical_prices[i - 1]:
+            positive.append(raw_money[i])
+        else:
+            negative.append(raw_money[i])
+    pos_flow = sum(positive)
+    neg_flow = sum(negative)
+    if neg_flow == 0:
+        return 100.0
+    mfr = pos_flow / neg_flow
+    return 100 - (100 / (1 + mfr))
+
+
+def _sar(highs: List[float], lows: List[float], accel: float = 0.02, accel_max: float = 0.2) -> float:
+    # Lightweight SAR approximation using a single pass; sufficient for simulated exits
+    if len(highs) < 2:
+        return highs[-1] if highs else 0.0
+    uptrend = highs[-1] >= highs[-2]
+    ep = max(highs[-5:]) if uptrend else min(lows[-5:])
+    sar = min(lows[-5:]) if uptrend else max(highs[-5:])
+    af = accel
+    sar_list = []
+    for i in range(len(highs)):
+        sar = sar + af * (ep - sar)
+        sar_list.append(sar)
+        if uptrend and highs[i] > ep:
+            ep = highs[i]
+            af = min(af + accel, accel_max)
+        elif not uptrend and lows[i] < ep:
+            ep = lows[i]
+            af = min(af + accel, accel_max)
+    return sar_list[-1]
 
 
 def _heikin_ashi(candles: List[List[float]]):
@@ -97,6 +238,19 @@ def _highwave_score(open_p: float, high: float, low: float, close: float) -> int
     if not long_shadows:
         return 0
     return -100 if close < open_p else 100
+
+
+def _hammer_score(open_p: float, high: float, low: float, close: float) -> int:
+    body = abs(close - open_p)
+    upper_shadow = high - max(open_p, close)
+    lower_shadow = min(open_p, close) - low
+    if body <= 0:
+        body = 1e-9
+    long_lower = lower_shadow >= 2 * body
+    tiny_upper = upper_shadow <= body * 0.3
+    if long_lower and tiny_upper:
+        return 100 if close > open_p else -100
+    return 0
 
 
 def _fetch_klines(symbol: str, interval: str, limit: int = 120) -> List[List[float]]:
@@ -260,6 +414,211 @@ def _process_strategy001(cfg: AlgoConfig, state: AlgoState, session) -> None:
         )
 
 
+def _process_strategy002(cfg: AlgoConfig, state: AlgoState, session) -> None:
+    candles = _fetch_klines(cfg.symbol, cfg.timeframe, limit=160)
+    if len(candles) < 40:
+        return
+
+    opens = [c[1] for c in candles]
+    highs = [c[2] for c in candles]
+    lows = [c[3] for c in candles]
+    closes = [c[4] for c in candles]
+    price = closes[-1]
+    rsi = _rsi(closes)
+    slowk, _ = _stochastic(highs, lows, closes)
+    _, _, bb_lower = _bollinger([
+        _typical_price(c[1], c[2], c[3], c[4]) for c in candles
+    ])
+    fisher_rsi = _inverse_fisher_rsi(rsi)
+    sar = _sar(highs, lows)
+    hammer = _hammer_score(opens[-1], highs[-1], lows[-1], closes[-1])
+
+    if state.position == "LONG":
+        state.unrealized_pnl_usd = (price - state.entry_price) * state.qty_asset
+
+    _record_snapshot(
+        session,
+        STRATEGY_002,
+        cfg.symbol,
+        price,
+        [rsi, slowk, bb_lower, sar],
+    )
+    state.last_signal = fisher_rsi
+
+    if (
+        state.position == "FLAT"
+        and rsi < 30
+        and slowk < 20
+        and bb_lower > price
+        and hammer == 100
+    ):
+        qty = cfg.max_position_usd / price if price > 0 else 0.0
+        if qty > 0:
+            _execute_trade(session, STRATEGY_002, cfg.symbol, "BUY", price, qty, cfg, state)
+    elif state.position == "LONG" and sar > price and fisher_rsi > 0.3 and state.qty_asset > 0:
+        _execute_trade(
+            session, STRATEGY_002, cfg.symbol, "SELL", price, state.qty_asset, cfg, state
+        )
+
+
+def _process_strategy003(cfg: AlgoConfig, state: AlgoState, session) -> None:
+    candles = _fetch_klines(cfg.symbol, cfg.timeframe, limit=200)
+    if len(candles) < 60:
+        return
+
+    opens = [c[1] for c in candles]
+    highs = [c[2] for c in candles]
+    lows = [c[3] for c in candles]
+    closes = [c[4] for c in candles]
+    volumes = [c[5] for c in candles]
+
+    price = closes[-1]
+    rsi = _rsi(closes)
+    fisher_rsi = _inverse_fisher_rsi(rsi)
+    fastk, fastd = _stochastic(highs, lows, closes)
+    _, _, boll_lower = _bollinger([
+        _typical_price(c[1], c[2], c[3], c[4]) for c in candles
+    ])
+    ema5 = _ema(closes, 5)
+    ema10 = _ema(closes, 10)
+    ema50 = _ema(closes, 50)
+    ema100 = _ema(closes, 100)
+    sma40 = _sma(closes, 40)
+    sar = _sar(highs, lows)
+    mfi = _mfi(highs, lows, closes, volumes)
+
+    if state.position == "LONG":
+        state.unrealized_pnl_usd = (price - state.entry_price) * state.qty_asset
+
+    _record_snapshot(
+        session,
+        STRATEGY_003,
+        cfg.symbol,
+        price,
+        [rsi, fisher_rsi, ema50, ema100],
+    )
+    state.last_signal = fisher_rsi
+
+    crossed = ema50 > ema100 or ema5 > ema10
+    if (
+        state.position == "FLAT"
+        and 0 < rsi < 28
+        and price < sma40
+        and fisher_rsi < -0.94
+        and mfi < 16
+        and crossed
+        and fastd > fastk
+        and fastd > 0
+    ):
+        qty = cfg.max_position_usd / price if price > 0 else 0.0
+        if qty > 0:
+            _execute_trade(session, STRATEGY_003, cfg.symbol, "BUY", price, qty, cfg, state)
+    elif state.position == "LONG" and sar > price and fisher_rsi > 0.3 and state.qty_asset > 0:
+        _execute_trade(
+            session, STRATEGY_003, cfg.symbol, "SELL", price, state.qty_asset, cfg, state
+        )
+
+
+def _supertrend_lines(highs: List[float], lows: List[float], closes: List[float], multiplier: int, period: int):
+    if len(closes) < period + 1:
+        return [0.0] * len(closes), ["down"] * len(closes)
+
+    trs = [highs[i] - lows[i] for i in range(len(highs))]
+    atrs = []
+    for i in range(len(trs)):
+        window = trs[max(0, i - period + 1) : i + 1]
+        atrs.append(sum(window) / len(window))
+
+    final_ub = [0.0] * len(closes)
+    final_lb = [0.0] * len(closes)
+    supertrend_vals = [0.0] * len(closes)
+    stx = ["down"] * len(closes)
+
+    for i in range(period, len(closes)):
+        basic_ub = (highs[i] + lows[i]) / 2 + multiplier * atrs[i]
+        basic_lb = (highs[i] + lows[i]) / 2 - multiplier * atrs[i]
+
+        final_ub[i] = (
+            basic_ub
+            if i == period
+            else basic_ub
+            if basic_ub < final_ub[i - 1] or closes[i - 1] > final_ub[i - 1]
+            else final_ub[i - 1]
+        )
+        final_lb[i] = (
+            basic_lb
+            if i == period
+            else basic_lb
+            if basic_lb > final_lb[i - 1] or closes[i - 1] < final_lb[i - 1]
+            else final_lb[i - 1]
+        )
+
+        if supertrend_vals[i - 1] == final_ub[i - 1] and closes[i] <= final_ub[i]:
+            supertrend_vals[i] = final_ub[i]
+        elif supertrend_vals[i - 1] == final_ub[i - 1] and closes[i] > final_ub[i]:
+            supertrend_vals[i] = final_lb[i]
+        elif supertrend_vals[i - 1] == final_lb[i - 1] and closes[i] >= final_lb[i]:
+            supertrend_vals[i] = final_lb[i]
+        else:
+            supertrend_vals[i] = final_ub[i]
+
+        stx[i] = "down" if closes[i] < supertrend_vals[i] else "up"
+
+    return supertrend_vals, stx
+
+
+def _process_supertrend(cfg: SupertrendConfig, state: AlgoState, session) -> None:
+    candles = _fetch_klines(cfg.symbol, cfg.timeframe, limit=260)
+    if len(candles) < 220:
+        return
+
+    highs = [c[2] for c in candles]
+    lows = [c[3] for c in candles]
+    closes = [c[4] for c in candles]
+    price = closes[-1]
+
+    # Compute selected parameter combinations only (not full ranges)
+    _, stx1 = _supertrend_lines(highs, lows, closes, cfg.buy_m1, cfg.buy_p1)
+    _, stx2 = _supertrend_lines(highs, lows, closes, cfg.buy_m2, cfg.buy_p2)
+    _, stx3 = _supertrend_lines(highs, lows, closes, cfg.buy_m3, cfg.buy_p3)
+    _, stx1_sell = _supertrend_lines(highs, lows, closes, cfg.sell_m1, cfg.sell_p1)
+    _, stx2_sell = _supertrend_lines(highs, lows, closes, cfg.sell_m2, cfg.sell_p2)
+    _, stx3_sell = _supertrend_lines(highs, lows, closes, cfg.sell_m3, cfg.sell_p3)
+
+    buy_up = (
+        stx1[-1] == "up"
+        and stx2[-1] == "up"
+        and stx3[-1] == "up"
+    )
+    sell_down = (
+        stx1_sell[-1] == "down"
+        and stx2_sell[-1] == "down"
+        and stx3_sell[-1] == "down"
+    )
+
+    if state.position == "LONG":
+        state.unrealized_pnl_usd = (price - state.entry_price) * state.qty_asset
+
+    st_score = (1 if stx1[-1] == "up" else -1) + (1 if stx2[-1] == "up" else -1) + (1 if stx3[-1] == "up" else -1)
+    _record_snapshot(
+        session,
+        SUPERTREND,
+        cfg.symbol,
+        price,
+        [st_score, 0.0, 0.0, 0.0],
+    )
+    state.last_signal = st_score
+
+    if state.position == "FLAT" and buy_up:
+        qty = cfg.max_position_usd / price if price > 0 else 0.0
+        if qty > 0:
+            _execute_trade(session, SUPERTREND, cfg.symbol, "BUY", price, qty, cfg, state)
+    elif state.position == "LONG" and sell_down and state.qty_asset > 0:
+        _execute_trade(
+            session, SUPERTREND, cfg.symbol, "SELL", price, state.qty_asset, cfg, state
+        )
+
+
 def freqtrade_loop():
     global ft_stop_flag
     session = SessionLocal()
@@ -281,8 +640,14 @@ def freqtrade_loop():
 
                 if strategy == PATTERN_RECOGNITION:
                     _process_pattern(cfg, state, session)
-                else:
+                elif strategy == STRATEGY_001:
                     _process_strategy001(cfg, state, session)
+                elif strategy == STRATEGY_002:
+                    _process_strategy002(cfg, state, session)
+                elif strategy == STRATEGY_003:
+                    _process_strategy003(cfg, state, session)
+                else:
+                    _process_supertrend(cfg, state, session)  # type: ignore[arg-type]
 
                 next_runs[strategy] = now + max(5, cfg.poll_interval_sec)
 

@@ -193,7 +193,7 @@ Services:
 
 ---
 
-## Adding New Algorithms (e.g., PatternRecognition and Strategy001)
+## Adding New Algorithms (e.g., PatternRecognition, Strategy001/002/003, Supertrend)
 
 The app can host additional strategies like the two Freqtrade examples below. To wire them in, mirror the existing engines and routers:
 
@@ -208,6 +208,9 @@ For the provided snippets:
 
 - *PatternRecognition* uses `talib` pattern-recognition functions on daily candles. Feed it OHLCV data (from Binance klines or your DB), calculate the chosen pattern column in `populate_indicators`, and generate `enter_long`/`exit_long` flags similar to `populate_entry_trend`.
 - *Strategy001* trades 5m EMA crossovers with Heikin Ashi candles. The engine should stream 5m prices, compute `ema20/ema50/ema100` plus HA candles, and issue market orders when the crossover/HA conditions flip.
+- *Strategy002* layers RSI < 30, Stochastic oversold, Bollinger lower-band bounces, and a hammer candle to time entries; SAR and Fisher RSI guide exits.
+- *Strategy003* combines MFI exhaustion with EMA/Bollinger/fast stochastic confluence to time reversals.
+- *Supertrend* looks for agreement across three supertrend lines on 1h candles; buys when all are "up" and sells when all are "down".
 
 ---
 
