@@ -745,35 +745,55 @@
           <span class="chip" id="liqSignalChip">Waiting...</span>
         </div>
         <div class="card-body">
-        <div class="status-section" id="liqSignalSummary">No scan data yet.</div>
-        <div class="metric-grid" style="margin-top: 16px;">
-          <div class="metric-group">
-            <div class="metric-label">Symbol</div>
-            <div class="metric-value" id="liqSymbolLabel">-</div>
+          <div class="status-section status-highlight" id="liqActionableSummary">No scan data yet.</div>
+          <div class="status-section" id="liqSignalSummary">-</div>
+          <div class="metric-grid" style="margin-top: 16px;">
+            <div class="metric-group">
+              <div class="metric-label">Symbol</div>
+              <div class="metric-value" id="liqSymbolLabel">-</div>
+            </div>
+            <div class="metric-group">
+              <div class="metric-label">Sweep level</div>
+              <div class="metric-value" id="liqSweepLevel">-</div>
+            </div>
+            <div class="metric-group">
+              <div class="metric-label">Confidence</div>
+              <div class="metric-value" id="liqConfidenceLabel">-</div>
+            </div>
+            <div class="metric-group">
+              <div class="metric-label">Entry</div>
+              <div class="metric-value" id="liqEntryLabel">-</div>
+            </div>
+            <div class="metric-group">
+              <div class="metric-label">Stop</div>
+              <div class="metric-value" id="liqStopLabel">-</div>
+            </div>
+            <div class="metric-group">
+              <div class="metric-label">Target</div>
+              <div class="metric-value" id="liqTargetLabel">-</div>
+            </div>
           </div>
-          <div class="metric-group">
-            <div class="metric-label">Sweep level</div>
-            <div class="metric-value" id="liqSweepLevel">-</div>
+          <div class="metric-grid compact" style="margin-top: 10px;">
+            <div class="metric-group">
+              <div class="metric-label">Stop distance</div>
+              <div class="metric-value" id="liqStopDistance">-</div>
+              <div class="metric-sub">Move from entry to stop</div>
+            </div>
+            <div class="metric-group">
+              <div class="metric-label">Target distance</div>
+              <div class="metric-value" id="liqTargetDistance">-</div>
+              <div class="metric-sub">Move from entry to take-profit</div>
+            </div>
+            <div class="metric-group">
+              <div class="metric-label">Live RR</div>
+              <div class="metric-value" id="liqLiveRR">-</div>
+              <div class="metric-sub">Computed from the current levels</div>
+            </div>
           </div>
-          <div class="metric-group">
-            <div class="metric-label">Confidence</div>
-            <div class="metric-value" id="liqConfidenceLabel">-</div>
-          </div>
-          <div class="metric-group">
-            <div class="metric-label">Entry</div>
-            <div class="metric-value" id="liqEntryLabel">-</div>
-          </div>
-          <div class="metric-group">
-            <div class="metric-label">Stop</div>
-            <div class="metric-value" id="liqStopLabel">-</div>
-          </div>
-          <div class="metric-group">
-            <div class="metric-label">Target</div>
-            <div class="metric-value" id="liqTargetLabel">-</div>
-          </div>
+          <div class="pill-row" id="liqPoolSplit"></div>
+          <div class="status-line" id="liqNextStep">Waiting for first scan...</div>
         </div>
       </div>
-    </div>
 
       <div class="card" style="flex: 1;">
         <div class="card-header">
@@ -781,7 +801,38 @@
         </div>
         <div class="card-body">
           <div class="config-summary" id="liqConfigSummary">Configure liquidation scanning from the action center.</div>
+          <div class="pill-row" id="liqEnvRow">
+            <span class="chip chip-primary" id="liqEnvChip">Environment: -</span>
+            <span class="chip" id="liqAutoChip">Auto-trading: -</span>
+            <span class="chip chip-muted" id="liqCadenceChip">Polling cadence: -</span>
+          </div>
+          <div class="button-row">
+            <button class="btn btn-primary" id="liqInlineRescan">Manual rescan</button>
+            <button class="btn btn-ghost" id="liqInlineExecute">Execute signal</button>
+            <button class="btn" id="openLiqConfigInlineSecondary">Edit config</button>
+            <button class="btn btn-ghost" id="liqAutoToggleBtn">Toggle auto-trading</button>
+          </div>
+          <ul class="hint-list">
+            <li>The scanner hunts for long/short liquidity pools and alerts when a wick sweeps them.</li>
+            <li>Use Manual rescan after saving config to force fresh candles and clusters.</li>
+            <li>Auto-trading keeps size from the config. Execute signal runs with current settings.</li>
+          </ul>
         </div>
+      </div>
+    </div>
+
+    <div class="card" data-collapsible>
+      <div class="card-header">
+        <h2>How this scanner works</h2>
+        <span class="toggle-icon">▼</span>
+      </div>
+      <div class="card-body">
+        <div class="status-section">
+          <div class="status-line">1) Build liquidity clusters from swing highs/lows where stops collect.</div>
+          <div class="status-line">2) Wait for a wick that sweeps those stops then closes back inside.</div>
+          <div class="status-line">3) Emit an entry, stop, and target with a confidence score plus heatmap.</div>
+        </div>
+        <div class="status-highlight" id="liqPlaybook">No signal detected yet. Once a sweep prints, you will see a narrated setup here.</div>
       </div>
     </div>
 
