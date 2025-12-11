@@ -63,6 +63,10 @@ class ExchangeClient:
         self._ws_stop = threading.Event()
         self._cache_lock = threading.Lock()
 
+    def _normalize_symbol(self, symbol: str) -> str:
+        """Return a unified symbol without separators (e.g., BTC/USDC -> BTCUSDC)."""
+        return symbol.replace("/", "") if symbol else symbol
+
     def _format_symbol(self, symbol: str) -> str:
         if "/" in symbol:
             return symbol
@@ -176,7 +180,7 @@ class ExchangeClient:
         cached = self.get_cached_ticker(symbol)
         if cached:
             return {
-                "symbol": symbol,
+                "symbol": self._normalize_symbol(symbol),
                 "price": float(cached.get("last", cached.get("close", 0)) or 0),
                 "timestamp": cached.get("timestamp", int(time.time() * 1000)),
                 "source": "websocket",
@@ -186,7 +190,7 @@ class ExchangeClient:
         except Exception as exc:  # pragma: no cover - network / credentials
             raise ExchangeError(str(exc))
         return {
-            "symbol": symbol,
+            "symbol": self._normalize_symbol(symbol),
             "price": float(ticker.get("last") or ticker.get("close") or 0),
             "timestamp": ticker.get("timestamp") or int(time.time() * 1000),
             "source": "rest",
@@ -199,7 +203,7 @@ class ExchangeClient:
             raise ExchangeError(str(exc))
         return [
             {
-                "symbol": val.get("symbol") or sym.replace("/", ""),
+                "symbol": self._normalize_symbol(val.get("symbol") or sym),
                 "price": float(val.get("last") or val.get("close") or 0),
                 "timestamp": val.get("timestamp"),
                 "source": "rest",
