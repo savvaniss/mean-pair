@@ -5,6 +5,7 @@ from fastapi.staticfiles import StaticFiles
 
 import config
 import auth
+from database import ensure_fee_columns
 from engines import mean_reversion as mr_engine
 from engines import bollinger as boll_engine
 from engines import trend_following as trend_engine
@@ -59,6 +60,7 @@ app.include_router(auth.router)
 
 @app.on_event("startup")
 def start_threads():
+    ensure_fee_columns()
     if not config.BOT_DISABLE_THREADS:
         mr_engine.start_bot_thread()
         boll_engine.start_boll_thread()

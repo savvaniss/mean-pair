@@ -339,6 +339,7 @@ def boll_trades(limit: int = 100):
                 "qty": t.qty,
                 "price": t.price,
                 "notional": t.notional,
+                "fee": t.fee or 0.0,
                 "pnl_usd": t.pnl_usd,
                 "is_testnet": bool(t.is_testnet),
             }

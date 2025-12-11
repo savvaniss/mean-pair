@@ -1,5 +1,13 @@
 import { showToast } from './ui.js';
 
+function setInlineStatus(targetId, message, variant = 'info') {
+  const el = document.getElementById(targetId);
+  if (!el) return;
+  el.textContent = message;
+  el.className = `status-line status-${variant}`;
+  el.style.display = message ? 'flex' : 'none';
+}
+
 const freqtradeOptions = [
   { value: 'pattern_recognition', label: 'Freqtrade – Pattern recognition' },
   { value: 'strategy001', label: 'Freqtrade – Strategy 001' },
@@ -9,6 +17,181 @@ const freqtradeOptions = [
 ];
 
 const supportedIntervals = ['20s', '1m', '5m', '15m', '1h', '4h', '1d'];
+
+function parseNumberList(inputId) {
+  const raw = document.getElementById(inputId)?.value || '';
+  return raw
+    .split(',')
+    .map((v) => v.trim())
+    .filter(Boolean)
+    .map((v) => Number(v))
+    .filter((v) => !Number.isNaN(v));
+}
+
+function collectBacktestPayload() {
+  const strategy = document.getElementById('backtestStrategy')?.value;
+  const symbol = document.getElementById('backtestSymbol')?.value?.trim();
+  const baseSymbol = document.getElementById('backtestBaseSymbol')?.value?.trim();
+  const altSymbols = (document.getElementById('backtestAltSymbols')?.value || '')
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean);
+  const conversionSymbol = document.getElementById('backtestConversion')?.value?.trim();
+  const assetA = document.getElementById('backtestAssetA')?.value?.trim();
+  const assetB = document.getElementById('backtestAssetB')?.value?.trim();
+  const intervalSelect = document.getElementById('backtestInterval');
+  const interval = intervalSelect?.value || '1h';
+  const lookbackDays = Number(document.getElementById('backtestLookback')?.value || 14);
+  const startDateStr = document.getElementById('backtestStartDate')?.value;
+  const endDateStr = document.getElementById('backtestEndDate')?.value;
+  const startingBalance = Number(document.getElementById('backtestStartingBalance')?.value || 1000);
+  const windowSize = Number(document.getElementById('backtestWindow')?.value || 70);
+  const numStd = Number(document.getElementById('backtestStd')?.value || 3);
+  const zEntry = Number(document.getElementById('backtestZEntry')?.value || 3);
+  const zExit = Number(document.getElementById('backtestZExit')?.value || 0.4);
+  const fastWindow = Number(document.getElementById('backtestFast')?.value || 12);
+  const slowWindow = Number(document.getElementById('backtestSlow')?.value || 26);
+  const atrWindow = Number(document.getElementById('backtestAtrWindow')?.value || 14);
+  const atrStop = Number(document.getElementById('backtestAtrStop')?.value || 2.0);
+  const momentumWindow = Number(document.getElementById('backtestMomentum')?.value || 3);
+  const minBeta = Number(document.getElementById('backtestMinBeta')?.value || 1.1);
+  const switchCooldown = Number(document.getElementById('backtestCooldown')?.value || 0);
+
+  if (!strategy) {
+    showToast('Please choose a strategy', 'warning');
+    return null;
+  }
+
+  if (Number.isNaN(lookbackDays) || lookbackDays <= 0) {
+    showToast('Lookback days must be greater than 0.', 'warning');
+    return null;
+  }
+
+  const isFreqtrade = freqtradeOptions.some((opt) => opt.value === strategy);
+
+  if (!supportedIntervals.includes(interval)) {
+    showToast(`Interval must be one of: ${supportedIntervals.join(', ')}`, 'warning');
+    return null;
+  }
+
+  if (strategy === 'mean_reversion') {
+    if (!assetA || !assetB) {
+      showToast('Asset A and Asset B are required for mean reversion backtests.', 'warning');
+      return null;
+    }
+    if (windowSize <= 0) {
+      showToast('Window size must be greater than 0 for mean reversion.', 'warning');
+      return null;
+    }
+  } else if (strategy === 'bollinger') {
+    if (!symbol) {
+      showToast('Symbol is required for Bollinger backtests.', 'warning');
+      return null;
+    }
+    if (windowSize <= 0 || numStd <= 0) {
+      showToast('Provide a valid window size and standard deviation for Bollinger.', 'warning');
+      return null;
+    }
+  } else if (strategy === 'trend_following') {
+    if (!symbol) {
+      showToast('Symbol is required for trend-following backtests.', 'warning');
+      return null;
+    }
+    if (fastWindow <= 0 || slowWindow <= 0 || atrWindow <= 0 || atrStop <= 0) {
+      showToast('Please provide positive values for EMA windows and ATR stop.', 'warning');
+      return null;
+    }
+  } else if (strategy === 'amplification') {
+    if (!baseSymbol) {
+      showToast('Base symbol is required for amplification.', 'warning');
+      return null;
+    }
+    if (momentumWindow <= 0 || minBeta <= 0 || switchCooldown < 0) {
+      showToast('Provide valid amplification parameters (momentum, beta, cooldown).', 'warning');
+      return null;
+    }
+  } else if (isFreqtrade && !symbol) {
+    showToast('Symbol is required for freqtrade backtests.', 'warning');
+    return null;
+  }
+
+  if ((startDateStr && !endDateStr) || (endDateStr && !startDateStr)) {
+    showToast('Please set both start and end dates to run a custom window.', 'warning');
+    return null;
+  }
+
+  const startDate = startDateStr ? new Date(`${startDateStr}T00:00:00Z`).toISOString() : undefined;
+  const endDate = endDateStr ? new Date(`${endDateStr}T23:59:59Z`).toISOString() : undefined;
+
+  return {
+    strategy,
+    payload: {
+      strategy,
+      symbol: symbol || undefined,
+      asset_a: assetA || undefined,
+      asset_b: assetB || undefined,
+      interval,
+      lookback_days: lookbackDays,
+      start_date: startDate,
+      end_date: endDate,
+      starting_balance: startingBalance,
+      window_size: windowSize,
+      num_std: numStd,
+      z_entry: zEntry,
+      z_exit: zExit,
+      fast_window: fastWindow,
+      slow_window: slowWindow,
+      atr_window: atrWindow,
+      atr_stop_mult: atrStop,
+      base_symbol: baseSymbol || undefined,
+      alt_symbols: altSymbols,
+      momentum_window: momentumWindow,
+      min_beta: minBeta,
+      conversion_symbol: conversionSymbol || undefined,
+      switch_cooldown: switchCooldown,
+    },
+  };
+}
+
+function buildGridPayload(strategy) {
+  const months = Number(document.getElementById('backtestGridMonths')?.value || 24);
+  if (Number.isNaN(months) || months <= 0) {
+    showToast('Months must be a positive number.', 'warning');
+    return null;
+  }
+
+  const grid = {};
+
+  if (strategy === 'mean_reversion') {
+    const windows = parseNumberList('backtestGridWindow');
+    const zEntries = parseNumberList('backtestGridZEntry');
+    const zExits = parseNumberList('backtestGridZExit');
+    if (windows.length) grid.window_sizes = windows;
+    if (zEntries.length) grid.z_entries = zEntries;
+    if (zExits.length) grid.z_exits = zExits;
+  } else if (strategy === 'bollinger') {
+    const windows = parseNumberList('backtestGridBollWindow');
+    const widths = parseNumberList('backtestGridStd');
+    if (windows.length) grid.window_sizes = windows;
+    if (widths.length) grid.num_std_widths = widths;
+  } else if (strategy === 'trend_following') {
+    const fast = parseNumberList('backtestGridFast');
+    const slow = parseNumberList('backtestGridSlow');
+    const atrStops = parseNumberList('backtestGridAtrStop');
+    if (fast.length) grid.fast_windows = fast;
+    if (slow.length) grid.slow_windows = slow;
+    if (atrStops.length) grid.atr_stop_mults = atrStops;
+  } else if (strategy === 'amplification') {
+    const momentum = parseNumberList('backtestGridMomentum');
+    const betas = parseNumberList('backtestGridMinBeta');
+    const cooldowns = parseNumberList('backtestGridCooldown');
+    if (momentum.length) grid.momentum_windows = momentum;
+    if (betas.length) grid.min_betas = betas;
+    if (cooldowns.length) grid.switch_cooldowns = cooldowns;
+  }
+
+  return { months, grid };
+}
 
 export function initBacktesting() {
   const strategy = document.getElementById('backtestStrategy');
@@ -48,128 +231,25 @@ export function initBacktesting() {
     e.preventDefault();
     await runBacktest();
   });
+
+  const gridButton = document.getElementById('backtestGridButton');
+  if (gridButton) {
+    gridButton.addEventListener('click', async (e) => {
+      e.preventDefault();
+      await runBacktestGrid();
+    });
+  }
 }
 
 export async function runBacktest() {
-  const strategy = document.getElementById('backtestStrategy')?.value;
-  const symbol = document.getElementById('backtestSymbol')?.value?.trim();
-  const baseSymbol = document.getElementById('backtestBaseSymbol')?.value?.trim();
-  const altSymbols = (document.getElementById('backtestAltSymbols')?.value || '')
-    .split(',')
-    .map((s) => s.trim())
-    .filter(Boolean);
-  const conversionSymbol = document.getElementById('backtestConversion')?.value?.trim();
-  const assetA = document.getElementById('backtestAssetA')?.value?.trim();
-  const assetB = document.getElementById('backtestAssetB')?.value?.trim();
-  const intervalSelect = document.getElementById('backtestInterval');
-  const interval = intervalSelect?.value || '1h';
-  const lookbackDays = Number(document.getElementById('backtestLookback')?.value || 14);
-  const startDateStr = document.getElementById('backtestStartDate')?.value;
-  const endDateStr = document.getElementById('backtestEndDate')?.value;
-  const startingBalance = Number(
-    document.getElementById('backtestStartingBalance')?.value || 1000
-  );
-  const windowSize = Number(document.getElementById('backtestWindow')?.value || 70);
-  const numStd = Number(document.getElementById('backtestStd')?.value || 3);
-  const zEntry = Number(document.getElementById('backtestZEntry')?.value || 3);
-  const zExit = Number(document.getElementById('backtestZExit')?.value || 0.4);
-  const fastWindow = Number(document.getElementById('backtestFast')?.value || 12);
-  const slowWindow = Number(document.getElementById('backtestSlow')?.value || 26);
-  const atrWindow = Number(document.getElementById('backtestAtrWindow')?.value || 14);
-  const atrStop = Number(document.getElementById('backtestAtrStop')?.value || 2.0);
-  const momentumWindow = Number(document.getElementById('backtestMomentum')?.value || 3);
-  const minBeta = Number(document.getElementById('backtestMinBeta')?.value || 1.1);
-  const switchCooldown = Number(document.getElementById('backtestCooldown')?.value || 0);
+  const collected = collectBacktestPayload();
+  if (!collected) return;
 
-  if (!strategy) {
-    showToast('Please choose a strategy', 'warning');
-    return;
-  }
+  const { payload } = collected;
+  const submitBtn = document.querySelector('#backtestForm button[type="submit"]');
 
-  if (Number.isNaN(lookbackDays) || lookbackDays <= 0) {
-    showToast('Lookback days must be greater than 0.', 'warning');
-    return;
-  }
-
-  const isFreqtrade = freqtradeOptions.some((opt) => opt.value === strategy);
-
-  if (!supportedIntervals.includes(interval)) {
-    showToast(`Interval must be one of: ${supportedIntervals.join(', ')}`, 'warning');
-    return;
-  }
-
-  if (strategy === 'mean_reversion') {
-    if (!assetA || !assetB) {
-      showToast('Asset A and Asset B are required for mean reversion backtests.', 'warning');
-      return;
-    }
-    if (windowSize <= 0) {
-      showToast('Window size must be greater than 0 for mean reversion.', 'warning');
-      return;
-    }
-  } else if (strategy === 'bollinger') {
-    if (!symbol) {
-      showToast('Symbol is required for Bollinger backtests.', 'warning');
-      return;
-    }
-    if (windowSize <= 0 || numStd <= 0) {
-      showToast('Provide a valid window size and standard deviation for Bollinger.', 'warning');
-      return;
-    }
-  } else if (strategy === 'trend_following') {
-    if (!symbol) {
-      showToast('Symbol is required for trend-following backtests.', 'warning');
-      return;
-    }
-    if (fastWindow <= 0 || slowWindow <= 0) {
-      showToast('Fast and slow EMA windows must be greater than 0.', 'warning');
-      return;
-    }
-  } else if (isFreqtrade) {
-    if (!symbol) {
-      showToast('Symbol is required for freqtrade adapter backtests.', 'warning');
-      return;
-    }
-  } else if (strategy === 'amplification') {
-    if (!baseSymbol || !altSymbols.length) {
-      showToast('Base symbol and at least one alt symbol are required.', 'warning');
-      return;
-    }
-  }
-
-  if ((startDateStr && !endDateStr) || (endDateStr && !startDateStr)) {
-    showToast('Please set both start and end dates to run a custom window.', 'warning');
-    return;
-  }
-
-  const startDate = startDateStr ? new Date(`${startDateStr}T00:00:00Z`).toISOString() : undefined;
-  const endDate = endDateStr ? new Date(`${endDateStr}T23:59:59Z`).toISOString() : undefined;
-
-  const payload = {
-    strategy,
-    symbol: symbol || undefined,
-    asset_a: assetA || undefined,
-    asset_b: assetB || undefined,
-    interval,
-    lookback_days: lookbackDays,
-    start_date: startDate,
-    end_date: endDate,
-    starting_balance: startingBalance,
-    window_size: windowSize,
-    num_std: numStd,
-    z_entry: zEntry,
-    z_exit: zExit,
-    fast_window: fastWindow,
-    slow_window: slowWindow,
-    atr_window: atrWindow,
-    atr_stop_mult: atrStop,
-    base_symbol: baseSymbol || undefined,
-    alt_symbols: altSymbols,
-    momentum_window: momentumWindow,
-    min_beta: minBeta,
-    conversion_symbol: conversionSymbol || undefined,
-    switch_cooldown: switchCooldown,
-  };
+  setInlineStatus('backtestStatus', 'Running backtest…', 'progress');
+  if (submitBtn) submitBtn.disabled = true;
 
   try {
     const resp = await fetch('/backtest', {
@@ -183,11 +263,103 @@ export async function runBacktest() {
     }
     const data = await resp.json();
     renderBacktestResult(data);
+    setInlineStatus('backtestStatus', 'Backtest complete', 'success');
     showToast('Backtest complete', 'success');
   } catch (err) {
     console.error('Backtest failed', err);
+    setInlineStatus('backtestStatus', `Backtest failed: ${err}`, 'danger');
     showToast(`Backtest failed: ${err}`, 'danger');
+  } finally {
+    if (submitBtn) submitBtn.disabled = false;
   }
+}
+
+export async function runBacktestGrid() {
+  const collected = collectBacktestPayload();
+  if (!collected) return;
+
+  const gridConfig = buildGridPayload(collected.strategy);
+  if (!gridConfig) return;
+
+  const runCount = estimateGridRuns(collected.strategy, gridConfig);
+  const batchSize = 72;
+  const batches = Math.max(1, Math.ceil(runCount / batchSize));
+
+  const payload = {
+    ...collected.payload,
+    months: gridConfig.months,
+    grid: gridConfig.grid,
+  };
+
+  const gridBtn = document.getElementById('backtestGridButton');
+
+  const statusLabel = runCount
+    ? `Running monthly grid in ${batches} batch${batches > 1 ? 'es' : ''} (${runCount} runs)…`
+    : 'Running monthly grid…';
+  setInlineStatus('backtestGridStatus', statusLabel, 'progress');
+  if (gridBtn) gridBtn.disabled = true;
+
+  try {
+    const resp = await fetch('/backtest/grid', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    if (!resp.ok) {
+      const msg = await resp.text();
+      throw new Error(msg || 'Request failed');
+    }
+    const data = await resp.json();
+    renderBacktestGridResults(data);
+    setInlineStatus('backtestGridStatus', 'Grid runs complete', 'success');
+    showToast('Grid backtests complete', 'success');
+  } catch (err) {
+    console.error('Grid backtest failed', err);
+    setInlineStatus('backtestGridStatus', `Grid backtest failed: ${err}`, 'danger');
+    showToast(`Grid backtest failed: ${err}`, 'danger');
+  } finally {
+    if (gridBtn) gridBtn.disabled = false;
+  }
+}
+
+function estimateGridRuns(strategy, gridConfig) {
+  const months = gridConfig?.months ?? 1;
+  const grid = gridConfig?.grid || {};
+
+  const lengthOrOne = (arr) => (arr && arr.length ? arr.length : 1);
+
+  if (strategy === 'mean_reversion') {
+    return (
+      months *
+      lengthOrOne(grid.window_sizes) *
+      lengthOrOne(grid.z_entries) *
+      lengthOrOne(grid.z_exits)
+    );
+  }
+
+  if (strategy === 'bollinger') {
+    return months * lengthOrOne(grid.window_sizes) * lengthOrOne(grid.num_std_widths);
+  }
+
+  if (strategy === 'trend_following') {
+    return (
+      months *
+      lengthOrOne(grid.fast_windows) *
+      lengthOrOne(grid.slow_windows) *
+      lengthOrOne(grid.atr_stop_mults)
+    );
+  }
+
+  if (strategy === 'amplification') {
+    return (
+      months *
+      lengthOrOne(grid.momentum_windows) *
+      lengthOrOne(grid.min_betas) *
+      lengthOrOne(grid.switch_cooldowns)
+    );
+  }
+
+  return months;
 }
 
 function updateVisibleFields() {
@@ -199,6 +371,10 @@ function updateVisibleFields() {
   const symbolRow = document.getElementById('backtestSymbolRow');
   const mrFields = document.getElementById('backtestMrFields');
   const commonFields = document.getElementById('backtestCommonFields');
+  const gridMeanFields = document.getElementById('backtestGridMeanFields');
+  const gridBollFields = document.getElementById('backtestGridBollFields');
+  const gridTrendFields = document.getElementById('backtestGridTrendFields');
+  const gridAmpFields = document.getElementById('backtestGridAmpFields');
 
   const isPair = strategy === 'mean_reversion';
   const isBoll = strategy === 'bollinger';
@@ -212,6 +388,10 @@ function updateVisibleFields() {
   if (mrFields) mrFields.style.display = isPair ? 'flex' : 'none';
   if (ampFields) ampFields.style.display = isAmp ? 'flex' : 'none';
   if (commonFields) commonFields.style.display = 'flex';
+  if (gridMeanFields) gridMeanFields.style.display = isPair ? 'flex' : 'none';
+  if (gridBollFields) gridBollFields.style.display = isBoll ? 'flex' : 'none';
+  if (gridTrendFields) gridTrendFields.style.display = isTrend ? 'flex' : 'none';
+  if (gridAmpFields) gridAmpFields.style.display = isAmp ? 'flex' : 'none';
 }
 
 function renderBacktestResult(result) {
@@ -257,6 +437,30 @@ function renderBacktestResult(result) {
       equityBody.appendChild(row);
     });
   }
+}
+
+function renderBacktestGridResults(result) {
+  const summary = document.getElementById('backtestGridSummaryText');
+  if (summary) {
+    summary.textContent = `Tested ${result.results.length} runs across ${result.months} months.`;
+  }
+
+  const tableBody = document.querySelector('#backtestGridResults tbody');
+  if (!tableBody) return;
+
+  tableBody.innerHTML = '';
+  result.results.forEach((row) => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${row.config_label}</td>
+      <td>${formatDate(row.start)} → ${formatDate(row.end)}</td>
+      <td>${(row.return_pct * 100).toFixed(2)}%</td>
+      <td>${(row.win_rate * 100).toFixed(1)}%</td>
+      <td>${(row.max_drawdown * 100).toFixed(2)}%</td>
+      <td>${row.final_balance.toFixed(2)}</td>
+    `;
+    tableBody.appendChild(tr);
+  });
 }
 
 function formatDate(ts) {

@@ -1,7 +1,7 @@
 # database.py
 import os
 
-from sqlalchemy import Column, DateTime, Float, Integer, String, create_engine
+from sqlalchemy import Column, DateTime, Float, Integer, String, create_engine, inspect, text
 from sqlalchemy.orm import Session, declarative_base, sessionmaker
 
 # =========================
@@ -36,6 +36,26 @@ def get_db() -> Session:
         yield db
     finally:
         db.close()
+
+
+def _add_fee_column_if_missing(conn, table_name: str):
+    inspector = inspect(conn)
+    if not inspector.has_table(table_name):
+        return
+
+    has_fee = any(col["name"] == "fee" for col in inspector.get_columns(table_name))
+    if has_fee:
+        return
+
+    col_type = "REAL" if engine.dialect.name == "sqlite" else "DOUBLE PRECISION"
+    conn.execute(text(f"ALTER TABLE {table_name} ADD COLUMN fee {col_type} DEFAULT 0"))
+
+
+def ensure_fee_columns():
+    """Ensure fee columns exist on boll_trades and trend_trades for existing DBs."""
+    with engine.begin() as conn:
+        _add_fee_column_if_missing(conn, "boll_trades")
+        _add_fee_column_if_missing(conn, "trend_trades")
 
 
 # =========================
@@ -257,3 +277,6 @@ class User(Base):
 
 
 Base.metadata.create_all(bind=engine)
+
+# Ensure legacy databases pick up newly added columns (idempotent).
+ensure_fee_columns()

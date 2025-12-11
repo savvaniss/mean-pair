@@ -342,6 +342,7 @@ async function loadTrades() {
       <td>${t.qty.toFixed(5)}</td>
       <td>${t.price.toFixed(5)}</td>
       <td>${t.notional.toFixed(2)}</td>
+      <td>${(t.fee ?? 0).toFixed(2)}</td>
       <td>${t.pnl_usd.toFixed(2)}</td>
       <td>${t.is_testnet ? 'Testnet' : 'Mainnet'}</td>`;
     body.appendChild(tr);

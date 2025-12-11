@@ -44,6 +44,7 @@ class TrendTradeRow(BaseModel):
     qty: float
     price: float
     notional: float
+    fee: float
     pnl_usd: float
     is_testnet: bool
 
@@ -204,6 +205,7 @@ def trend_trades(limit: int = 100):
                 qty=t.qty,
                 price=t.price,
                 notional=t.notional,
+                fee=t.fee or 0.0,
                 pnl_usd=t.pnl_usd,
                 is_testnet=bool(t.is_testnet),
             )

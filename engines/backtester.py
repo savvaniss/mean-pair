@@ -442,13 +442,12 @@ def backtest_mean_reversion(
     cash = starting_balance
     qty_a = 0.0
     qty_b = 0.0
-    short_margin = 0.0
     entry_equity = 0.0
     trades: List[TradeResult] = []
     equity: List[EquityPoint] = []
 
     def mark_to_market(idx: int) -> float:
-        return cash + short_margin + qty_a * a_prices[idx] + qty_b * b_prices[idx]
+        return cash + qty_a * a_prices[idx] + qty_b * b_prices[idx]
 
     for idx in range(length):
         price_a = a_prices[idx]
@@ -474,10 +473,10 @@ def backtest_mean_reversion(
             if z <= -abs(z_entry):
                 qty_a = leg_notional / price_a
                 cost_a = leg_notional * (1 + fee)
-                short_fee = leg_notional * fee
-                cash -= cost_a + short_fee + leg_notional
+                short_proceeds = leg_notional
+                short_fee = short_proceeds * fee
+                cash = cash - cost_a - short_fee + short_proceeds
                 qty_b = -(leg_notional / price_b)
-                short_margin = leg_notional
                 entry_equity = mark_to_market(idx)
                 trades.append(
                     TradeResult(ts=a_candles[idx].ts, action="LONG_A_SHORT_B", price=price_a, size=qty_a, pnl=0.0)
@@ -485,19 +484,16 @@ def backtest_mean_reversion(
             elif z >= abs(z_entry):
                 qty_b = leg_notional / price_b
                 cost_b = leg_notional * (1 + fee)
-                short_fee = leg_notional * fee
-                cash -= cost_b + short_fee + leg_notional
+                short_proceeds = leg_notional
+                short_fee = short_proceeds * fee
+                cash = cash - cost_b - short_fee + short_proceeds
                 qty_a = -(leg_notional / price_a)
-                short_margin = leg_notional
                 entry_equity = mark_to_market(idx)
                 trades.append(
                     TradeResult(ts=a_candles[idx].ts, action="LONG_B_SHORT_A", price=price_b, size=qty_b, pnl=0.0)
                 )
         elif position_open and abs(z) <= z_exit:
             fee = max(fee_rate, 0.0)
-            # Release margin for the short leg
-            cash += short_margin
-            short_margin = 0.0
             if qty_a > 0 and qty_b < 0:
                 gross_a = qty_a * price_a
                 fee_a = gross_a * fee
