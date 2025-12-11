@@ -245,6 +245,8 @@ def backtest_bollinger(
     num_std: float,
     lookback_days: int,
     starting_balance: float,
+    fee_rate: float = 0.001,
+    position_pct: float = 1.0,
     start: Optional[datetime] = None,
     end: Optional[datetime] = None,
 ) -> BacktestResult:
@@ -254,6 +256,7 @@ def backtest_bollinger(
 
     cash = starting_balance
     qty = 0.0
+    entry_cost = 0.0
     trades: List[TradeResult] = []
     equity: List[EquityPoint] = []
 
@@ -263,22 +266,31 @@ def backtest_bollinger(
         lower = mean - num_std * std
         equity.append(EquityPoint(ts=candles[idx].ts, equity=cash + qty * price))
 
-        if idx < window // 2:
+        if idx + 1 < window or std == 0:
             continue
 
         if qty == 0 and price <= lower:
-            qty = cash / price
+            investable_cash = min(cash, cash * max(0.0, min(1.0, position_pct)))
+            investable_cash /= 1 + max(fee_rate, 0.0)
+            if investable_cash <= 0:
+                continue
+            qty = investable_cash / price
+            entry_cost = qty * price * (1 + max(fee_rate, 0.0))
             trades.append(
                 TradeResult(ts=candles[idx].ts, action="BUY", price=price, size=qty, pnl=0.0)
             )
-            cash = 0.0
+            cash -= entry_cost
         elif qty > 0 and price >= upper:
-            cash = qty * price
-            pnl = cash - starting_balance
+            gross = qty * price
+            fee = gross * max(fee_rate, 0.0)
+            proceeds = gross - fee
+            cash += proceeds
+            pnl = proceeds - entry_cost
             trades.append(
                 TradeResult(ts=candles[idx].ts, action="SELL", price=price, size=qty, pnl=pnl)
             )
             qty = 0.0
+            entry_cost = 0.0
 
     final_balance = cash + qty * prices[-1] if prices else starting_balance
     ret = (final_balance - starting_balance) / starting_balance if starting_balance else 0.0
@@ -308,16 +320,22 @@ def backtest_trend(
     atr_stop_mult: float,
     lookback_days: int,
     starting_balance: float,
+    fee_rate: float = 0.001,
+    position_pct: float = 1.0,
     start: Optional[datetime] = None,
     end: Optional[datetime] = None,
 ) -> BacktestResult:
     start, end = _resolve_range(lookback_days, start, end)
     candles = _fetch_klines(symbol, interval, start, end)
     prices = [c.close for c in candles]
+    highs = [c.high for c in candles]
+    lows = [c.low for c in candles]
+    true_ranges: List[float] = []
 
     cash = starting_balance
     qty = 0.0
     entry_price = 0.0
+    entry_cost = 0.0
     trades: List[TradeResult] = []
     equity: List[EquityPoint] = []
 
@@ -332,32 +350,50 @@ def backtest_trend(
         return val
 
     for idx, price in enumerate(prices):
+        prev_close = prices[idx - 1] if idx > 0 else price
+        tr = max(
+            highs[idx] - lows[idx],
+            abs(highs[idx] - prev_close),
+            abs(lows[idx] - prev_close),
+        )
+        true_ranges.append(tr)
         fast_ema = ema(prices[: idx + 1], fast)
         slow_ema = ema(prices[: idx + 1], slow)
-        atr_slice = prices[max(0, idx - atr_window + 1) : idx + 1]
-        atr = sum(abs(atr_slice[i] - atr_slice[i - 1]) for i in range(1, len(atr_slice))) / max(
-            1, len(atr_slice) - 1
-        )
+        atr = sum(true_ranges[-atr_window:]) / min(len(true_ranges), atr_window)
         equity.append(EquityPoint(ts=candles[idx].ts, equity=cash + qty * price))
 
+        warmup = max(fast, slow, atr_window)
+        if idx + 1 < warmup:
+            continue
+
         if qty == 0 and fast_ema > slow_ema:
-            qty = cash / price
+            investable_cash = min(cash, cash * max(0.0, min(1.0, position_pct)))
+            investable_cash /= 1 + max(fee_rate, 0.0)
+            if investable_cash <= 0:
+                continue
+            qty = investable_cash / price
             entry_price = price
+            entry_cost = qty * price * (1 + max(fee_rate, 0.0))
             trades.append(
                 TradeResult(ts=candles[idx].ts, action="BUY", price=price, size=qty, pnl=0.0)
             )
-            cash = 0.0
+            cash -= entry_cost
         elif qty > 0:
             stop_price = entry_price - atr_stop_mult * atr
             if fast_ema < slow_ema or (atr > 0 and price <= stop_price):
-                cash = qty * price
-                pnl = cash - starting_balance
+                gross = qty * price
+                fee = gross * max(fee_rate, 0.0)
+                proceeds = gross - fee
+                cash += proceeds
+                pnl = proceeds - entry_cost
                 trades.append(
                     TradeResult(
                         ts=candles[idx].ts, action="SELL", price=price, size=qty, pnl=pnl
                     )
                 )
                 qty = 0.0
+                entry_price = 0.0
+                entry_cost = 0.0
 
     final_balance = cash + qty * prices[-1] if prices else starting_balance
     ret = (final_balance - starting_balance) / starting_balance if starting_balance else 0.0
@@ -387,6 +423,8 @@ def backtest_mean_reversion(
     z_exit: float,
     lookback_days: int,
     starting_balance: float,
+    fee_rate: float = 0.001,
+    position_pct: float = 1.0,
     start: Optional[datetime] = None,
     end: Optional[datetime] = None,
 ) -> BacktestResult:
@@ -399,87 +437,88 @@ def backtest_mean_reversion(
     length = min(len(a_candles), len(b_candles))
     a_prices = [c.close for c in a_candles[:length]]
     b_prices = [c.close for c in b_candles[:length]]
+    ratios: List[float] = []
 
     cash = starting_balance
     qty_a = 0.0
     qty_b = 0.0
+    short_margin = 0.0
+    entry_equity = 0.0
     trades: List[TradeResult] = []
     equity: List[EquityPoint] = []
-    last_side: Optional[str] = None
+
+    def mark_to_market(idx: int) -> float:
+        return cash + short_margin + qty_a * a_prices[idx] + qty_b * b_prices[idx]
 
     for idx in range(length):
         price_a = a_prices[idx]
         price_b = b_prices[idx]
         ratio = price_a / price_b if price_b else 0.0
-        mean, std = compute_ma_std_window([a / b for a, b in zip(a_prices[: idx + 1], b_prices[: idx + 1])], window)
+        ratios.append(ratio)
+        if len(ratios) >= window:
+            mean, std = compute_ma_std_window(ratios, window)
+        else:
+            mean, std = (0.0, 0.0)
         z = (ratio - mean) / std if std else 0.0
-        equity.append(
-            EquityPoint(
-                ts=a_candles[idx].ts,
-                equity=cash + qty_a * price_a + qty_b * price_b,
-            )
-        )
+        equity.append(EquityPoint(ts=a_candles[idx].ts, equity=mark_to_market(idx)))
 
-        if idx < window // 2:
+        if len(ratios) < window or std == 0:
             continue
 
-        if qty_a == 0 and qty_b == 0:
+        position_open = qty_a != 0 or qty_b != 0
+        investable_cash = min(cash, cash * max(0.0, min(1.0, position_pct)))
+        if not position_open and investable_cash > 0:
+            pair_notional = investable_cash / (1 + max(fee_rate, 0.0))
+            leg_notional = pair_notional / 2
+            fee = max(fee_rate, 0.0)
             if z <= -abs(z_entry):
-                qty_a = cash / price_a
+                qty_a = leg_notional / price_a
+                cost_a = leg_notional * (1 + fee)
+                short_fee = leg_notional * fee
+                cash -= cost_a + short_fee + leg_notional
+                qty_b = -(leg_notional / price_b)
+                short_margin = leg_notional
+                entry_equity = mark_to_market(idx)
                 trades.append(
-                    TradeResult(
-                        ts=a_candles[idx].ts,
-                        action="BUY_A",
-                        price=price_a,
-                        size=qty_a,
-                        pnl=0.0,
-                    )
+                    TradeResult(ts=a_candles[idx].ts, action="LONG_A_SHORT_B", price=price_a, size=qty_a, pnl=0.0)
                 )
-                cash = 0.0
-                last_side = "A"
             elif z >= abs(z_entry):
-                qty_b = cash / price_b
+                qty_b = leg_notional / price_b
+                cost_b = leg_notional * (1 + fee)
+                short_fee = leg_notional * fee
+                cash -= cost_b + short_fee + leg_notional
+                qty_a = -(leg_notional / price_a)
+                short_margin = leg_notional
+                entry_equity = mark_to_market(idx)
                 trades.append(
-                    TradeResult(
-                        ts=a_candles[idx].ts,
-                        action="BUY_B",
-                        price=price_b,
-                        size=qty_b,
-                        pnl=0.0,
-                    )
+                    TradeResult(ts=a_candles[idx].ts, action="LONG_B_SHORT_A", price=price_b, size=qty_b, pnl=0.0)
                 )
-                cash = 0.0
-                last_side = "B"
-        elif last_side == "A" and abs(z) <= z_exit:
-            cash = qty_a * price_a
-            pnl = cash - starting_balance
+        elif position_open and abs(z) <= z_exit:
+            fee = max(fee_rate, 0.0)
+            # Release margin for the short leg
+            cash += short_margin
+            short_margin = 0.0
+            if qty_a > 0 and qty_b < 0:
+                gross_a = qty_a * price_a
+                fee_a = gross_a * fee
+                cover_b = abs(qty_b) * price_b
+                fee_b = cover_b * fee
+                cash += gross_a - fee_a - cover_b - fee_b
+            elif qty_b > 0 and qty_a < 0:
+                gross_b = qty_b * price_b
+                fee_b = gross_b * fee
+                cover_a = abs(qty_a) * price_a
+                fee_a = cover_a * fee
+                cash += gross_b - fee_b - cover_a - fee_a
+            pnl = mark_to_market(idx) - entry_equity
             trades.append(
-                TradeResult(
-                    ts=a_candles[idx].ts,
-                    action="EXIT_A",
-                    price=price_a,
-                    size=qty_a,
-                    pnl=pnl,
-                )
+                TradeResult(ts=a_candles[idx].ts, action="EXIT", price=price_a, size=abs(qty_a) + abs(qty_b), pnl=pnl)
             )
             qty_a = 0.0
-            last_side = None
-        elif last_side == "B" and abs(z) <= z_exit:
-            cash = qty_b * price_b
-            pnl = cash - starting_balance
-            trades.append(
-                TradeResult(
-                    ts=a_candles[idx].ts,
-                    action="EXIT_B",
-                    price=price_b,
-                    size=qty_b,
-                    pnl=pnl,
-                )
-            )
             qty_b = 0.0
-            last_side = None
+            entry_equity = 0.0
 
-    final_balance = cash + qty_a * a_prices[-1] + qty_b * b_prices[-1] if length else starting_balance
+    final_balance = mark_to_market(length - 1) if length else starting_balance
     ret = (final_balance - starting_balance) / starting_balance if starting_balance else 0.0
     wins = [t for t in trades if t.pnl > 0]
     equity_curve = equity
@@ -504,6 +543,8 @@ def backtest_freqtrade(
     interval: str,
     lookback_days: int,
     starting_balance: float,
+    fee_rate: float = 0.001,
+    position_pct: float = 1.0,
     start: Optional[datetime] = None,
     end: Optional[datetime] = None,
 ) -> BacktestResult:
@@ -519,6 +560,7 @@ def backtest_freqtrade(
     qty = 0.0
     trades: List[TradeResult] = []
     equity: List[EquityPoint] = []
+    entry_cost = 0.0
 
     def pattern_signal(idx: int) -> Tuple[bool, bool]:
         # Simplified: buy on RSI oversold, sell on overbought
@@ -559,18 +601,27 @@ def backtest_freqtrade(
         equity.append(EquityPoint(ts=candles[idx].ts, equity=cash + qty * price))
 
         if qty == 0 and buy:
-            qty = cash / price
+            investable_cash = min(cash, cash * max(0.0, min(1.0, position_pct)))
+            investable_cash /= 1 + max(fee_rate, 0.0)
+            if investable_cash <= 0:
+                continue
+            qty = investable_cash / price
+            entry_cost = qty * price * (1 + max(fee_rate, 0.0))
             trades.append(
                 TradeResult(ts=candles[idx].ts, action="BUY", price=price, size=qty, pnl=0.0)
             )
-            cash = 0.0
+            cash -= entry_cost
         elif qty > 0 and sell:
-            cash = qty * price
-            pnl = cash - starting_balance
+            gross = qty * price
+            fee = gross * max(fee_rate, 0.0)
+            proceeds = gross - fee
+            cash += proceeds
+            pnl = proceeds - entry_cost
             trades.append(
                 TradeResult(ts=candles[idx].ts, action="SELL", price=price, size=qty, pnl=pnl)
             )
             qty = 0.0
+            entry_cost = 0.0
 
     final_balance = cash + qty * prices[-1] if prices else starting_balance
     ret = (final_balance - starting_balance) / starting_balance if starting_balance else 0.0
@@ -601,6 +652,8 @@ def backtest_amplification(
     conversion_symbol: Optional[str],
     switch_cooldown: int,
     starting_balance: float,
+    fee_rate: float = 0.001,
+    position_pct: float = 1.0,
     start: Optional[datetime] = None,
     end: Optional[datetime] = None,
 ) -> BacktestResult:
@@ -646,6 +699,7 @@ def backtest_amplification(
     last_seen_prices: Dict[str, Optional[float]] = {sym: None for sym in aligned_alts}
 
     cooldown = 0
+    entry_cost = 0.0
 
     for idx in range(len(base_prices)):
         ts = base_ts[idx]
@@ -690,30 +744,43 @@ def backtest_amplification(
 
         if momentum > 0 and top_candidate and position_sym != top_candidate.symbol:
             if position_sym and holding_price:
-                cash = qty * holding_price
+                gross = qty * holding_price
+                fee = gross * max(fee_rate, 0.0)
+                proceeds = gross - fee
+                cash += proceeds
                 trades.append(
-                    TradeResult(ts=ts, action=f"EXIT_{position_sym}", price=holding_price, size=qty, pnl=cash - starting_balance)
+                    TradeResult(ts=ts, action=f"EXIT_{position_sym}", price=holding_price, size=qty, pnl=proceeds - entry_cost)
                 )
                 qty = 0.0
                 position_sym = None
+                entry_cost = 0.0
             alt_price = alt_price_maps[top_candidate.symbol].get(ts)
             if alt_price is None:
                 continue
             if cash > 0:
-                qty = cash / alt_price
+                investable_cash = min(cash, cash * max(0.0, min(1.0, position_pct)))
+                investable_cash /= 1 + max(fee_rate, 0.0)
+                if investable_cash <= 0:
+                    continue
+                qty = investable_cash / alt_price
+                entry_cost = qty * alt_price * (1 + max(fee_rate, 0.0))
                 trades.append(
                     TradeResult(ts=ts, action=f"BUY_{top_candidate.symbol}", price=alt_price, size=qty, pnl=0.0)
                 )
                 position_sym = top_candidate.symbol
-                cash = 0.0
+                cash -= entry_cost
                 cooldown = switch_cooldown
         elif momentum < 0 and position_sym and holding_price:
-            cash = qty * holding_price
+            gross = qty * holding_price
+            fee = gross * max(fee_rate, 0.0)
+            proceeds = gross - fee
+            cash += proceeds
             trades.append(
-                TradeResult(ts=ts, action=f"EXIT_{position_sym}", price=holding_price, size=qty, pnl=cash - starting_balance)
+                TradeResult(ts=ts, action=f"EXIT_{position_sym}", price=holding_price, size=qty, pnl=proceeds - entry_cost)
             )
             qty = 0.0
             position_sym = None
+            entry_cost = 0.0
             cooldown = switch_cooldown
 
     if position_sym:
@@ -722,14 +789,17 @@ def backtest_amplification(
         if last_price is None:
             last_price = last_seen_prices.get(position_sym)
         if last_price:
-            cash = qty * last_price
+            gross = qty * last_price
+            fee = gross * max(fee_rate, 0.0)
+            proceeds = gross - fee
+            cash += proceeds
             trades.append(
                 TradeResult(
                     ts=last_ts,
                     action=f"EXIT_{position_sym}",
                     price=last_price,
                     size=qty,
-                    pnl=cash - starting_balance,
+                    pnl=proceeds - entry_cost,
                 )
             )
             qty = 0.0
