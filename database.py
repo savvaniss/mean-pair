@@ -115,7 +115,6 @@ class BollTrade(Base):
     qty = Column(Float)
     price = Column(Float)
     notional = Column(Float)
-    fee = Column(Float)
     pnl_usd = Column(Float)
     is_testnet = Column(Integer)
 
@@ -152,7 +151,6 @@ class TrendTrade(Base):
     qty = Column(Float)
     price = Column(Float)
     notional = Column(Float)
-    fee = Column(Float)
     pnl_usd = Column(Float)
     is_testnet = Column(Integer)
 
