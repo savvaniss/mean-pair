@@ -277,3 +277,6 @@ class User(Base):
 
 
 Base.metadata.create_all(bind=engine)
+
+# Ensure legacy databases pick up newly added columns (idempotent).
+ensure_fee_columns()
