@@ -427,6 +427,9 @@ def backtest_mean_reversion(
     position_pct: float = 1.0,
     start: Optional[datetime] = None,
     end: Optional[datetime] = None,
+    use_ratio_thresholds: bool = False,
+    sell_ratio_threshold: float = 0.0,
+    buy_ratio_threshold: float = 0.0,
 ) -> BacktestResult:
     quote = _mr_quote()
     symbol_a = f"{asset_a}{quote}"
@@ -461,39 +464,17 @@ def backtest_mean_reversion(
         z = (ratio - mean) / std if std else 0.0
         equity.append(EquityPoint(ts=a_candles[idx].ts, equity=mark_to_market(idx)))
 
-        if len(ratios) < window or std == 0:
+        if len(ratios) < window:
             continue
 
         position_open = qty_a != 0 or qty_b != 0
         investable_cash = min(cash, cash * max(0.0, min(1.0, position_pct)))
-        if not position_open and investable_cash > 0:
-            pair_notional = investable_cash / (1 + max(fee_rate, 0.0))
-            leg_notional = pair_notional / 2
-            fee = max(fee_rate, 0.0)
-            if z <= -abs(z_entry):
-                qty_a = leg_notional / price_a
-                cost_a = leg_notional * (1 + fee)
-                short_proceeds = leg_notional
-                short_fee = short_proceeds * fee
-                cash = cash - cost_a - short_fee + short_proceeds
-                qty_b = -(leg_notional / price_b)
-                entry_equity = mark_to_market(idx)
-                trades.append(
-                    TradeResult(ts=a_candles[idx].ts, action="LONG_A_SHORT_B", price=price_a, size=qty_a, pnl=0.0)
-                )
-            elif z >= abs(z_entry):
-                qty_b = leg_notional / price_b
-                cost_b = leg_notional * (1 + fee)
-                short_proceeds = leg_notional
-                short_fee = short_proceeds * fee
-                cash = cash - cost_b - short_fee + short_proceeds
-                qty_a = -(leg_notional / price_a)
-                entry_equity = mark_to_market(idx)
-                trades.append(
-                    TradeResult(ts=a_candles[idx].ts, action="LONG_B_SHORT_A", price=price_b, size=qty_b, pnl=0.0)
-                )
-        elif position_open and abs(z) <= z_exit:
-            fee = max(fee_rate, 0.0)
+        fee = max(fee_rate, 0.0)
+        pair_notional = investable_cash / (1 + fee) if investable_cash > 0 else 0.0
+        leg_notional = pair_notional / 2 if pair_notional > 0 else 0.0
+
+        def close_position() -> None:
+            nonlocal cash, qty_a, qty_b, entry_equity
             if qty_a > 0 and qty_b < 0:
                 gross_a = qty_a * price_a
                 fee_a = gross_a * fee
@@ -513,6 +494,55 @@ def backtest_mean_reversion(
             qty_a = 0.0
             qty_b = 0.0
             entry_equity = 0.0
+
+        def open_long_a_short_b() -> None:
+            nonlocal cash, qty_a, qty_b, entry_equity
+            qty_a = leg_notional / price_a
+            cost_a = leg_notional * (1 + fee)
+            short_proceeds = leg_notional
+            short_fee = short_proceeds * fee
+            cash = cash - cost_a - short_fee + short_proceeds
+            qty_b = -(leg_notional / price_b)
+            entry_equity = mark_to_market(idx)
+            trades.append(
+                TradeResult(ts=a_candles[idx].ts, action="LONG_A_SHORT_B", price=price_a, size=qty_a, pnl=0.0)
+            )
+
+        def open_long_b_short_a() -> None:
+            nonlocal cash, qty_a, qty_b, entry_equity
+            qty_b = leg_notional / price_b
+            cost_b = leg_notional * (1 + fee)
+            short_proceeds = leg_notional
+            short_fee = short_proceeds * fee
+            cash = cash - cost_b - short_fee + short_proceeds
+            qty_a = -(leg_notional / price_a)
+            entry_equity = mark_to_market(idx)
+            trades.append(
+                TradeResult(ts=a_candles[idx].ts, action="LONG_B_SHORT_A", price=price_b, size=qty_b, pnl=0.0)
+            )
+
+        if use_ratio_thresholds and (sell_ratio_threshold > 0 or buy_ratio_threshold > 0):
+            if not position_open and leg_notional > 0:
+                if buy_ratio_threshold > 0 and ratio <= buy_ratio_threshold:
+                    open_long_a_short_b()
+                elif sell_ratio_threshold > 0 and ratio >= sell_ratio_threshold:
+                    open_long_b_short_a()
+            elif position_open:
+                if qty_a > 0 and qty_b < 0 and buy_ratio_threshold > 0 and ratio >= buy_ratio_threshold:
+                    close_position()
+                elif qty_b > 0 and qty_a < 0 and sell_ratio_threshold > 0 and ratio <= sell_ratio_threshold:
+                    close_position()
+        else:
+            if std == 0:
+                continue
+
+            if not position_open and leg_notional > 0:
+                if z <= -abs(z_entry):
+                    open_long_a_short_b()
+                elif z >= abs(z_entry):
+                    open_long_b_short_a()
+            elif position_open and abs(z) <= z_exit:
+                close_position()
 
     final_balance = mark_to_market(length - 1) if length else starting_balance
     ret = (final_balance - starting_balance) / starting_balance if starting_balance else 0.0

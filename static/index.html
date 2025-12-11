@@ -761,6 +761,21 @@
               </label>
             </div>
 
+            <div class="form-row" id="backtestMrThresholds">
+              <label class="checkbox-inline">
+                <input type="checkbox" id="backtestUseRatioThresholds" />
+                Use ratio thresholds instead of z-score
+              </label>
+              <label>
+                Sell ratio threshold
+                <input type="number" id="backtestSellThreshold" step="0.0001" value="0" />
+              </label>
+              <label>
+                Buy ratio threshold
+                <input type="number" id="backtestBuyThreshold" step="0.0001" value="0" />
+              </label>
+            </div>
+
             <div class="form-row" id="backtestCommonFields">
               <label>
                 Starting balance (USD)

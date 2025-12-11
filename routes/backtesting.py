@@ -38,6 +38,9 @@ class BacktestRequest(BaseModel):
     num_std: float = 3.0
     z_entry: float = 3.0
     z_exit: float = 0.4
+    use_ratio_thresholds: bool = False
+    sell_ratio_threshold: float = 0.0
+    buy_ratio_threshold: float = 0.0
     fast_window: int = 12
     slow_window: int = 26
     atr_window: int = 14
@@ -89,6 +92,9 @@ def _execute_backtest(req: BacktestRequest):
                 window=req.window_size,
                 z_entry=req.z_entry,
                 z_exit=req.z_exit,
+                use_ratio_thresholds=req.use_ratio_thresholds,
+                sell_ratio_threshold=req.sell_ratio_threshold,
+                buy_ratio_threshold=req.buy_ratio_threshold,
                 lookback_days=req.lookback_days,
                 start=req.start_date,
                 end=req.end_date,

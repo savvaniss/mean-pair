@@ -49,6 +49,9 @@ function collectBacktestPayload() {
   const numStd = Number(document.getElementById('backtestStd')?.value || 3);
   const zEntry = Number(document.getElementById('backtestZEntry')?.value || 3);
   const zExit = Number(document.getElementById('backtestZExit')?.value || 0.4);
+  const useRatioThresholds = document.getElementById('backtestUseRatioThresholds')?.checked || false;
+  const sellRatioThreshold = Number(document.getElementById('backtestSellThreshold')?.value || 0);
+  const buyRatioThreshold = Number(document.getElementById('backtestBuyThreshold')?.value || 0);
   const fastWindow = Number(document.getElementById('backtestFast')?.value || 12);
   const slowWindow = Number(document.getElementById('backtestSlow')?.value || 26);
   const atrWindow = Number(document.getElementById('backtestAtrWindow')?.value || 14);
@@ -81,6 +84,10 @@ function collectBacktestPayload() {
     }
     if (windowSize <= 0) {
       showToast('Window size must be greater than 0 for mean reversion.', 'warning');
+      return null;
+    }
+    if (useRatioThresholds && sellRatioThreshold <= 0 && buyRatioThreshold <= 0) {
+      showToast('Enable at least one ratio threshold when using ratio threshold mode.', 'warning');
       return null;
     }
   } else if (strategy === 'bollinger') {
@@ -139,6 +146,9 @@ function collectBacktestPayload() {
       num_std: numStd,
       z_entry: zEntry,
       z_exit: zExit,
+      use_ratio_thresholds: useRatioThresholds,
+      sell_ratio_threshold: sellRatioThreshold,
+      buy_ratio_threshold: buyRatioThreshold,
       fast_window: fastWindow,
       slow_window: slowWindow,
       atr_window: atrWindow,
@@ -375,6 +385,7 @@ function updateVisibleFields() {
   const gridBollFields = document.getElementById('backtestGridBollFields');
   const gridTrendFields = document.getElementById('backtestGridTrendFields');
   const gridAmpFields = document.getElementById('backtestGridAmpFields');
+  const mrThresholdFields = document.getElementById('backtestMrThresholds');
 
   const isPair = strategy === 'mean_reversion';
   const isBoll = strategy === 'bollinger';
@@ -386,6 +397,7 @@ function updateVisibleFields() {
   if (bollFields) bollFields.style.display = isBoll ? 'flex' : 'none';
   if (trendFields) trendFields.style.display = isTrend ? 'flex' : 'none';
   if (mrFields) mrFields.style.display = isPair ? 'flex' : 'none';
+  if (mrThresholdFields) mrThresholdFields.style.display = isPair ? 'flex' : 'none';
   if (ampFields) ampFields.style.display = isAmp ? 'flex' : 'none';
   if (commonFields) commonFields.style.display = 'flex';
   if (gridMeanFields) gridMeanFields.style.display = isPair ? 'flex' : 'none';
