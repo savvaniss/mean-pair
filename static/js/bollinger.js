@@ -7,6 +7,13 @@ let lastBollPrice = null;
 let groupedSymbols = {};
 const curatedSymbols = ['BTCUSDT', 'ETHUSDT', 'BNBUSDT', 'SOLUSDT', 'XRPUSDT', 'HBARUSDC', 'DOGEUSDC', 'LINKUSDT', 'MATICUSDT'];
 
+function inferQuoteAsset(symbol, fallback) {
+  if (!symbol) return fallback;
+  const knownQuotes = ['USDT', 'USDC', 'BTC', 'BNB'];
+  const match = knownQuotes.find((q) => symbol.endsWith(q));
+  return match || fallback;
+}
+
 export function initBollinger() {
   const form = document.getElementById('bollConfigForm');
   const startBtn = document.getElementById('startBollBtn');
@@ -158,7 +165,7 @@ async function fetchBollStatus() {
     const r = await fetch('/boll_status');
     const data = await r.json();
 
-    cachedQuote = data.use_testnet ? 'USDT' : 'USDC';
+    cachedQuote = data.quote_asset || inferQuoteAsset(data.symbol, data.use_testnet ? 'USDT' : 'USDC');
     applyQuoteLabels(cachedQuote);
 
     const envChip = `<span class="chip chip-primary">${data.use_testnet ? 'TESTNET' : 'MAINNET'}</span>`;
@@ -229,7 +236,7 @@ async function fetchBollStatus() {
 
 function applyBollConfigToForm(cfg) {
   bollConfig = cfg;
-  cachedQuote = cfg.use_testnet ? 'USDT' : 'USDC';
+  cachedQuote = inferQuoteAsset(cfg.symbol, cfg.use_testnet ? 'USDT' : 'USDC');
   applyQuoteLabels(cachedQuote);
 
   document.getElementById('boll_symbol').value = cfg.symbol || '';
@@ -254,7 +261,7 @@ function updateBollConfigSummary(cfg) {
     return;
   }
 
-  const quote = cfg.use_testnet ? 'USDT' : 'USDC';
+  const quote = inferQuoteAsset(cfg.symbol, cfg.use_testnet ? 'USDT' : 'USDC');
   const maxPosition = Number.isFinite(Number(cfg.max_position_usd))
     ? Number(cfg.max_position_usd).toFixed(2)
     : 'Not set';
