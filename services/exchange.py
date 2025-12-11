@@ -3,8 +3,17 @@ import threading
 import time
 from typing import Dict, Iterable, List, Optional
 
-import ccxt
-import ccxtpro
+try:
+    import ccxt
+except ImportError as exc:  # pragma: no cover - dependency missing in some envs
+    raise ImportError("ccxt is required; install it with `pip install ccxt`.") from exc
+
+_ccxtpro_import_error = None
+ccxtpro = None
+try:  # pragma: no cover - runtime dependency
+    import ccxt.pro as ccxtpro
+except Exception as exc:  # pragma: no cover - ccxt.pro not installed/licensed
+    _ccxtpro_import_error = exc
 
 
 class ExchangeError(Exception):
@@ -15,8 +24,20 @@ class ExchangeClient:
     """Thin ccxt/ccxtpro wrapper with optional WebSocket ticker streaming."""
 
     def __init__(self, api_key: str, api_secret: str, *, testnet: bool = False):
+        if ccxtpro is None:
+            raise ExchangeError(
+                "ccxt.pro is required for WebSocket streaming. Install the licensed "
+                "`ccxtpro` package or expose ccxt.pro on your PYTHONPATH."
+            ) from _ccxtpro_import_error
+
         if not api_key or not api_secret:
             raise ExchangeError("API key/secret required for exchange client")
+
+        if not hasattr(ccxtpro, "binance"):
+            raise ExchangeError(
+                "ccxt.pro exchange class for Binance is unavailable. Ensure your ccxt.pro "
+                "installation includes the Binance client."
+            )
 
         self._rest = ccxt.binance({
             "apiKey": api_key,
