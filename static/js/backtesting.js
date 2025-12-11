@@ -281,6 +281,15 @@ export async function runBacktestGrid() {
   const gridConfig = buildGridPayload(collected.strategy);
   if (!gridConfig) return;
 
+  const maxRuns = 120;
+  const runCount = estimateGridRuns(collected.strategy, gridConfig);
+  if (runCount > maxRuns) {
+    const msg = `Grid too large (${runCount} runs). Please reduce parameter combinations or months (max ${maxRuns}).`;
+    setInlineStatus('backtestGridStatus', msg, 'danger');
+    showToast(msg, 'danger');
+    return;
+  }
+
   const payload = {
     ...collected.payload,
     months: gridConfig.months,
@@ -313,6 +322,46 @@ export async function runBacktestGrid() {
   } finally {
     if (gridBtn) gridBtn.disabled = false;
   }
+}
+
+function estimateGridRuns(strategy, gridConfig) {
+  const months = gridConfig?.months ?? 1;
+  const grid = gridConfig?.grid || {};
+
+  const lengthOrOne = (arr) => (arr && arr.length ? arr.length : 1);
+
+  if (strategy === 'mean_reversion') {
+    return (
+      months *
+      lengthOrOne(grid.window_sizes) *
+      lengthOrOne(grid.z_entries) *
+      lengthOrOne(grid.z_exits)
+    );
+  }
+
+  if (strategy === 'bollinger') {
+    return months * lengthOrOne(grid.window_sizes) * lengthOrOne(grid.num_std_widths);
+  }
+
+  if (strategy === 'trend_following') {
+    return (
+      months *
+      lengthOrOne(grid.fast_windows) *
+      lengthOrOne(grid.slow_windows) *
+      lengthOrOne(grid.atr_stop_mults)
+    );
+  }
+
+  if (strategy === 'amplification') {
+    return (
+      months *
+      lengthOrOne(grid.momentum_windows) *
+      lengthOrOne(grid.min_betas) *
+      lengthOrOne(grid.switch_cooldowns)
+    );
+  }
+
+  return months;
 }
 
 function updateVisibleFields() {

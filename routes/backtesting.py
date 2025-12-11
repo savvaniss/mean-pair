@@ -238,6 +238,9 @@ class BatchBacktestResponse(BaseModel):
     results: List[BatchRunResult]
 
 
+MAX_GRID_RUNS = 120
+
+
 @router.post("/backtest", response_model=BacktestResponse)
 def run_backtest(req: BacktestRequest):
     result = _execute_backtest(req)
@@ -334,6 +337,13 @@ def run_backtest_grid(req: BatchBacktestRequest):
 
     windows = _monthly_windows(req.months)
     configs = _build_config_variants(req)
+    total_runs = len(windows) * len(configs)
+
+    if total_runs > MAX_GRID_RUNS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Grid too large ({total_runs} runs). Please reduce the number of parameter combinations or months (max {MAX_GRID_RUNS}).",
+        )
     results: List[BatchRunResult] = []
 
     for config, params in configs:
