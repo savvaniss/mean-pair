@@ -16,6 +16,7 @@ boll_ts_history: List[datetime] = []
 boll_price_history: List[float] = []
 BOLL_MAX_HISTORY = 500
 MIN_HISTORY_FRACTION = 0.5
+TRADE_FEE_RATE = 0.001  # approximate 10 bps per side
 
 boll_lock = threading.Lock()
 boll_thread: Optional[threading.Thread] = None
@@ -237,7 +238,10 @@ def boll_loop():
                                         print(
                                             f"Bollinger: filled notional {notional_filled} below MIN_NOTIONAL for {symbol}"
                                         )
-                                    avg_price = notional_filled / filled_qty if filled_qty > 0 else price
+                                    trade_fee = notional_filled * TRADE_FEE_RATE
+                                    avg_price = (
+                                        (notional_filled + trade_fee) / filled_qty if filled_qty > 0 else price
+                                    )
                                     state.position = "LONG"
                                     state.qty_asset = filled_qty
                                     state.entry_price = avg_price
@@ -249,6 +253,7 @@ def boll_loop():
                                         qty=filled_qty,
                                         price=avg_price,
                                         notional=notional_filled,
+                                        fee=trade_fee,
                                         pnl_usd=0.0,
                                         is_testnet=int(config.BOLL_USE_TESTNET),
                                     )
@@ -293,7 +298,9 @@ def boll_loop():
                                 avg_price = (
                                     notional_filled / filled_qty if filled_qty > 0 else price
                                 )
-                                pnl = notional_filled - state.entry_price * filled_qty
+                                sell_fee = notional_filled * TRADE_FEE_RATE
+                                net_quote = notional_filled - sell_fee
+                                pnl = net_quote - state.entry_price * filled_qty
                                 state.realized_pnl_usd += pnl
                                 state.qty_asset = max(0.0, state.qty_asset - filled_qty)
                                 if state.qty_asset < 1e-12:
@@ -308,6 +315,7 @@ def boll_loop():
                                     qty=filled_qty,
                                     price=avg_price,
                                     notional=notional_filled,
+                                    fee=sell_fee,
                                     pnl_usd=pnl,
                                     is_testnet=int(config.BOLL_USE_TESTNET),
                                 )

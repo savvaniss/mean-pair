@@ -15,6 +15,7 @@ from engines.common import clamp_to_step
 tf_price_history: List[float] = []
 tf_ts_history: List[datetime] = []
 TF_MAX_HISTORY = 500
+TRADE_FEE_RATE = 0.001  # approximate 10 bps per side
 
 tf_lock = threading.Lock()
 tf_thread: Optional[threading.Thread] = None
@@ -219,7 +220,8 @@ def trend_loop():
                                 session.commit()
                                 time.sleep(trend_config.poll_interval_sec)
                                 continue
-                            avg_price = notional / filled_qty if filled_qty > 0 else price
+                            trade_fee = notional * TRADE_FEE_RATE
+                            avg_price = (notional + trade_fee) / filled_qty if filled_qty > 0 else price
                             state.position = "LONG"
                             state.qty_asset = filled_qty
                             state.entry_price = avg_price
@@ -231,6 +233,7 @@ def trend_loop():
                                 qty=filled_qty,
                                 price=avg_price,
                                 notional=notional,
+                                fee=trade_fee,
                                 pnl_usd=0.0,
                                 is_testnet=1 if trend_config.use_testnet else 0,
                             )
@@ -248,7 +251,9 @@ def trend_loop():
                         filled_quote = float(order.get("cummulativeQuoteQty", qty * price))
                         filled_qty = float(order.get("executedQty", qty))
                         avg_price = filled_quote / filled_qty if filled_qty > 0 else price
-                        pnl = filled_quote - state.entry_price * filled_qty
+                        sell_fee = filled_quote * TRADE_FEE_RATE
+                        net_quote = filled_quote - sell_fee
+                        pnl = net_quote - state.entry_price * filled_qty
                         tr = TrendTrade(
                             ts=ts,
                             symbol=symbol,
@@ -256,6 +261,7 @@ def trend_loop():
                             qty=filled_qty,
                             price=avg_price,
                             notional=filled_quote,
+                            fee=sell_fee,
                             pnl_usd=pnl,
                             is_testnet=1 if trend_config.use_testnet else 0,
                         )

@@ -45,6 +45,8 @@ class BacktestRequest(BaseModel):
     min_beta: float = 1.1
     conversion_symbol: Optional[str] = None
     switch_cooldown: int = 0
+    fee_rate: float = 0.001
+    position_pct: float = 1.0
 
 
 class BacktestResponse(BaseModel):
@@ -91,6 +93,8 @@ def run_backtest(req: BacktestRequest):
                 start=req.start_date,
                 end=req.end_date,
                 starting_balance=req.starting_balance,
+                fee_rate=req.fee_rate,
+                position_pct=req.position_pct,
             )
         elif strategy == "bollinger":
             if not req.symbol:
@@ -104,6 +108,8 @@ def run_backtest(req: BacktestRequest):
                 start=req.start_date,
                 end=req.end_date,
                 starting_balance=req.starting_balance,
+                fee_rate=req.fee_rate,
+                position_pct=req.position_pct,
             )
         elif strategy == "trend_following":
             if not req.symbol:
@@ -119,6 +125,8 @@ def run_backtest(req: BacktestRequest):
                 start=req.start_date,
                 end=req.end_date,
                 starting_balance=req.starting_balance,
+                fee_rate=req.fee_rate,
+                position_pct=req.position_pct,
             )
         elif strategy in {
             ft.PATTERN_RECOGNITION,
@@ -137,6 +145,8 @@ def run_backtest(req: BacktestRequest):
                 start=req.start_date,
                 end=req.end_date,
                 starting_balance=req.starting_balance,
+                fee_rate=req.fee_rate,
+                position_pct=req.position_pct,
             )
         elif strategy == "amplification":
             symbols = req.alt_symbols or [
@@ -159,6 +169,8 @@ def run_backtest(req: BacktestRequest):
                 conversion_symbol=(req.conversion_symbol or "").upper() or None,
                 switch_cooldown=req.switch_cooldown,
                 starting_balance=req.starting_balance,
+                fee_rate=req.fee_rate,
+                position_pct=req.position_pct,
                 start=req.start_date,
                 end=req.end_date,
             )
