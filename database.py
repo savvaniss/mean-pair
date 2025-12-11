@@ -47,6 +47,18 @@ def _add_fee_column_if_missing(conn, table_name: str):
     if has_fee:
         return
 
+    if engine.dialect.name == "postgresql":
+        # Use IF NOT EXISTS for Postgres to avoid race conditions when multiple
+        # workers start up at once.
+        conn.execute(
+            text(
+                f'ALTER TABLE "{table_name}" ADD COLUMN IF NOT EXISTS fee DOUBLE PRECISION DEFAULT 0'
+            )
+        )
+        return
+
+    # SQLite (and other dialects) do not support IF NOT EXISTS on ALTER TABLE,
+    # so fall back to a simpler ADD COLUMN guarded by the inspector check above.
     col_type = "REAL" if engine.dialect.name == "sqlite" else "DOUBLE PRECISION"
     conn.execute(text(f"ALTER TABLE {table_name} ADD COLUMN fee {col_type} DEFAULT 0"))
 
