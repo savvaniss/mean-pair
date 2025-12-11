@@ -1,5 +1,6 @@
 from datetime import datetime, timedelta
 from typing import List, Optional
+from concurrent.futures import ThreadPoolExecutor
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
@@ -238,7 +239,7 @@ class BatchBacktestResponse(BaseModel):
     results: List[BatchRunResult]
 
 
-MAX_GRID_RUNS = 120
+GRID_CHUNK_SIZE = 72
 
 
 @router.post("/backtest", response_model=BacktestResponse)
@@ -337,14 +338,7 @@ def run_backtest_grid(req: BatchBacktestRequest):
 
     windows = _monthly_windows(req.months)
     configs = _build_config_variants(req)
-    total_runs = len(windows) * len(configs)
-
-    if total_runs > MAX_GRID_RUNS:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Grid too large ({total_runs} runs). Please reduce the number of parameter combinations or months (max {MAX_GRID_RUNS}).",
-        )
-    results: List[BatchRunResult] = []
+    jobs: List[tuple[BacktestRequest, dict[str, float | int | str], datetime, datetime]] = []
 
     for config, params in configs:
         for start, end in windows:
@@ -352,19 +346,29 @@ def run_backtest_grid(req: BatchBacktestRequest):
             config_for_range = config.copy(
                 update={"start_date": start, "end_date": end, "lookback_days": lookback_days}
             )
-            result = _execute_backtest(config_for_range)
-            results.append(
-                BatchRunResult(
-                    config_label=_config_label(params),
-                    params=params or {},
-                    start=start,
-                    end=end,
-                    final_balance=result.final_balance,
-                    return_pct=result.return_pct,
-                    win_rate=result.win_rate,
-                    max_drawdown=result.max_drawdown,
-                )
-            )
+            jobs.append((config_for_range, params, start, end))
+
+    results: List[BatchRunResult] = []
+
+    def run_job(job: tuple[BacktestRequest, dict[str, float | int | str], datetime, datetime]):
+        config_for_range, params, start, end = job
+        result = _execute_backtest(config_for_range)
+        return BatchRunResult(
+            config_label=_config_label(params),
+            params=params or {},
+            start=start,
+            end=end,
+            final_balance=result.final_balance,
+            return_pct=result.return_pct,
+            win_rate=result.win_rate,
+            max_drawdown=result.max_drawdown,
+        )
+
+    for chunk_start in range(0, len(jobs), GRID_CHUNK_SIZE):
+        chunk = jobs[chunk_start : chunk_start + GRID_CHUNK_SIZE]
+        with ThreadPoolExecutor(max_workers=min(8, len(chunk))) as executor:
+            for res in executor.map(run_job, chunk):
+                results.append(res)
 
     return BatchBacktestResponse(strategy=req.strategy, months=req.months, results=results)
 

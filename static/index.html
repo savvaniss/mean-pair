@@ -780,7 +780,7 @@
             <h3>Automated monthly sweeps</h3>
           </div>
           <div class="card-body">
-            <p class="help-text">Test multiple parameter combinations across one-month slices from the past N months (default: 24). Large grids are capped to keep requests responsive (max 120 runs).</p>
+            <p class="help-text">Test multiple parameter combinations across one-month slices from the past N months (default: 24). Large grids are processed in batches of up to 72 runs to avoid timeouts automatically.</p>
             <div class="form-row">
               <label>
                 Months to test

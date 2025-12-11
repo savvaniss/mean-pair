@@ -281,14 +281,9 @@ export async function runBacktestGrid() {
   const gridConfig = buildGridPayload(collected.strategy);
   if (!gridConfig) return;
 
-  const maxRuns = 120;
   const runCount = estimateGridRuns(collected.strategy, gridConfig);
-  if (runCount > maxRuns) {
-    const msg = `Grid too large (${runCount} runs). Please reduce parameter combinations or months (max ${maxRuns}).`;
-    setInlineStatus('backtestGridStatus', msg, 'danger');
-    showToast(msg, 'danger');
-    return;
-  }
+  const batchSize = 72;
+  const batches = Math.max(1, Math.ceil(runCount / batchSize));
 
   const payload = {
     ...collected.payload,
@@ -298,7 +293,10 @@ export async function runBacktestGrid() {
 
   const gridBtn = document.getElementById('backtestGridButton');
 
-  setInlineStatus('backtestGridStatus', 'Running monthly grid…', 'progress');
+  const statusLabel = runCount
+    ? `Running monthly grid in ${batches} batch${batches > 1 ? 'es' : ''} (${runCount} runs)…`
+    : 'Running monthly grid…';
+  setInlineStatus('backtestGridStatus', statusLabel, 'progress');
   if (gridBtn) gridBtn.disabled = true;
 
   try {
