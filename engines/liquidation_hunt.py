@@ -122,14 +122,11 @@ def fetch_recent_candles(symbol: str, limit: int) -> List[Candle]:
     if not _client():
         return []
 
-    try:
-        raw = _client().get_klines(
-            symbol=symbol,
-            interval=Client.KLINE_INTERVAL_1MINUTE,
-            limit=limit,
-        )
-    except TypeError:
-        raw = _client().get_klines(symbol, Client.KLINE_INTERVAL_1MINUTE, limit)
+    raw = _client().get_klines(
+        symbol=symbol,
+        interval="1m",
+        limit=limit,
+    )
 
     candles: List[Candle] = []
     for k in raw:
