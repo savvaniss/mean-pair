@@ -766,16 +766,116 @@
               </label>
             </div>
 
-            <div class="button-row">
-              <button type="submit" class="btn btn-primary">Run backtest</button>
-              <div class="help-text">Use optional start/end dates to replay a specific month (e.g. last August) instead of the rolling lookback. Uses live Binance historical klines to replay each algorithm without placing orders.</div>
-            </div>
-          </form>
+          <div class="button-row">
+            <button type="submit" class="btn btn-primary">Run backtest</button>
+            <div class="help-text">Use optional start/end dates to replay a specific month (e.g. last August) instead of the rolling lookback. Uses live Binance historical klines to replay each algorithm without placing orders.</div>
+          </div>
+        </form>
 
-          <div class="card" style="margin-top: 18px;">
-            <div class="card-header">
-              <h3>Summary</h3>
+        <div class="card" style="margin-top: 18px;">
+          <div class="card-header">
+            <h3>Automated monthly sweeps</h3>
+          </div>
+          <div class="card-body">
+            <p class="help-text">Test multiple parameter combinations across one-month slices from the past N months (default: 24).</p>
+            <div class="form-row">
+              <label>
+                Months to test
+                <input type="number" id="backtestGridMonths" min="1" max="60" value="24" />
+              </label>
             </div>
+
+            <div class="form-row" id="backtestGridMeanFields">
+              <label>
+                Windows (comma separated)
+                <input type="text" id="backtestGridWindow" placeholder="70,90,120" />
+              </label>
+              <label>
+                Z-entry values
+                <input type="text" id="backtestGridZEntry" placeholder="2.5,3.0" />
+              </label>
+              <label>
+                Z-exit values
+                <input type="text" id="backtestGridZExit" placeholder="0.4,0.6" />
+              </label>
+            </div>
+
+            <div class="form-row" id="backtestGridBollFields">
+              <label>
+                Windows (comma separated)
+                <input type="text" id="backtestGridBollWindow" placeholder="50,70,90" />
+              </label>
+              <label>
+                Std dev widths
+                <input type="text" id="backtestGridStd" placeholder="2.5,3.0" />
+              </label>
+            </div>
+
+            <div class="form-row" id="backtestGridTrendFields">
+              <label>
+                Fast EMA windows
+                <input type="text" id="backtestGridFast" placeholder="8,12,20" />
+              </label>
+              <label>
+                Slow EMA windows
+                <input type="text" id="backtestGridSlow" placeholder="21,26,35" />
+              </label>
+              <label>
+                ATR stop multipliers
+                <input type="text" id="backtestGridAtrStop" placeholder="1.5,2.0" />
+              </label>
+            </div>
+
+            <div class="form-row" id="backtestGridAmpFields">
+              <label>
+                Momentum windows
+                <input type="text" id="backtestGridMomentum" placeholder="2,3,4" />
+              </label>
+              <label>
+                Min beta values
+                <input type="text" id="backtestGridMinBeta" placeholder="1.0,1.1,1.2" />
+              </label>
+              <label>
+                Switch cooldowns
+                <input type="text" id="backtestGridCooldown" placeholder="0,3,5" />
+              </label>
+            </div>
+
+            <div class="button-row">
+              <button type="button" class="btn btn-secondary" id="backtestGridButton">Run monthly grid</button>
+              <div class="help-text">Grid runs always use one-month windows; leave fields blank to reuse the current configuration values.</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card" style="margin-top: 12px;">
+          <div class="card-header">
+            <h3>Grid results</h3>
+          </div>
+          <div class="card-body">
+            <div class="help-text" id="backtestGridSummaryText">Run a monthly grid to populate performance slices.</div>
+            <div class="table-wrapper">
+              <table id="backtestGridResults">
+                <thead>
+                  <tr>
+                    <th>Config</th>
+                    <th>Period</th>
+                    <th>Return</th>
+                    <th>Win rate</th>
+                    <th>Max drawdown</th>
+                    <th>Final balance</th>
+                  </tr>
+                </thead>
+                <tbody></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <div class="card" style="margin-top: 18px;">
+          <div class="card-header">
+            <h3>Summary</h3>
+          </div>
             <div class="card-body" id="backtestSummary">Run a backtest to see performance.</div>
           </div>
 
