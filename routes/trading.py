@@ -2,12 +2,12 @@ from datetime import datetime
 import math
 from typing import List
 
-from binance.exceptions import BinanceAPIException
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 import config
 from database import SessionLocal, Trade
+from services.exchange import ExchangeError
 
 router = APIRouter()
 
@@ -101,12 +101,12 @@ def _balances_for_account(account: str, use_testnet: bool) -> AccountSummary:
             if float(b.get("free", 0)) > 0 or float(b.get("locked", 0)) > 0
         ]
         return AccountSummary(account=account, use_testnet=use_testnet, balances=balances)
-    except BinanceAPIException as e:
+    except ExchangeError as e:
         return AccountSummary(
             account=account,
             use_testnet=use_testnet,
             balances=[],
-            error=f"Binance error: {e.message}",
+            error=f"Exchange error: {e}",
         )
     except Exception as e:
         return AccountSummary(
@@ -207,7 +207,7 @@ def trading_order(req: ManualOrderRequest):
 
     except HTTPException:
         raise
-    except BinanceAPIException as e:
-        raise HTTPException(status_code=400, detail=f"Binance error: {e.message}")
+    except ExchangeError as e:
+        raise HTTPException(status_code=400, detail=f"Exchange error: {e}")
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

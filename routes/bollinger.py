@@ -3,7 +3,7 @@ from typing import List, Optional
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
-from binance.exceptions import BinanceAPIException  # kept for runtime, not used in tests
+from services.exchange import ExchangeError
 
 import config
 from database import SessionLocal, Trade, BollSnapshot, BollState, BollTrade
@@ -390,7 +390,7 @@ def bollinger_manual_sell(req: ManualBollingerSellRequest):
         if qty_adj <= 0:
             raise HTTPException(
                 status_code=400,
-                detail="Quantity too small after Binance LOT_SIZE filter",
+                detail="Quantity too small after exchange LOT_SIZE filter",
             )
 
         # estimate quote received using current price
@@ -435,9 +435,8 @@ def bollinger_manual_sell(req: ManualBollingerSellRequest):
     except HTTPException:
         # propagate intentional errors
         raise
-    except BinanceAPIException as e:
-        # explicit Binance error path (for real runtime)
-        raise HTTPException(status_code=400, detail=f"Binance error: {e.message}")
+    except ExchangeError as e:
+        raise HTTPException(status_code=400, detail=f"Exchange error: {e}")
     except Exception as e:
         # catch-all for anything unexpected
         raise HTTPException(status_code=500, detail=str(e))

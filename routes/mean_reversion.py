@@ -1,8 +1,10 @@
 # routes/mean_reversion.py
+import asyncio
 from datetime import datetime
 from typing import List
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, WebSocket
+from fastapi.websockets import WebSocketDisconnect
 from pydantic import BaseModel
 
 import config
@@ -44,68 +46,101 @@ class StatusResponse(BaseModel):
 # STATUS
 # ============================================================
 
+def _build_status(session) -> dict:
+    btc, price_a, price_b = mr.get_prices()
+
+    with mr.mr_lock:
+        ratio = price_a / price_b
+        if mr.ratio_history:
+            mean_r = sum(mr.ratio_history) / len(mr.ratio_history)
+            var = sum((r - mean_r) ** 2 for r in mr.ratio_history) / len(mr.ratio_history)
+            std_r = var ** 0.5 if var > 0 else 0.0
+            z = (ratio - mean_r) / std_r if std_r > 0 else 0.0
+        else:
+            mean_r = ratio
+            std_r = 0.0
+            z = 0.0
+
+    st = mr.get_state(session)
+
+    base_bal = mr.get_free_balance_mr(BASE_ASSET)
+    asset_a_bal = mr.get_free_balance_mr(mr.bot_config.asset_a)
+    asset_b_bal = mr.get_free_balance_mr(mr.bot_config.asset_b)
+
+    if st.current_asset == mr.bot_config.asset_a:
+        st.current_qty = asset_a_bal
+    elif st.current_asset == mr.bot_config.asset_b:
+        st.current_qty = asset_b_bal
+    else:
+        st.current_asset = BASE_ASSET
+        st.current_qty = base_bal
+
+    current_value = base_bal + asset_a_bal * price_a + asset_b_bal * price_b
+    starting_value = st.realized_pnl_usd or 0.0
+    unrealized_pnl = current_value - starting_value
+
+    st.unrealized_pnl_usd = unrealized_pnl
+    session.commit()
+
+    return {
+        "btc": btc,
+        "asset_a": mr.bot_config.asset_a,
+        "asset_b": mr.bot_config.asset_b,
+        "price_a": price_a,
+        "price_b": price_b,
+        "ratio": ratio,
+        "zscore": z,
+        "mean_ratio": mean_r,
+        "std_ratio": std_r,
+        "current_asset": st.current_asset,
+        "current_qty": st.current_qty,
+        "realized_pnl_usd": st.realized_pnl_usd,
+        "unrealized_pnl_usd": unrealized_pnl,
+        "enabled": mr.bot_config.enabled,
+        "use_testnet": mr.bot_config.use_testnet,
+        "base_balance": base_bal,
+        "asset_a_balance": asset_a_bal,
+        "asset_b_balance": asset_b_bal,
+    }
+
+
 @router.get("/status", response_model=StatusResponse)
 def get_status():
     session = SessionLocal()
     try:
-        btc, price_a, price_b = mr.get_prices()
-
-        with mr.mr_lock:
-            ratio = price_a / price_b
-            if mr.ratio_history:
-                mean_r = sum(mr.ratio_history) / len(mr.ratio_history)
-                var = sum((r - mean_r) ** 2 for r in mr.ratio_history) / len(mr.ratio_history)
-                std_r = var ** 0.5 if var > 0 else 0.0
-                z = (ratio - mean_r) / std_r if std_r > 0 else 0.0
-            else:
-                mean_r = ratio
-                std_r = 0.0
-                z = 0.0
-
-        st = mr.get_state(session)
-
-        base_bal = mr.get_free_balance_mr(BASE_ASSET)
-        asset_a_bal = mr.get_free_balance_mr(mr.bot_config.asset_a)
-        asset_b_bal = mr.get_free_balance_mr(mr.bot_config.asset_b)
-
-        # Update current_qty based on balances
-        if st.current_asset == mr.bot_config.asset_a:
-            st.current_qty = asset_a_bal
-        elif st.current_asset == mr.bot_config.asset_b:
-            st.current_qty = asset_b_bal
-        else:
-            st.current_asset = BASE_ASSET
-            st.current_qty = base_bal
-
-        current_value = base_bal + asset_a_bal * price_a + asset_b_bal * price_b
-        starting_value = st.realized_pnl_usd or 0.0
-        unrealized_pnl = current_value - starting_value
-
-        st.unrealized_pnl_usd = unrealized_pnl
-        session.commit()
-
-        return StatusResponse(
-            btc=btc,
-            asset_a=mr.bot_config.asset_a,
-            asset_b=mr.bot_config.asset_b,
-            price_a=price_a,
-            price_b=price_b,
-            ratio=ratio,
-            zscore=z,
-            mean_ratio=mean_r,
-            std_ratio=std_r,
-            current_asset=st.current_asset,
-            current_qty=st.current_qty,
-            realized_pnl_usd=st.realized_pnl_usd,
-            unrealized_pnl_usd=unrealized_pnl,
-            enabled=mr.bot_config.enabled,
-            use_testnet=mr.bot_config.use_testnet,
-            base_balance=base_bal,
-            asset_a_balance=asset_a_bal,
-            asset_b_balance=asset_b_bal,
-        )
+        data = _build_status(session)
+        return StatusResponse(**data)
     finally:
         session.close()
+
+
+@router.websocket("/ws/mean_reversion")
+async def ws_mean_reversion(websocket: WebSocket):
+    await websocket.accept()
+    try:
+        while True:
+            session = SessionLocal()
+            try:
+                status = _build_status(session)
+                snap = (
+                    session.query(PriceSnapshot)
+                    .order_by(PriceSnapshot.ts.desc())
+                    .first()
+                )
+                snapshot = None
+                if snap:
+                    snapshot = {
+                        "ts": snap.ts.isoformat(),
+                        "price_a": snap.price_a,
+                        "price_b": snap.price_b,
+                        "ratio": snap.ratio,
+                    }
+                await websocket.send_json({"status": status, "snapshot": snapshot})
+            finally:
+                session.close()
+            await asyncio.sleep(1)
+    except WebSocketDisconnect:
+        return
 
 
 # ============================================================

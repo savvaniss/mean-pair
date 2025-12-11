@@ -20,12 +20,11 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Dict, List, Optional, Tuple
 
-from binance.client import Client
-from binance.exceptions import BinanceAPIException
 from pydantic import BaseModel
 
 import config
 from database import SessionLocal, Trade
+from services.exchange import ExchangeError, ExchangeClient
 
 
 @dataclass
@@ -91,7 +90,7 @@ latest_signal: Optional[StopHuntSignal] = None
 latest_candles: List[Candle] = []
 latest_execution: Optional[ExecutionRecord] = None
 last_execution_signature: Optional[str] = None
-liq_client: Optional[Client] = None
+liq_client: Optional[ExchangeClient] = None
 liq_use_testnet: bool = config.BOLL_USE_TESTNET
 
 
@@ -115,7 +114,7 @@ def init_liq_client(use_testnet: bool) -> None:
 init_liq_client(liq_use_testnet)
 
 
-def _client() -> Optional[Client]:
+def _client() -> Optional[ExchangeClient]:
     return liq_client or config.boll_client
 
 
@@ -345,8 +344,8 @@ def _place_trade(signal: StopHuntSignal, reason: str) -> Optional[ExecutionRecor
 
     try:
         order = client.order_market(symbol=liq_config.symbol, side=side, quantity=qty_adj)
-    except BinanceAPIException as e:
-        print(f"[LIQ] Binance error: {e}")
+    except ExchangeError as e:
+        print(f"[LIQ] Exchange error: {e}")
         return None
 
     if not order:

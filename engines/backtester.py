@@ -7,7 +7,8 @@ from datetime import datetime, timedelta
 from typing import Dict, Iterable, List, Optional, Tuple
 
 import os
-import requests
+
+import ccxt
 from engines.common import compute_ma_std_window
 from engines import freqtrade_algos as ft
 
@@ -101,22 +102,24 @@ def _fetch_binance_public_klines(
         request_interval = "1m"
         request_interval_ms = BINANCE_INTERVAL_MS["1m"]
 
-    url = "https://api.binance.com/api/v3/klines"
     start_ms = int(start.timestamp() * 1000)
     end_ms = int(end.timestamp() * 1000)
     candles: List[Candle] = []
+    client = ccxt.binance({"enableRateLimit": True})
+
+    def _format_symbol(sym: str) -> str:
+        if "/" in sym:
+            return sym
+        if len(sym) > 4:
+            return f"{sym[:-4]}/{sym[-4:]}"
+        return sym
+
+    market_symbol = _format_symbol(symbol)
 
     while start_ms < end_ms:
-        params = {
-            "symbol": symbol,
-            "interval": request_interval,
-            "startTime": start_ms,
-            "endTime": end_ms,
-            "limit": 1000,
-        }
-        resp = requests.get(url, params=params, timeout=10)
-        resp.raise_for_status()
-        data = resp.json()
+        data = client.fetch_ohlcv(
+            market_symbol, timeframe=request_interval, since=start_ms, limit=1000
+        )
         if not data:
             break
 
