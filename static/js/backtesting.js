@@ -1,5 +1,13 @@
 import { showToast } from './ui.js';
 
+function setInlineStatus(targetId, message, variant = 'info') {
+  const el = document.getElementById(targetId);
+  if (!el) return;
+  el.textContent = message;
+  el.className = `status-line status-${variant}`;
+  el.style.display = message ? 'flex' : 'none';
+}
+
 const freqtradeOptions = [
   { value: 'pattern_recognition', label: 'Freqtrade – Pattern recognition' },
   { value: 'strategy001', label: 'Freqtrade – Strategy 001' },
@@ -238,6 +246,10 @@ export async function runBacktest() {
   if (!collected) return;
 
   const { payload } = collected;
+  const submitBtn = document.querySelector('#backtestForm button[type="submit"]');
+
+  setInlineStatus('backtestStatus', 'Running backtest…', 'progress');
+  if (submitBtn) submitBtn.disabled = true;
 
   try {
     const resp = await fetch('/backtest', {
@@ -251,10 +263,14 @@ export async function runBacktest() {
     }
     const data = await resp.json();
     renderBacktestResult(data);
+    setInlineStatus('backtestStatus', 'Backtest complete', 'success');
     showToast('Backtest complete', 'success');
   } catch (err) {
     console.error('Backtest failed', err);
+    setInlineStatus('backtestStatus', `Backtest failed: ${err}`, 'danger');
     showToast(`Backtest failed: ${err}`, 'danger');
+  } finally {
+    if (submitBtn) submitBtn.disabled = false;
   }
 }
 
@@ -271,6 +287,11 @@ export async function runBacktestGrid() {
     grid: gridConfig.grid,
   };
 
+  const gridBtn = document.getElementById('backtestGridButton');
+
+  setInlineStatus('backtestGridStatus', 'Running monthly grid…', 'progress');
+  if (gridBtn) gridBtn.disabled = true;
+
   try {
     const resp = await fetch('/backtest/grid', {
       method: 'POST',
@@ -283,10 +304,14 @@ export async function runBacktestGrid() {
     }
     const data = await resp.json();
     renderBacktestGridResults(data);
+    setInlineStatus('backtestGridStatus', 'Grid runs complete', 'success');
     showToast('Grid backtests complete', 'success');
   } catch (err) {
     console.error('Grid backtest failed', err);
+    setInlineStatus('backtestGridStatus', `Grid backtest failed: ${err}`, 'danger');
     showToast(`Grid backtest failed: ${err}`, 'danger');
+  } finally {
+    if (gridBtn) gridBtn.disabled = false;
   }
 }
 

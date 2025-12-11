@@ -600,6 +600,26 @@ canvas {
   margin-top: 6px;
 }
 
+.status-line {
+  font-size: 0.9rem;
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.status-progress {
+  color: var(--accent);
+}
+
+.status-success {
+  color: var(--success);
+}
+
+.status-danger {
+  color: var(--danger);
+}
+
 .chart-row {
   display: flex;
   gap: 14px;

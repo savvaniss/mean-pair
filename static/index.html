@@ -768,8 +768,9 @@
               </label>
             </div>
 
-          <div class="button-row">
+          <div class="button-row" style="align-items: center; gap: 10px; flex-wrap: wrap;">
             <button type="submit" class="btn btn-primary">Run backtest</button>
+            <div id="backtestStatus" class="status-line" style="display: none;"></div>
             <div class="help-text">Use optional start/end dates to replay a specific month (e.g. last August) instead of the rolling lookback. Uses live Binance historical klines to replay each algorithm without placing orders.</div>
           </div>
         </form>
@@ -843,8 +844,9 @@
               </label>
             </div>
 
-            <div class="button-row">
+            <div class="button-row" style="align-items: center; gap: 10px; flex-wrap: wrap;">
               <button type="button" class="btn btn-secondary" id="backtestGridButton">Run monthly grid</button>
+              <div id="backtestGridStatus" class="status-line" style="display: none;"></div>
               <div class="help-text">Grid runs always use one-month windows; leave fields blank to reuse the current configuration values.</div>
             </div>
           </div>
