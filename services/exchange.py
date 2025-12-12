@@ -274,7 +274,8 @@ class ExchangeClient:
     def create_market_order(self, symbol: str, side: str, amount: float) -> Dict:
         try:
             sym = self._format_symbol(symbol)
-            return self._rest.create_order(sym, "market", side.lower(), amount)
+            amount_precise = float(self._rest.amount_to_precision(sym, amount))
+            return self._rest.create_order(sym, "market", side.lower(), amount_precise)
         except Exception as exc:  # pragma: no cover - network / credentials
             raise ExchangeError(str(exc))
 

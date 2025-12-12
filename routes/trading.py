@@ -57,6 +57,7 @@ def _client_for_account(account: str, use_testnet: bool):
 def _adjust_quantity(info: dict, qty: float, *, client=None, symbol: str | None = None) -> float:
     symbol_for_precision = info.get("symbol") or symbol
 
+    # First align with ccxt precision to reduce floating drift before step rounding
     if client and symbol_for_precision:
         try:
             qty = float(client.amount_to_precision(symbol_for_precision, qty))
@@ -89,12 +90,23 @@ def _adjust_quantity(info: dict, qty: float, *, client=None, symbol: str | None 
     if step_dec <= 0:
         adjusted = qty_dec
     else:
-        adjusted = (qty_dec / step_dec).to_integral_value(rounding=ROUND_DOWN) * step_dec
+        # floor to the nearest step to avoid violating MARKET_LOT_SIZE
+        adjusted = (qty_dec // step_dec) * step_dec
+        adjusted = adjusted.quantize(step_dec, rounding=ROUND_DOWN)
 
     if adjusted < min_dec:
         return 0.0
     if max_dec is not None and adjusted > max_dec:
         adjusted = max_dec
+
+    # Honor explicit amount precision if provided by the market info
+    amount_precision = info.get("precision", {}).get("amount")
+    if amount_precision is not None and amount_precision >= 0:
+        try:
+            precision_dec = Decimal("1") / (Decimal("10") ** int(amount_precision))
+            adjusted = adjusted.quantize(precision_dec, rounding=ROUND_DOWN)
+        except Exception:
+            pass
 
     if client and symbol_for_precision:
         try:
@@ -191,6 +203,12 @@ def trading_order(req: ManualOrderRequest):
                 status_code=400,
                 detail="Quantity too small after LOT_SIZE adjustment",
             )
+
+        # Final precision pass to avoid floating remainders slipping through
+        try:
+            qty_adj = float(client.amount_to_precision(req.symbol, qty_adj))
+        except Exception:
+            pass
 
         min_notional = _min_notional(info)
         if qty_adj * price < min_notional:
