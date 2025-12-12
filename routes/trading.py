@@ -204,33 +204,43 @@ def trading_order(req: ManualOrderRequest):
         ticker = client.get_symbol_ticker(symbol=req.symbol)
         price = float(ticker["price"])
 
-        qty_requested = req.qty_base if (req.qty_base or 0) > 0 else (req.qty_quote or 0) / price
-        qty_adj = _adjust_quantity(info, qty_requested, client=client, symbol=req.symbol)
-        if qty_adj <= 0:
-            raise HTTPException(
-                status_code=400,
-                detail="Quantity too small after LOT_SIZE adjustment",
-            )
-
-        # Final precision pass to avoid floating remainders slipping through
-        try:
-            qty_adj = float(client.amount_to_precision(req.symbol, qty_adj))
-        except Exception:
-            pass
-
         min_notional = _min_notional(info)
-        if qty_adj * price < min_notional:
-            raise HTTPException(status_code=400, detail="Order below MIN_NOTIONAL")
-        order = client.order_market(symbol=req.symbol, side=side, quantity=qty_adj)
+
+        if (req.qty_quote or 0) > 0 and side == "BUY":
+            # Prefer quote-based sizing when provided so Binance handles the lot math.
+            notional = req.qty_quote
+            if notional < min_notional:
+                raise HTTPException(status_code=400, detail="Order below MIN_NOTIONAL")
+            order = client.create_market_order_quote(req.symbol, side, notional)
+            executed_qty = float(order.get("executedQty", order.get("filled", 0)))
+            quote_used = float(order.get("cummulativeQuoteQty", order.get("cost", notional)))
+        else:
+            qty_requested = req.qty_base if (req.qty_base or 0) > 0 else (req.qty_quote or 0) / price
+            qty_adj = _adjust_quantity(info, qty_requested, client=client, symbol=req.symbol)
+            if qty_adj <= 0:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Quantity too small after LOT_SIZE adjustment",
+                )
+
+            # Final precision pass to avoid floating remainders slipping through
+            try:
+                qty_adj = float(client.amount_to_precision(req.symbol, qty_adj))
+            except Exception:
+                pass
+
+            if qty_adj * price < min_notional:
+                raise HTTPException(status_code=400, detail="Order below MIN_NOTIONAL")
+            order = client.order_market(symbol=req.symbol, side=side, quantity=qty_adj)
+            executed_qty = float(order.get("executedQty", order.get("filled", qty_adj)))
+            quote_used = float(
+                order.get("cummulativeQuoteQty", order.get("cost", executed_qty * price))
+            )
         if not order:
             raise HTTPException(status_code=500, detail="Order failed")
 
         session = SessionLocal()
         try:
-            executed_qty = float(order.get("executedQty", order.get("filled", qty_adj)))
-            quote_used = float(
-                order.get("cummulativeQuoteQty", order.get("cost", executed_qty * price))
-            )
             if quote_used < min_notional:
                 raise HTTPException(status_code=400, detail="Fill below MIN_NOTIONAL")
 

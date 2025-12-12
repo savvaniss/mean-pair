@@ -271,11 +271,30 @@ class ExchangeClient:
         except Exception as exc:  # pragma: no cover - network / credentials
             raise ExchangeError(str(exc))
 
-    def create_market_order(self, symbol: str, side: str, amount: float) -> Dict:
+    def create_market_order(self, symbol: str, side: str, amount) -> Dict:
+        """Create a market order with a precision-preserved amount."""
+
         try:
             sym = self._format_symbol(symbol)
-            amount_precise = float(self._rest.amount_to_precision(sym, amount))
+            amount_precise = self._rest.amount_to_precision(sym, amount)
+            # Keep the precise string/decimal instead of converting to float to avoid
+            # reintroducing step-size rounding errors that trigger MARKET_LOT_SIZE.
             return self._rest.create_order(sym, "market", side.lower(), amount_precise)
+        except Exception as exc:  # pragma: no cover - network / credentials
+            raise ExchangeError(str(exc))
+
+    def create_market_order_quote(self, symbol: str, side: str, quote_amount) -> Dict:
+        """Create a market buy using quote quantity to let the exchange size fills."""
+
+        if side.lower() != "buy":
+            raise ExchangeError("quote-based market orders are only supported for buys")
+
+        try:
+            sym = self._format_symbol(symbol)
+            cost_precise = self._rest.cost_to_precision(sym, quote_amount)
+            return self._rest.create_order(
+                sym, "market", "buy", None, {"quoteOrderQty": cost_precise}
+            )
         except Exception as exc:  # pragma: no cover - network / credentials
             raise ExchangeError(str(exc))
 
