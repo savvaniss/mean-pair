@@ -104,6 +104,7 @@ async function submitOrder(event) {
   const symbol = document.getElementById('tradingSymbol').value.trim().toUpperCase();
   const side = document.getElementById('tradingSide').value;
   const qty = parseFloat(document.getElementById('tradingQty').value);
+  const qtyMode = document.getElementById('tradingQtyMode').value;
 
   if (!symbol) {
     showToast('Enter a symbol like BTCUSDT.', 'warning');
@@ -119,7 +120,8 @@ async function submitOrder(event) {
     use_testnet: currentEnv(),
     symbol,
     side,
-    qty_base: qty,
+    qty_base: qtyMode === 'base' ? qty : null,
+    qty_quote: qtyMode === 'quote' ? qty : null,
   };
 
   try {

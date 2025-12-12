@@ -2,12 +2,12 @@ from datetime import datetime
 import math
 from typing import List
 
-from binance.exceptions import BinanceAPIException
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 import config
 from database import SessionLocal, Trade
+from services.exchange import ExchangeError
 
 router = APIRouter()
 
@@ -30,7 +30,8 @@ class ManualOrderRequest(BaseModel):
     use_testnet: bool
     symbol: str
     side: str  # BUY / SELL
-    qty_base: float
+    qty_base: float | None = None
+    qty_quote: float | None = None
 
 
 class ManualOrderResponse(BaseModel):
@@ -53,19 +54,32 @@ def _client_for_account(account: str, use_testnet: bool):
     raise HTTPException(status_code=400, detail="account must be 'mr' or 'boll'")
 
 
-def _adjust_quantity(info: dict, qty: float) -> float:
-    lot = next((f for f in info.get("filters", []) if f.get("filterType") == "LOT_SIZE"), None)
+def _adjust_quantity(info: dict, qty: float, *, client=None, symbol: str | None = None) -> float:
+    if client and symbol:
+        try:
+            qty = client.amount_to_precision(symbol, qty)
+        except Exception:
+            pass
+
+    lot = next(
+        (
+            f
+            for f in info.get("filters", [])
+            if f.get("filterType") in ("MARKET_LOT_SIZE", "LOT_SIZE")
+        ),
+        None,
+    )
     if not lot:
         return qty
 
-    step = float(lot.get("stepSize", 0))
-    min_qty = float(lot.get("minQty", 0))
-    max_qty = float(lot.get("maxQty", 0))
+    step = float(lot.get("stepSize", 0)) or float(lot.get("step_size", 0) or 0)
+    min_qty = float(lot.get("minQty", 0) or lot.get("min_qty", 0) or 0)
+    max_qty = float(lot.get("maxQty", 0) or lot.get("max_qty", 0) or 0)
 
     if step <= 0:
-        return qty
-
-    adjusted = math.floor(qty / step) * step
+        adjusted = qty
+    else:
+        adjusted = math.floor(qty / step) * step
     if adjusted < min_qty:
         return 0.0
     if max_qty > 0:
@@ -79,7 +93,13 @@ def _min_notional(info: dict) -> float:
         None,
     )
     return (
-        float(min_notional_filter.get("minNotional", 0.0)) if min_notional_filter else 0.0
+        float(
+            min_notional_filter.get("minNotional")
+            or min_notional_filter.get("notional")
+            or 0.0
+        )
+        if min_notional_filter
+        else 0.0
     )
 
 
@@ -101,12 +121,12 @@ def _balances_for_account(account: str, use_testnet: bool) -> AccountSummary:
             if float(b.get("free", 0)) > 0 or float(b.get("locked", 0)) > 0
         ]
         return AccountSummary(account=account, use_testnet=use_testnet, balances=balances)
-    except BinanceAPIException as e:
+    except ExchangeError as e:
         return AccountSummary(
             account=account,
             use_testnet=use_testnet,
             balances=[],
-            error=f"Binance error: {e.message}",
+            error=f"Exchange error: {e}",
         )
     except Exception as e:
         return AccountSummary(
@@ -125,8 +145,8 @@ def trading_balances(use_testnet: bool | None = None):
 
 @router.post("/trading/order", response_model=ManualOrderResponse)
 def trading_order(req: ManualOrderRequest):
-    if req.qty_base <= 0:
-        raise HTTPException(status_code=400, detail="qty_base must be > 0")
+    if (req.qty_base or 0) <= 0 and (req.qty_quote or 0) <= 0:
+        raise HTTPException(status_code=400, detail="qty_base or qty_quote must be > 0")
 
     try:
         client = _client_for_account(req.account, req.use_testnet)
@@ -143,15 +163,17 @@ def trading_order(req: ManualOrderRequest):
         if not quote_asset and base_asset:
             quote_asset = req.symbol.replace(base_asset, "", 1)
 
-        qty_adj = _adjust_quantity(info, req.qty_base)
+        ticker = client.get_symbol_ticker(symbol=req.symbol)
+        price = float(ticker["price"])
+
+        qty_requested = req.qty_base if (req.qty_base or 0) > 0 else (req.qty_quote or 0) / price
+        qty_adj = _adjust_quantity(info, qty_requested, client=client, symbol=req.symbol)
         if qty_adj <= 0:
             raise HTTPException(
                 status_code=400,
                 detail="Quantity too small after LOT_SIZE adjustment",
             )
 
-        ticker = client.get_symbol_ticker(symbol=req.symbol)
-        price = float(ticker["price"])
         min_notional = _min_notional(info)
         if qty_adj * price < min_notional:
             raise HTTPException(status_code=400, detail="Order below MIN_NOTIONAL")
@@ -161,17 +183,21 @@ def trading_order(req: ManualOrderRequest):
 
         session = SessionLocal()
         try:
-            executed_qty = float(order.get("executedQty", qty_adj))
-            quote_used = float(order.get("cummulativeQuoteQty", executed_qty * price))
+            executed_qty = float(order.get("executedQty", order.get("filled", qty_adj)))
+            quote_used = float(
+                order.get("cummulativeQuoteQty", order.get("cost", executed_qty * price))
+            )
             if quote_used < min_notional:
                 raise HTTPException(status_code=400, detail="Fill below MIN_NOTIONAL")
 
-            fills = order.get("fills", []) or []
+            fills = order.get("fills", []) or order.get("trades", []) or []
             fee_quote = 0.0
             for f in fills:
                 try:
                     if f.get("commissionAsset") == quote_asset:
                         fee_quote += float(f.get("commission", 0))
+                    elif f.get("fee", {}).get("currency") == quote_asset:
+                        fee_quote += float(f.get("fee", {}).get("cost", 0))
                 except Exception:
                     continue
 
@@ -207,7 +233,7 @@ def trading_order(req: ManualOrderRequest):
 
     except HTTPException:
         raise
-    except BinanceAPIException as e:
-        raise HTTPException(status_code=400, detail=f"Binance error: {e.message}")
+    except ExchangeError as e:
+        raise HTTPException(status_code=400, detail=f"Exchange error: {e}")
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
