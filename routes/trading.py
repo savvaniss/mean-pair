@@ -64,16 +64,21 @@ def _adjust_quantity(info: dict, qty: float, *, client=None, symbol: str | None 
         except Exception:
             pass
 
-    lot = next(
-        (
-            f
-            for f in info.get("filters", [])
-            if f.get("filterType") in ("MARKET_LOT_SIZE", "LOT_SIZE")
-        ),
-        None,
-    )
+    filters = info.get("filters", []) or []
+    lot = next((f for f in filters if f.get("filterType") == "MARKET_LOT_SIZE"), None)
     if not lot:
-        return qty
+        lot = next((f for f in filters if f.get("filterType") == "LOT_SIZE"), None)
+
+    limits = info.get("limits", {}) or {}
+    limit_amount = limits.get("amount", {}) if isinstance(limits, dict) else {}
+
+    # Fallback to market limits when filters are missing
+    if not lot:
+        lot = {
+            "stepSize": limit_amount.get("step") or 0,
+            "minQty": limit_amount.get("min") or 0,
+            "maxQty": limit_amount.get("max") or 0,
+        }
 
     step = lot.get("stepSize") or lot.get("step_size") or 0
     min_qty = lot.get("minQty") or lot.get("min_qty") or 0
@@ -87,12 +92,13 @@ def _adjust_quantity(info: dict, qty: float, *, client=None, symbol: str | None 
     except InvalidOperation:
         return float(qty)
 
-    if step_dec <= 0:
-        adjusted = qty_dec
-    else:
+    if step_dec > 0:
         # floor to the nearest step to avoid violating MARKET_LOT_SIZE
-        adjusted = (qty_dec // step_dec) * step_dec
+        steps = (qty_dec / step_dec).to_integral_value(rounding=ROUND_DOWN)
+        adjusted = steps * step_dec
         adjusted = adjusted.quantize(step_dec, rounding=ROUND_DOWN)
+    else:
+        adjusted = qty_dec
 
     if adjusted < min_dec:
         return 0.0
@@ -110,7 +116,9 @@ def _adjust_quantity(info: dict, qty: float, *, client=None, symbol: str | None 
 
     if client and symbol_for_precision:
         try:
-            adjusted = Decimal(str(client.amount_to_precision(symbol_for_precision, float(adjusted))))
+            adjusted = Decimal(
+                str(client.amount_to_precision(symbol_for_precision, float(adjusted)))
+            )
         except Exception:
             pass
 
