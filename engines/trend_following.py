@@ -5,7 +5,7 @@ import time
 from datetime import datetime
 from typing import List, Optional
 
-from binance.exceptions import BinanceAPIException
+from services.exchange import ExchangeError
 from pydantic import BaseModel
 
 import config
@@ -107,8 +107,8 @@ def place_market_order(symbol: str, side: str, quantity: float):
             type="MARKET",
             quantity=quantity,
         )
-    except BinanceAPIException as e:
-        print(f"[TREND] Binance error: {e}")
+    except ExchangeError as e:
+        print(f"[TREND] Exchange error: {e}")
         return None
 
 

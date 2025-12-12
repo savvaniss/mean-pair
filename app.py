@@ -41,6 +41,7 @@ app.mount("/static", StaticFiles(directory="static"), name="static")
 auth_required = Depends(auth.get_current_user)
 
 app.include_router(mr_routes.router, dependencies=[auth_required])
+app.include_router(mr_routes.ws_router)
 app.include_router(boll_routes.router, dependencies=[auth_required])
 app.include_router(trend_routes.router, dependencies=[auth_required])
 app.include_router(rs_routes.router, dependencies=[auth_required])

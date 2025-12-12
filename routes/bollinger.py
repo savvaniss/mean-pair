@@ -3,7 +3,7 @@ from typing import List, Optional
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
-from binance.exceptions import BinanceAPIException  # kept for runtime, not used in tests
+from services.exchange import ExchangeError
 
 import config
 from database import SessionLocal, Trade, BollSnapshot, BollState, BollTrade
@@ -390,7 +390,7 @@ def bollinger_manual_sell(req: ManualBollingerSellRequest):
         if qty_adj <= 0:
             raise HTTPException(
                 status_code=400,
-                detail="Quantity too small after Binance LOT_SIZE filter",
+                detail="Quantity too small after exchange LOT_SIZE filter",
             )
 
         # estimate quote received using current price
@@ -435,9 +435,8 @@ def bollinger_manual_sell(req: ManualBollingerSellRequest):
     except HTTPException:
         # propagate intentional errors
         raise
-    except BinanceAPIException as e:
-        # explicit Binance error path (for real runtime)
-        raise HTTPException(status_code=400, detail=f"Binance error: {e.message}")
+    except ExchangeError as e:
+        raise HTTPException(status_code=400, detail=f"Exchange error: {e}")
     except Exception as e:
         # catch-all for anything unexpected
         raise HTTPException(status_code=500, detail=str(e))
@@ -456,22 +455,32 @@ def list_symbols():
     Returns a flat list of symbols that have one of the allowed quote assets.
     Uses the Bollinger client so you see what that account can trade.
     """
-    info = config.boll_client.get_exchange_info()
-    allowed_quotes = {"USDT", "USDC", "BTC", "BNB"}
-    out = []
-    for s in info["symbols"]:
-        if s.get("status") != "TRADING":
-            continue
-        if s.get("quoteAsset") not in allowed_quotes:
-            continue
-        out.append(
-            {
-                "symbol": s["symbol"],
-                "baseAsset": s["baseAsset"],
-                "quoteAsset": s["quoteAsset"],
-            }
-        )
-    return out
+    try:
+        if not config.boll_client:
+            raise HTTPException(status_code=503, detail="Exchange client unavailable")
+
+        info = config.boll_client.get_exchange_info()
+        allowed_quotes = {"USDT", "USDC", "BTC", "BNB"}
+        out = []
+        for s in info["symbols"]:
+            if s.get("status") != "TRADING":
+                continue
+            if s.get("quoteAsset") not in allowed_quotes:
+                continue
+            out.append(
+                {
+                    "symbol": s["symbol"],
+                    "baseAsset": s["baseAsset"],
+                    "quoteAsset": s["quoteAsset"],
+                }
+            )
+        return out
+    except HTTPException:
+        raise
+    except ExchangeError as e:
+        raise HTTPException(status_code=400, detail=f"Exchange error: {e}")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.get("/symbols_grouped")
@@ -486,22 +495,32 @@ def list_symbols_grouped():
         "BNB":  [ ... ]
       }
     """
-    info = config.boll_client.get_exchange_info()
-    allowed_quotes = ["USDT", "USDC", "BTC", "BNB"]
+    try:
+        if not config.boll_client:
+            raise HTTPException(status_code=503, detail="Exchange client unavailable")
 
-    grouped = {q: [] for q in allowed_quotes}
-    for s in info["symbols"]:
-        if s.get("status") != "TRADING":
-            continue
-        qa = s.get("quoteAsset")
-        if qa not in grouped:
-            continue
-        grouped[qa].append(
-            {
-                "symbol": s["symbol"],
-                "baseAsset": s["baseAsset"],
-                "quoteAsset": qa,
-            }
-        )
+        info = config.boll_client.get_exchange_info()
+        allowed_quotes = ["USDT", "USDC", "BTC", "BNB"]
 
-    return grouped
+        grouped = {q: [] for q in allowed_quotes}
+        for s in info["symbols"]:
+            if s.get("status") != "TRADING":
+                continue
+            qa = s.get("quoteAsset")
+            if qa not in grouped:
+                continue
+            grouped[qa].append(
+                {
+                    "symbol": s["symbol"],
+                    "baseAsset": s["baseAsset"],
+                    "quoteAsset": qa,
+                }
+            )
+
+        return grouped
+    except HTTPException:
+        raise
+    except ExchangeError as e:
+        raise HTTPException(status_code=400, detail=f"Exchange error: {e}")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
