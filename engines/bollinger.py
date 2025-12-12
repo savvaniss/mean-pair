@@ -4,12 +4,12 @@ import time
 from datetime import datetime
 from typing import List, Optional, Tuple
 
-from binance.exceptions import BinanceAPIException
 from pydantic import BaseModel
 
 import config
 from database import SessionLocal, BollState, BollTrade, BollSnapshot
 from engines.common import clamp_to_step, compute_ma_std_window
+from services.exchange import ExchangeError
 
 # Bollinger in-memory history
 boll_ts_history: List[datetime] = []
@@ -108,8 +108,8 @@ def place_market_order_boll(symbol: str, side: str, quantity: float):
             type="MARKET",
             quantity=quantity,
         )
-    except BinanceAPIException as e:
-        print(f"[BOLL] Binance error: {e}")
+    except ExchangeError as e:
+        print(f"[BOLL] Exchange error: {e}")
         return None
 
 
