@@ -1000,10 +1000,16 @@
               </div>
               <div>
                 <label for="tradingQty" class="label-with-tip">
-                  Qty (base)
-                  <span class="tooltip-icon" title="Base-asset quantity to send with the manual order.">?</span>
+                  Qty
+                  <span class="tooltip-icon" title="Enter a base quantity or switch to quote to buy by notional.">?</span>
                 </label>
-                <input id="tradingQty" type="number" min="0" step="0.0001" />
+                <div class="split-input">
+                  <input id="tradingQty" type="number" min="0" step="0.0001" />
+                  <select id="tradingQtyMode">
+                    <option value="base">Base</option>
+                    <option value="quote">Quote</option>
+                  </select>
+                </div>
               </div>
             </div>
             <button type="submit" class="btn btn-primary">Execute</button>
