@@ -3,6 +3,7 @@ import { applyQuoteLabels, openOverlay, closeOverlay, showToast } from './ui.js'
 let botConfig = null;
 let priceChart = null;
 let ratioChart = null;
+let mrSocket = null;
 let lastMeanRatio = null;
 let lastStdRatio = null;
 let lastPriceA = null;
@@ -300,40 +301,47 @@ async function fetchStatus() {
   try {
     const r = await fetch('/status');
     const data = await r.json();
+    applyStatus(data);
+  } catch (e) {
+    console.error(e);
+    document.getElementById('status').innerText = 'Error loading status';
+  }
+}
 
-    lastMeanRatio = data.mean_ratio;
-    lastStdRatio = data.std_ratio;
+function applyStatus(data) {
+  lastMeanRatio = data.mean_ratio;
+  lastStdRatio = data.std_ratio;
 
-    const priceADirection = getDirectionClass(data.price_a, lastPriceA);
-    const priceBDirection = getDirectionClass(data.price_b, lastPriceB);
-    const ratioDirection = getDirectionClass(data.ratio, lastRatio);
+  const priceADirection = getDirectionClass(data.price_a, lastPriceA);
+  const priceBDirection = getDirectionClass(data.price_b, lastPriceB);
+  const ratioDirection = getDirectionClass(data.ratio, lastRatio);
 
-    currentPair = { asset_a: data.asset_a, asset_b: data.asset_b };
-    if (botConfig && botConfig.available_pairs) {
-      updatePairControls(botConfig.available_pairs, [data.asset_a, data.asset_b]);
-    }
+  currentPair = { asset_a: data.asset_a, asset_b: data.asset_b };
+  if (botConfig && botConfig.available_pairs) {
+    updatePairControls(botConfig.available_pairs, [data.asset_a, data.asset_b]);
+  }
 
-    currentQuote = data.use_testnet ? 'USDT' : 'USDC';
-    applyQuoteLabels(currentQuote);
+  currentQuote = data.use_testnet ? 'USDT' : 'USDC';
+  applyQuoteLabels(currentQuote);
 
-    latestStatus = {
-      base_balance: data.base_balance,
-      asset_a_balance: data.asset_a_balance,
-      asset_b_balance: data.asset_b_balance,
-      price_a: data.price_a,
-      price_b: data.price_b,
-    };
+  latestStatus = {
+    base_balance: data.base_balance,
+    asset_a_balance: data.asset_a_balance,
+    asset_b_balance: data.asset_b_balance,
+    price_a: data.price_a,
+    price_b: data.price_b,
+  };
 
-    updateManualTradeForm();
+  updateManualTradeForm();
 
-    const envChip = `<span class="chip chip-primary">${data.use_testnet ? 'TESTNET' : 'MAINNET'}</span>`;
-    const botChip = `<span class="chip ${data.enabled ? 'chip-primary' : 'chip-muted'}">MR Bot: ${
-      data.enabled ? 'RUNNING' : 'STOPPED'
-    }</span>`;
+  const envChip = `<span class="chip chip-primary">${data.use_testnet ? 'TESTNET' : 'MAINNET'}</span>`;
+  const botChip = `<span class="chip ${data.enabled ? 'chip-primary' : 'chip-muted'}">MR Bot: ${
+    data.enabled ? 'RUNNING' : 'STOPPED'
+  }</span>`;
 
-    const pairLabel = `${data.asset_a}/${data.asset_b}`;
+  const pairLabel = `${data.asset_a}/${data.asset_b}`;
 
-    document.getElementById('status').innerHTML = `
+  document.getElementById('status').innerHTML = `
       <div class="status-chip-row">
         ${envChip}
         ${botChip}
@@ -392,19 +400,15 @@ async function fetchStatus() {
       </div>
     `;
 
-    if (priceChart) {
-      priceChart.data.datasets[0].label = data.asset_a + currentQuote;
-      priceChart.data.datasets[1].label = data.asset_b + currentQuote;
-      priceChart.update();
-    }
-
-    lastPriceA = data.price_a ?? lastPriceA;
-    lastPriceB = data.price_b ?? lastPriceB;
-    lastRatio = data.ratio ?? lastRatio;
-  } catch (e) {
-    console.error(e);
-    document.getElementById('status').innerText = 'Error loading status';
+  if (priceChart) {
+    priceChart.data.datasets[0].label = data.asset_a + currentQuote;
+    priceChart.data.datasets[1].label = data.asset_b + currentQuote;
+    priceChart.update();
   }
+
+  lastPriceA = data.price_a ?? lastPriceA;
+  lastPriceB = data.price_b ?? lastPriceB;
+  lastRatio = data.ratio ?? lastRatio;
 }
 
 async function fetchConfig() {
@@ -750,6 +754,57 @@ async function fetchHistory() {
   }
 }
 
+function applySnapshot(snapshot) {
+  if (!snapshot || !priceChart || !ratioChart) return;
+
+  const label = new Date(snapshot.ts).toLocaleTimeString();
+  const maxPoints = 300;
+  const trimPush = (arr, val) => {
+    arr.push(val);
+    if (arr.length > maxPoints) arr.shift();
+  };
+
+  trimPush(priceChart.data.labels, label);
+  trimPush(priceChart.data.datasets[0].data, snapshot.price_a);
+  trimPush(priceChart.data.datasets[1].data, snapshot.price_b);
+
+  const std = lastStdRatio || 0;
+  let upperEntry = null,
+    lowerEntry = null,
+    upperExit = null,
+    lowerExit = null,
+    sellBand = null,
+    buyBand = null;
+
+  if (botConfig && lastMeanRatio !== null && std > 0) {
+    upperEntry = lastMeanRatio + botConfig.z_entry * std;
+    lowerEntry = lastMeanRatio - botConfig.z_entry * std;
+
+    if (botConfig.z_exit && botConfig.z_exit > 0) {
+      upperExit = lastMeanRatio + botConfig.z_exit * std;
+      lowerExit = lastMeanRatio - botConfig.z_exit * std;
+    }
+
+    if (botConfig.use_ratio_thresholds) {
+      sellBand = botConfig.sell_ratio_threshold || null;
+      buyBand = botConfig.buy_ratio_threshold || null;
+    }
+  }
+
+  const ratioData = ratioChart.data.datasets;
+  trimPush(ratioChart.data.labels, label);
+  trimPush(ratioData[0].data, snapshot.ratio);
+  trimPush(ratioData[1].data, upperEntry);
+  trimPush(ratioData[2].data, lowerEntry);
+  trimPush(ratioData[3].data, upperExit !== null ? upperExit : null);
+  trimPush(ratioData[4].data, lowerExit !== null ? lowerExit : null);
+  trimPush(ratioData[5].data, sellBand);
+  trimPush(ratioData[6].data, buyBand);
+
+  priceChart.update('none');
+  ratioChart.update('none');
+}
+
 export async function refreshMeanReversion() {
   await fetchStatus();
   await fetchConfig();
@@ -781,8 +836,32 @@ export function initMeanReversion() {
   if (nextClose) nextClose.addEventListener('click', () => closeOverlay('nextModalOverlay'));
   if (nextCloseFooter) nextCloseFooter.addEventListener('click', () => closeOverlay('nextModalOverlay'));
   if (nextRecalc) nextRecalc.addEventListener('click', fetchNextSignal);
+
+  connectMeanWebsocket();
 }
 
 export function getCurrentQuote() {
   return currentQuote;
+}
+
+function connectMeanWebsocket() {
+  if (mrSocket) return;
+  const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+  const wsUrl = `${protocol}//${window.location.host}/ws/mean_reversion`;
+  mrSocket = new WebSocket(wsUrl);
+
+  mrSocket.onmessage = (event) => {
+    try {
+      const payload = JSON.parse(event.data);
+      if (payload.status) applyStatus(payload.status);
+      if (payload.snapshot) applySnapshot(payload.snapshot);
+    } catch (err) {
+      console.error('Failed to handle websocket update', err);
+    }
+  };
+
+  mrSocket.onclose = () => {
+    mrSocket = null;
+    setTimeout(connectMeanWebsocket, 2000);
+  };
 }

@@ -69,6 +69,7 @@ def test_trading_tab_and_form_present():
     assert form.find("input", id="tradingSymbol") is not None
     assert form.find("select", id="tradingSide") is not None
     assert form.find("input", id="tradingQty") is not None
+    assert form.find("select", id="tradingQtyMode") is not None
 
 
 def test_toast_container_is_available():
