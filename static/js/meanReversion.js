@@ -11,9 +11,11 @@ let lastRatio = null;
 let currentQuote = 'USDT';
 let currentPair = { asset_a: 'HBAR', asset_b: 'DOGE' };
 let latestStatus = null;
+let mrConfigLoaded = false;
 
 function applyConfigToForm(cfg) {
   botConfig = cfg;
+  mrConfigLoaded = true;
 
   document.getElementById('poll_interval_sec').value = cfg.poll_interval_sec;
   document.getElementById('window_size').value = cfg.window_size;
@@ -107,6 +109,11 @@ function renderPricePill(value, direction) {
 
 function updatePairControls(pairs, selected) {
   const select = document.getElementById('pair_select');
+  if (!select) return;
+
+  const isUserEditingPair = document.activeElement === select;
+  if (isUserEditingPair) return;
+
   select.innerHTML = '';
 
   pairs.forEach(([a, b]) => {
@@ -296,111 +303,118 @@ async function syncState() {
   }
 }
 
+function updateStatusFromData(data) {
+  if (!data) return;
+
+  lastMeanRatio = data.mean_ratio;
+  lastStdRatio = data.std_ratio;
+
+  const priceADirection = getDirectionClass(data.price_a, lastPriceA);
+  const priceBDirection = getDirectionClass(data.price_b, lastPriceB);
+  const ratioDirection = getDirectionClass(data.ratio, lastRatio);
+
+  currentPair = { asset_a: data.asset_a, asset_b: data.asset_b };
+  const pairSelect = document.getElementById('pair_select');
+  const editingPair = pairSelect && document.activeElement === pairSelect;
+  if (botConfig && botConfig.available_pairs && !editingPair) {
+    updatePairControls(botConfig.available_pairs, [data.asset_a, data.asset_b]);
+  }
+
+  currentQuote = data.use_testnet ? 'USDT' : 'USDC';
+  applyQuoteLabels(currentQuote);
+
+  latestStatus = {
+    base_balance: data.base_balance,
+    asset_a_balance: data.asset_a_balance,
+    asset_b_balance: data.asset_b_balance,
+    price_a: data.price_a,
+    price_b: data.price_b,
+  };
+
+  updateManualTradeForm();
+
+  const envChip = `<span class="chip chip-primary">${data.use_testnet ? 'TESTNET' : 'MAINNET'}</span>`;
+  const botChip = `<span class="chip ${data.enabled ? 'chip-primary' : 'chip-muted'}">MR Bot: ${
+    data.enabled ? 'RUNNING' : 'STOPPED'
+  }</span>`;
+
+  const pairLabel = `${data.asset_a}/${data.asset_b}`;
+
+  document.getElementById('status').innerHTML = `
+    <div class="status-chip-row">
+      ${envChip}
+      ${botChip}
+      <span class="chip">Pair: ${pairLabel}</span>
+    </div>
+
+    <div class="metric-grid">
+      <div class="metric-group">
+        <div class="metric-label">BTC${currentQuote}</div>
+        <div class="metric-value">${data.btc.toFixed(2)}</div>
+      </div>
+      <div class="metric-group">
+        <div class="metric-label">${data.asset_a}${currentQuote}</div>
+        <div class="metric-value">${renderPricePill(data.price_a.toFixed(4), priceADirection)}</div>
+      </div>
+      <div class="metric-group">
+        <div class="metric-label">${data.asset_b}${currentQuote}</div>
+        <div class="metric-value">${renderPricePill(data.price_b.toFixed(4), priceBDirection)}</div>
+      </div>
+
+      <div class="metric-group">
+        <div class="metric-label">Ratio (${data.asset_a}/${data.asset_b})</div>
+        <div class="metric-value">${renderPricePill(data.ratio.toFixed(6), ratioDirection)}</div>
+      </div>
+      <div class="metric-group">
+        <div class="metric-label">Mean ratio</div>
+        <div class="metric-value">${data.mean_ratio.toFixed(6)}</div>
+      </div>
+      <div class="metric-group">
+        <div class="metric-label">Std dev</div>
+        <div class="metric-value">${data.std_ratio.toFixed(6)}</div>
+      </div>
+
+      <div class="metric-group">
+        <div class="metric-label">z-score</div>
+        <div class="metric-value">${data.zscore.toFixed(2)}</div>
+      </div>
+      <div class="metric-group">
+        <div class="metric-label">Current asset</div>
+        <div class="metric-value">${data.current_asset}</div>
+      </div>
+      <div class="metric-group">
+        <div class="metric-label">Current qty</div>
+        <div class="metric-value">${data.current_qty.toFixed(4)}</div>
+      </div>
+    </div>
+
+    <div class="status-line">
+      <b>PnL (realized):</b> ${data.realized_pnl_usd.toFixed(2)} ${currentQuote} |
+      <b>PnL (unrealized):</b> ${data.unrealized_pnl_usd.toFixed(2)} ${currentQuote}
+    </div>
+    <div class="status-line">
+      <b>Balances:</b> ${currentQuote}: ${data.base_balance.toFixed(2)} |
+      ${data.asset_a}: ${data.asset_a_balance.toFixed(2)} |
+      ${data.asset_b}: ${data.asset_b_balance.toFixed(2)}
+    </div>
+  `;
+
+  if (priceChart) {
+    priceChart.data.datasets[0].label = data.asset_a + currentQuote;
+    priceChart.data.datasets[1].label = data.asset_b + currentQuote;
+    priceChart.update();
+  }
+
+  lastPriceA = data.price_a ?? lastPriceA;
+  lastPriceB = data.price_b ?? lastPriceB;
+  lastRatio = data.ratio ?? lastRatio;
+}
+
 async function fetchStatus() {
   try {
     const r = await fetch('/status');
     const data = await r.json();
-
-    lastMeanRatio = data.mean_ratio;
-    lastStdRatio = data.std_ratio;
-
-    const priceADirection = getDirectionClass(data.price_a, lastPriceA);
-    const priceBDirection = getDirectionClass(data.price_b, lastPriceB);
-    const ratioDirection = getDirectionClass(data.ratio, lastRatio);
-
-    currentPair = { asset_a: data.asset_a, asset_b: data.asset_b };
-    if (botConfig && botConfig.available_pairs) {
-      updatePairControls(botConfig.available_pairs, [data.asset_a, data.asset_b]);
-    }
-
-    currentQuote = data.use_testnet ? 'USDT' : 'USDC';
-    applyQuoteLabels(currentQuote);
-
-    latestStatus = {
-      base_balance: data.base_balance,
-      asset_a_balance: data.asset_a_balance,
-      asset_b_balance: data.asset_b_balance,
-      price_a: data.price_a,
-      price_b: data.price_b,
-    };
-
-    updateManualTradeForm();
-
-    const envChip = `<span class="chip chip-primary">${data.use_testnet ? 'TESTNET' : 'MAINNET'}</span>`;
-    const botChip = `<span class="chip ${data.enabled ? 'chip-primary' : 'chip-muted'}">MR Bot: ${
-      data.enabled ? 'RUNNING' : 'STOPPED'
-    }</span>`;
-
-    const pairLabel = `${data.asset_a}/${data.asset_b}`;
-
-    document.getElementById('status').innerHTML = `
-      <div class="status-chip-row">
-        ${envChip}
-        ${botChip}
-        <span class="chip">Pair: ${pairLabel}</span>
-      </div>
-
-      <div class="metric-grid">
-        <div class="metric-group">
-          <div class="metric-label">BTC${currentQuote}</div>
-          <div class="metric-value">${data.btc.toFixed(2)}</div>
-        </div>
-        <div class="metric-group">
-          <div class="metric-label">${data.asset_a}${currentQuote}</div>
-          <div class="metric-value">${renderPricePill(data.price_a.toFixed(4), priceADirection)}</div>
-        </div>
-        <div class="metric-group">
-          <div class="metric-label">${data.asset_b}${currentQuote}</div>
-          <div class="metric-value">${renderPricePill(data.price_b.toFixed(4), priceBDirection)}</div>
-        </div>
-
-        <div class="metric-group">
-          <div class="metric-label">Ratio (${data.asset_a}/${data.asset_b})</div>
-          <div class="metric-value">${renderPricePill(data.ratio.toFixed(6), ratioDirection)}</div>
-        </div>
-        <div class="metric-group">
-          <div class="metric-label">Mean ratio</div>
-          <div class="metric-value">${data.mean_ratio.toFixed(6)}</div>
-        </div>
-        <div class="metric-group">
-          <div class="metric-label">Std dev</div>
-          <div class="metric-value">${data.std_ratio.toFixed(6)}</div>
-        </div>
-
-        <div class="metric-group">
-          <div class="metric-label">z-score</div>
-          <div class="metric-value">${data.zscore.toFixed(2)}</div>
-        </div>
-        <div class="metric-group">
-          <div class="metric-label">Current asset</div>
-          <div class="metric-value">${data.current_asset}</div>
-        </div>
-        <div class="metric-group">
-          <div class="metric-label">Current qty</div>
-          <div class="metric-value">${data.current_qty.toFixed(4)}</div>
-        </div>
-      </div>
-
-      <div class="status-line">
-        <b>PnL (realized):</b> ${data.realized_pnl_usd.toFixed(2)} ${currentQuote} |
-        <b>PnL (unrealized):</b> ${data.unrealized_pnl_usd.toFixed(2)} ${currentQuote}
-      </div>
-      <div class="status-line">
-        <b>Balances:</b> ${currentQuote}: ${data.base_balance.toFixed(2)} |
-        ${data.asset_a}: ${data.asset_a_balance.toFixed(2)} |
-        ${data.asset_b}: ${data.asset_b_balance.toFixed(2)}
-      </div>
-    `;
-
-    if (priceChart) {
-      priceChart.data.datasets[0].label = data.asset_a + currentQuote;
-      priceChart.data.datasets[1].label = data.asset_b + currentQuote;
-      priceChart.update();
-    }
-
-    lastPriceA = data.price_a ?? lastPriceA;
-    lastPriceB = data.price_b ?? lastPriceB;
-    lastRatio = data.ratio ?? lastRatio;
+    updateStatusFromData(data);
   } catch (e) {
     console.error(e);
     document.getElementById('status').innerText = 'Error loading status';
@@ -481,10 +495,9 @@ async function stopBot() {
   fetchNextSignal();
 }
 
-async function fetchTrades() {
-  const r = await fetch('/trades?limit=100');
-  const data = await r.json();
+function updateTradesFromData(data) {
   const tbody = document.getElementById('tradesBody');
+  if (!tbody) return;
   tbody.innerHTML = '';
   data.forEach((t) => {
     const tr = document.createElement('tr');
@@ -501,6 +514,12 @@ async function fetchTrades() {
     `;
     tbody.appendChild(tr);
   });
+}
+
+async function fetchTrades() {
+  const r = await fetch('/trades?limit=100');
+  const data = await r.json();
+  updateTradesFromData(data);
 }
 
 async function fetchNextSignal() {
@@ -564,10 +583,8 @@ async function fetchNextSignal() {
   }
 }
 
-async function fetchHistory() {
-  const r = await fetch('/history?limit=300');
-  const data = await r.json();
-  if (data.length === 0) return;
+function updateHistoryFromData(data) {
+  if (!Array.isArray(data) || data.length === 0) return;
 
   const labels = data.map((d) => new Date(d.ts).toLocaleTimeString());
   const priceA = data.map((d) => d.price_a);
@@ -579,7 +596,7 @@ async function fetchHistory() {
     priceChart = new Chart(ctx1, {
       type: 'line',
       data: {
-        labels: labels,
+        labels,
         datasets: [
           {
             label: currentPair.asset_a + currentQuote,
@@ -618,7 +635,9 @@ async function fetchHistory() {
   let upperEntry = null,
     lowerEntry = null,
     upperExit = null,
-    lowerExit = null;
+    lowerExit = null,
+    sellThreshold = null,
+    buyThreshold = null;
 
   if (botConfig && lastMeanRatio !== null) {
     const std = lastStdRatio || 0;
@@ -632,13 +651,19 @@ async function fetchHistory() {
         lowerExit = lastMeanRatio - botConfig.z_exit * std;
       }
     }
+
+    if (botConfig.use_ratio_thresholds) {
+      sellThreshold = botConfig.sell_ratio_threshold;
+      buyThreshold = botConfig.buy_ratio_threshold;
+    }
   }
 
-  const upperEntryArr = ratio.map(() => upperEntry);
-  const lowerEntryArr = ratio.map(() => lowerEntry);
-
+  const upperEntryArr = ratio.map(() => (upperEntry !== null ? upperEntry : null));
+  const lowerEntryArr = ratio.map(() => (lowerEntry !== null ? lowerEntry : null));
   const upperExitArr = ratio.map(() => (upperExit !== null ? upperExit : null));
   const lowerExitArr = ratio.map(() => (lowerExit !== null ? lowerExit : null));
+  const sellArr = ratio.map(() => (sellThreshold ? sellThreshold : null));
+  const buyArr = ratio.map(() => (buyThreshold ? buyThreshold : null));
 
   let info = '';
   if (upperEntry !== null && lowerEntry !== null) {
@@ -647,19 +672,8 @@ async function fetchHistory() {
   if (upperExit !== null && lowerExit !== null) {
     info += `Z-exit bands → Upper: ${upperExit.toFixed(6)} | Lower: ${lowerExit.toFixed(6)}. `;
   }
-
-  let sellArr = ratio.map(() => null);
-  let buyArr = ratio.map(() => null);
-  if (botConfig && botConfig.use_ratio_thresholds) {
-    if (botConfig.sell_ratio_threshold > 0) {
-      sellArr = ratio.map(() => botConfig.sell_ratio_threshold);
-      info += `Sell threshold: ${botConfig.sell_ratio_threshold.toFixed(6)}. `;
-    }
-    if (botConfig.buy_ratio_threshold > 0) {
-      buyArr = ratio.map(() => botConfig.buy_ratio_threshold);
-      info += `Buy threshold: ${botConfig.buy_ratio_threshold.toFixed(6)}.`;
-    }
-  }
+  if (sellThreshold) info += `Sell threshold: ${sellThreshold.toFixed(6)}. `;
+  if (buyThreshold) info += `Buy threshold: ${buyThreshold.toFixed(6)}.`;
 
   document.getElementById('bandInfo').textContent =
     info || 'Bands/thresholds not available yet (need some history or config).';
@@ -669,17 +683,17 @@ async function fetchHistory() {
     ratioChart = new Chart(ctx2, {
       type: 'line',
       data: {
-        labels: labels,
+        labels,
         datasets: [
           {
-            label: 'Ratio HBAR/DOGE',
+            label: `Ratio ${currentPair.asset_a}/${currentPair.asset_b}`,
             data: ratio,
             borderWidth: 2,
             fill: false,
             borderColor: '#4bc0c0',
           },
           {
-            label: 'Upper z-band (sell HBAR)',
+            label: 'Upper z-band (sell base)',
             data: upperEntryArr,
             borderWidth: 1,
             borderColor: '#90caf9',
@@ -687,7 +701,7 @@ async function fetchHistory() {
             fill: false,
           },
           {
-            label: 'Lower z-band (buy HBAR)',
+            label: 'Lower z-band (buy base)',
             data: lowerEntryArr,
             borderWidth: 1,
             borderColor: '#26c6da',
@@ -695,7 +709,7 @@ async function fetchHistory() {
             fill: false,
           },
           {
-            label: 'Upper z-exit (take profit HBAR→DOGE)',
+            label: 'Upper z-exit',
             data: upperExitArr,
             borderWidth: 1,
             borderColor: '#ffb300',
@@ -703,7 +717,7 @@ async function fetchHistory() {
             fill: false,
           },
           {
-            label: 'Lower z-exit (take profit DOGE→HBAR)',
+            label: 'Lower z-exit',
             data: lowerExitArr,
             borderWidth: 1,
             borderColor: '#ffb300',
@@ -746,17 +760,32 @@ async function fetchHistory() {
     ratioChart.data.datasets[4].data = lowerExitArr;
     ratioChart.data.datasets[5].data = sellArr;
     ratioChart.data.datasets[6].data = buyArr;
+    ratioChart.data.datasets[0].label = `Ratio ${currentPair.asset_a}/${currentPair.asset_b}`;
     ratioChart.update();
   }
 }
 
+async function fetchHistory() {
+  const r = await fetch('/history?limit=300');
+  const data = await r.json();
+  updateHistoryFromData(data);
+}
+
 export async function refreshMeanReversion() {
   await fetchStatus();
-  await fetchConfig();
+  if (!mrConfigLoaded) {
+    await fetchConfig();
+  }
   await fetchTrades();
   await fetchHistory();
   await fetchPairHealth();
   await fetchNextSignal().catch(() => {});
+}
+
+export function handleMeanReversionStream(snapshot) {
+  if (snapshot.status) updateStatusFromData(snapshot.status);
+  if (snapshot.history) updateHistoryFromData(snapshot.history);
+  if (snapshot.trades) updateTradesFromData(snapshot.trades);
 }
 
 export function initMeanReversion() {

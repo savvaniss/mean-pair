@@ -24,6 +24,7 @@ from routes import listings as listings_routes
 from routes import freqtrade_algos as ft_routes
 from routes import backtesting as backtest_routes
 from routes import amplification as amp_routes
+from routes import streaming as streaming_routes
 
 CURRENT_USER_OPTIONAL = auth.get_current_user_optional
 
@@ -51,6 +52,7 @@ app.include_router(ft_routes.router, dependencies=[auth_required])
 app.include_router(backtest_routes.router, dependencies=[auth_required])
 app.include_router(amp_routes.router, dependencies=[auth_required])
 app.include_router(auth.router)
+app.include_router(streaming_routes.router)
 
 
 # =========================
