@@ -1,5 +1,5 @@
 from datetime import datetime
-import math
+from decimal import Decimal, ROUND_DOWN, InvalidOperation
 from typing import List
 
 from fastapi import APIRouter, HTTPException
@@ -55,9 +55,11 @@ def _client_for_account(account: str, use_testnet: bool):
 
 
 def _adjust_quantity(info: dict, qty: float, *, client=None, symbol: str | None = None) -> float:
-    if client and symbol:
+    symbol_for_precision = info.get("symbol") or symbol
+
+    if client and symbol_for_precision:
         try:
-            qty = client.amount_to_precision(symbol, qty)
+            qty = float(client.amount_to_precision(symbol_for_precision, qty))
         except Exception:
             pass
 
@@ -72,18 +74,34 @@ def _adjust_quantity(info: dict, qty: float, *, client=None, symbol: str | None 
     if not lot:
         return qty
 
-    step = float(lot.get("stepSize", 0)) or float(lot.get("step_size", 0) or 0)
-    min_qty = float(lot.get("minQty", 0) or lot.get("min_qty", 0) or 0)
-    max_qty = float(lot.get("maxQty", 0) or lot.get("max_qty", 0) or 0)
+    step = lot.get("stepSize") or lot.get("step_size") or 0
+    min_qty = lot.get("minQty") or lot.get("min_qty") or 0
+    max_qty = lot.get("maxQty") or lot.get("max_qty") or 0
 
-    if step <= 0:
-        adjusted = qty
+    try:
+        step_dec = Decimal(str(step))
+        qty_dec = Decimal(str(qty))
+        min_dec = Decimal(str(min_qty))
+        max_dec = Decimal(str(max_qty)) if float(max_qty) > 0 else None
+    except InvalidOperation:
+        return float(qty)
+
+    if step_dec <= 0:
+        adjusted = qty_dec
     else:
-        adjusted = math.floor(qty / step) * step
-    if adjusted < min_qty:
+        adjusted = (qty_dec / step_dec).to_integral_value(rounding=ROUND_DOWN) * step_dec
+
+    if adjusted < min_dec:
         return 0.0
-    if max_qty > 0:
-        adjusted = min(adjusted, max_qty)
+    if max_dec is not None and adjusted > max_dec:
+        adjusted = max_dec
+
+    if client and symbol_for_precision:
+        try:
+            adjusted = Decimal(str(client.amount_to_precision(symbol_for_precision, float(adjusted))))
+        except Exception:
+            pass
+
     return float(adjusted)
 
 

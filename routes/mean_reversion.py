@@ -15,6 +15,7 @@ from database import SessionLocal, PriceSnapshot, Trade, State
 import engines.mean_reversion as mr
 
 router = APIRouter()
+ws_router = APIRouter()
 
 
 # ============================================================
@@ -114,7 +115,7 @@ def get_status():
         session.close()
 
 
-@router.websocket("/ws/mean_reversion")
+@ws_router.websocket("/ws/mean_reversion")
 async def ws_mean_reversion(websocket: WebSocket):
     await websocket.accept()
     try:
