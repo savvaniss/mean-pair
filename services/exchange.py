@@ -97,25 +97,41 @@ class ExchangeClient:
         )
         if not market:
             raise ExchangeError(f"Unknown symbol {symbol}")
+
         limits = market.get("limits", {})
         precision = market.get("precision", {})
         lot_size = limits.get("amount", {})
         price_limits = limits.get("price", {})
-        step = lot_size.get("step")
-        if step is None and "amount" in precision:
-            step = 10 ** (-precision.get("amount", 0))
+        raw_filters = market.get("info", {}).get("filters") or []
+
+        # Prefer native exchange filters when they exist so MARKET_LOT_SIZE and
+        # MIN_NOTIONAL values align with Binance expectations.
         filters = [
-            {
-                "filterType": "LOT_SIZE",
-                "stepSize": str(step or 0),
-                "minQty": str(lot_size.get("min", 0)),
-                "maxQty": str(lot_size.get("max", 0) or 0),
-            },
-            {
-                "filterType": "MIN_NOTIONAL",
-                "minNotional": str((lot_size.get("min", 0) or 0) * (price_limits.get("min", 0) or 0)),
-            },
+            f
+            for f in raw_filters
+            if f.get("filterType") in {"LOT_SIZE", "MARKET_LOT_SIZE", "MIN_NOTIONAL"}
         ]
+
+        # Provide a reasonable fallback derived from ccxt market metadata.
+        if not filters:
+            step = lot_size.get("step")
+            if step is None and "amount" in precision:
+                step = 10 ** (-precision.get("amount", 0))
+            filters = [
+                {
+                    "filterType": "LOT_SIZE",
+                    "stepSize": str(step or 0),
+                    "minQty": str(lot_size.get("min", 0)),
+                    "maxQty": str(lot_size.get("max", 0) or 0),
+                },
+                {
+                    "filterType": "MIN_NOTIONAL",
+                    "minNotional": str(
+                        (lot_size.get("min", 0) or 0) * (price_limits.get("min", 0) or 0)
+                    ),
+                },
+            ]
+
         return {
             "symbol": symbol,
             "baseAsset": market.get("base"),
