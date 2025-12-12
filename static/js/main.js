@@ -1,5 +1,5 @@
 import { closeOverlay, initCollapsibles, initTabs, openOverlay } from './ui.js';
-import { initMeanReversion, refreshMeanReversion } from './meanReversion.js';
+import { handleMeanReversionStream, initMeanReversion, refreshMeanReversion } from './meanReversion.js';
 import { initBollinger, refreshBollinger } from './bollinger.js';
 import { initTrendFollowing, refreshTrendFollowing } from './trendFollowing.js';
 import { initRelativeStrength, refreshRelativeStrength } from './relativeStrength.js';
@@ -9,6 +9,9 @@ import { initListings, refreshListings } from './listings.js';
 import { initFreqtradeAdapters, refreshFreqtradeAdapters } from './freqtrade.js';
 import { initBacktesting, refreshBacktesting } from './backtesting.js';
 import { initAmplification, refreshAmplification } from './amplification.js';
+import { startDashboardStream } from './streaming.js';
+
+let lastMeanReversionStreamTs = 0;
 
 async function bootstrap() {
   const authenticated = await initAuthDisplay();
@@ -39,8 +42,17 @@ async function bootstrap() {
   await safeRefresh('freqtrade adapters', refreshFreqtradeAdapters);
   await safeRefresh('backtesting', refreshBacktesting);
 
+  startDashboardStream((payload) => {
+    if (payload.mean_reversion) {
+      lastMeanReversionStreamTs = Date.now();
+      handleMeanReversionStream(payload.mean_reversion);
+    }
+  });
+
   setInterval(async () => {
-    await safeRefresh('mean reversion', refreshMeanReversion);
+    if (Date.now() - lastMeanReversionStreamTs > 15000) {
+      await safeRefresh('mean reversion (fallback)', refreshMeanReversion);
+    }
     await safeRefresh('bollinger', refreshBollinger);
     await safeRefresh('trend', refreshTrendFollowing);
     await safeRefresh('relative strength', refreshRelativeStrength);
