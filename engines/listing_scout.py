@@ -6,7 +6,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Dict, List, Optional, Set, Tuple
 
-from binance.exceptions import BinanceAPIException
+from services.exchange import ExchangeError
 
 import config
 from database import SessionLocal, Trade
@@ -82,7 +82,7 @@ def _resolve_symbol(client, base: str, fallback_pair: str | None, preferred_quot
             info = client.get_symbol_info(symbol)
             if info:
                 return symbol, info
-        except BinanceAPIException:
+        except ExchangeError:
             continue
         except Exception:
             continue
