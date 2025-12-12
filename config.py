@@ -3,7 +3,8 @@ import os
 from typing import Optional
 
 from dotenv import load_dotenv
-from binance.client import Client
+
+from services.exchange import ExchangeClient
 
 load_dotenv()
 
@@ -56,11 +57,15 @@ MR_USE_TESTNET: bool = DEFAULT_ENV == "testnet"
 BOLL_USE_TESTNET: bool = DEFAULT_ENV == "testnet"
 
 # Global clients (will be initialised below)
-mr_client: Optional[Client] = None
-boll_client: Optional[Client] = None
+mr_client: Optional[ExchangeClient] = None
+boll_client: Optional[ExchangeClient] = None
 
 
-def create_mr_client(use_testnet: bool) -> Optional[Client]:
+def _build_client(api_key: str, api_secret: str, use_testnet: bool) -> ExchangeClient:
+    return ExchangeClient(api_key, api_secret, testnet=use_testnet)
+
+
+def create_mr_client(use_testnet: bool) -> Optional[ExchangeClient]:
     """Client for mean-reversion bot."""
     if DISABLE_BINANCE_CLIENT:
         print("[MR] Binance client disabled (DISABLE_BINANCE_CLIENT=1)")
@@ -71,16 +76,16 @@ def create_mr_client(use_testnet: bool) -> Optional[Client]:
             raise RuntimeError(
                 "BINANCE_TESTNET_API_KEY / BINANCE_TESTNET_API_SECRET must be set for MR bot"
             )
-        return Client(MR_TESTNET_API_KEY, MR_TESTNET_API_SECRET, testnet=True)
+        return _build_client(MR_TESTNET_API_KEY, MR_TESTNET_API_SECRET, True)
     else:
         if not MR_MAINNET_API_KEY or not MR_MAINNET_API_SECRET:
             raise RuntimeError(
                 "BINANCE_MAINNET_API_KEY / BINANCE_MAINNET_API_SECRET must be set for MR bot"
             )
-        return Client(MR_MAINNET_API_KEY, MR_MAINNET_API_SECRET)
+        return _build_client(MR_MAINNET_API_KEY, MR_MAINNET_API_SECRET, False)
 
 
-def create_boll_client(use_testnet: bool) -> Optional[Client]:
+def create_boll_client(use_testnet: bool) -> Optional[ExchangeClient]:
     """
     Client for Bollinger bot (separate sub-account).
 
@@ -100,7 +105,7 @@ def create_boll_client(use_testnet: bool) -> Optional[Client]:
                 "No testnet keys for Bollinger bot "
                 "(BINANCE_BOLL_TESTNET_API_KEY or BINANCE_TESTNET_API_KEY)"
             )
-        return Client(key, sec, testnet=True)
+        return _build_client(key, sec, True)
     else:
         key = BOLL_MAINNET_API_KEY or MR_MAINNET_API_KEY
         sec = BOLL_MAINNET_API_SECRET or MR_MAINNET_API_SECRET
@@ -109,7 +114,7 @@ def create_boll_client(use_testnet: bool) -> Optional[Client]:
                 "No mainnet keys for Bollinger bot "
                 "(BINANCE_BOLL_MAINNET_API_KEY or BINANCE_MAINNET_API_KEY)"
             )
-        return Client(key, sec)
+        return _build_client(key, sec, False)
 
 
 def init_clients() -> None:
